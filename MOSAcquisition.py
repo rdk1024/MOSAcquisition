@@ -31,6 +31,7 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         # initialize some constants
         self.title_font = self.fv.getFont("sansFont", 18)
         self.body_font = self.fv.getFont("sansFont", 10)
+        self.sq_size = 20
 
         # and some attributes
         self.click_history = []
@@ -49,11 +50,12 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
             viewer.set_imap(self.fv.im)
             viewer.set_callback('none_move',self.detailxy)
             viewer.set_bg(0.4, 0.4, 0.4)
+            viewer.set_name("Bob")
             bd = viewer.get_bindings()
             bd.enable_pan(True)
+            bd.enable_zoom(True)
             bd.enable_cuts(True)
             viewer.configure(300,300)
-            self.fitsimage.copy_attributes(viewer, ['transforms','cutlevels','rgbmap'])
             self.thumbnails.append(viewer)
         
         # now set up the ginga.canvas.types.layer.DrawingCanvas self.canvas,
@@ -110,7 +112,7 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         # first, draw a square
         self.canvas.enable_draw(True)
         canvas.draw_start(None, None, x, y, self.fitsimage)
-        canvas.draw_stop(None, None, x+30, y, self.fitsimage)
+        canvas.draw_stop(None, None, x+self.sq_size, y, self.fitsimage)
         self.canvas.enable_draw(False)
         
         # then save this point
@@ -120,9 +122,11 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         # finally, update the smaller pictures
         src_image = self.fitsimage.get_image()
         for viewer in self.thumbnails:
-            x1, y1, x2, y2 = (0,0,30,30)
+            x1, y1, x2, y2 = (x-self.sq_size, y-self.sq_size,
+                              x+self.sq_size, y+self.sq_size)
             cropped_data = src_image.cutout_adjust(x1,y1,x2,y2)[0]
             viewer.set_data(cropped_data)
+            self.fitsimage.copy_attributes(viewer, ['transforms','cutlevels','rgbmap'])
 
 
     def build_gui(self, container):
@@ -188,10 +192,15 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         frm.set_widget(box)
         
         # these are the images we put in the frame
-        for viewer in self.thumbnails:
-            pic = Viewers.GingaViewerWidget(viewer=viewer)
-            pic.resize(300, 300)
-            box.add_widget(pic)
+        row_len = 3
+        for i in range(0, 8, row_len):
+            row = Widgets.HBox()
+            box.add_widget(row)
+            # arrange them in 8/row_len rows of row_len
+            for j in range(i, i+row_len):
+                pic = Viewers.GingaViewerWidget(viewer=self.thumbnails[j])
+                pic.resize(300,300)
+                row.add_widget(pic)
 
         # end is an HBox that comes at the very end, after the rest of the gui
         end = Widgets.HBox()
@@ -261,11 +270,11 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         Called whenever a new image is loaded
         @returns:
             Either True or None...? I don't even...
-        """ #FIXME
-        '''obj = self.canvas.get_object_by_tag(self.ruletag)
-        if obj.kind != 'circle':
-            return True
-        self.canvas.redraw(whence=3)'''
+        """
+        for viewer in self.thumbnails:
+            self.fitsimage.copy_attributes(viewer,
+                                           ['transforms', 'cutlevels',
+                                           'rgbmap'])
 
 
     def __str__(self):
