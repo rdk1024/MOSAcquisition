@@ -31,7 +31,7 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         # initialize some constants
         self.title_font = self.fv.getFont("sansFont", 18)
         self.body_font = self.fv.getFont("sansFont", 10)
-        self.sq_size = 20
+        self.sq_size = 30
 
         # and some attributes
         self.click_history = []
@@ -45,17 +45,6 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
             viewer.enable_autozoom('off')
             viewer.enable_autocuts('off')
             viewer.zoom_to(3)
-            viewer.get_settings().getSetting('zoomlevel').add_callback('set',self.zoomset,viewer)
-            viewer.set_cmap(self.fv.cm)
-            viewer.set_imap(self.fv.im)
-            viewer.set_callback('none_move',self.detailxy)
-            viewer.set_bg(0.4, 0.4, 0.4)
-            viewer.set_name("Bob")
-            bd = viewer.get_bindings()
-            bd.enable_pan(True)
-            bd.enable_zoom(True)
-            bd.enable_cuts(True)
-            viewer.configure(300,300)
             self.thumbnails.append(viewer)
         
         # now set up the ginga.canvas.types.layer.DrawingCanvas self.canvas,
@@ -64,40 +53,14 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         self.canvas = self.dc.DrawingCanvas()
         self.canvas.enable_draw(False)
         self.canvas.set_drawtype('squarebox', color='white') #TODO: find out about different colors
-        self.canvas.set_callback('cursor-down', self.select_point)  # left-click callback
+        self.canvas.set_callback('cursor-down', self.click_cb)  # left-click callback
         self.canvas.set_callback('draw-down', lambda w,x,y,z: self.close()) # right-click callback
         self.canvas.set_surface(self.fitsimage)
         self.canvas.register_for_cursor_drawing(self.fitsimage)
         self.canvas.name = 'MOSA-canvas'
-        
-        
-    def zoomset(self, setting, zoomlevel, fitsimage):   #XXX: do I need this?
-        scalefactor = fitsimage.get_scale()
-        self.logger.debug("scalefactor = %.2f" % (scalefactor))
-        text = self.fv.scale2text(scalefactor)
-        self.wdetail.zoom.set_text(text)
-        
-        
-    def detailxy(self, canvas, button, data_x, data_y): #XXX: this too
-        """Motion event in the pick fits window.  Show the pointing
-        information under the cursor.
-        """
-        if button == 0:
-            # TODO: we could track the focus changes to make this check
-            # more efficient
-            fitsimage = self.fv.getfocus_fitsimage()
-            # Don't update global information if our fitsimage isn't focused
-            if fitsimage != self.fitsimage:
-                return True
-
-            # Add offsets from cutout
-            data_x = data_x + self.pick_x1
-            data_y = data_y + self.pick_y1
-
-            return self.fv.showxy(self.fitsimage, data_x, data_y)
 
 
-    def select_point(self, canvas, event, x, y):
+    def click_cb(self, canvas, event, x, y):
         """
         Resopnds to a click on the screen
         @param canvas:
@@ -109,15 +72,48 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         @param y:
             The y coordiante of the click
         """
+        self.click_index += 1
+        if self.click_index < len(self.click_history):
+            self.click_history[self.click_index] = (x,y)
+        else:
+            self.click_history.append((x,y))
+        self.select_point(self.click_history[self.click_index])
+            
+            
+    def undo_cb(self):
+        """
+        Responds to the undo button by going back one click (if possible)
+        """
+        if self.click_index >= 0:
+            self.click_index -= 1
+        if self.click_index >= 0:
+            self.select_point(self.click_history[self.click_index])
+    
+    
+    def redo_cb(self):
+        """
+        Responds to the redo button by going forward one click (if possible)
+        """
+        if self.click_index < len(self.click_history)-1:
+            self.click_index += 1
+            self.select_point(self.click_history[self.click_index])
+    
+    
+    def select_point(self, point):
+        """
+        Sets a point as the current location of star #1,
+        draws squares where it thinks all the stars are accordingly,
+        and updates all thumbnails.
+        @param point:
+            An int tuple containing the location of star #1
+        """
+        x, y = point
+        
         # first, draw a square
         self.canvas.enable_draw(True)
-        canvas.draw_start(None, None, x, y, self.fitsimage)
-        canvas.draw_stop(None, None, x+self.sq_size, y, self.fitsimage)
+        self.canvas.draw_start(None, None, x, y, self.fitsimage)
+        self.canvas.draw_stop(None, None, x+self.sq_size, y, self.fitsimage)
         self.canvas.enable_draw(False)
-        
-        # then save this point
-        self.click_history.append((x,y))
-        self.click_index += 1
         
         # finally, update the smaller pictures
         src_image = self.fitsimage.get_image()
@@ -166,41 +162,48 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
 
         # the undo button goes back a step
         btn = Widgets.Button("Undo")
-        #TODO
+        btn.add_callback('activated', lambda w: self.undo_cb())
+        btn.set_tooltip("Undo a single click (if a click took place)")
         box.add_widget(btn)
 
         # the redo button goes forward
         btn = Widgets.Button("Redo")
-        #TODO
+        btn.add_callback('activated', lambda w: self.redo_cb())
+        btn.set_tooltip("Undo an undo action (if an undo action took place)")
         box.add_widget(btn)
 
         # the clear button erases the canvas
         btn = Widgets.Button("Clear")
         btn.add_callback('activated', lambda w: self.canvas.delete_all_objects())
+        btn.set_tooltip("Erase all marks on the canvas")
         box.add_widget(btn)
         
         # the next button moves on to step 2
         btn = Widgets.Button("Next")
         btn.add_callback('activated', lambda w: self.close())
+        btn.set_tooltip("Accept and proceed to step 2")
         box.add_widget(btn)
         
-        # lastly, we need the zoomed-in images
+        # lastly, we need the zoomed-in images. This is the frame we put them in
         frm = Widgets.Frame()
         gui.add_widget(frm)
         box = Widgets.VBox()
-        box.set_spacing(3)
+        box.set_spacing(2)
         frm.set_widget(box)
         
         # these are the images we put in the frame
-        row_len = 3
-        for i in range(0, 8, row_len):
+        row_len = 2 # number in each row
+        num_img = 8 # total number of alignment stars
+        for i in range(0, num_img, row_len):
             row = Widgets.HBox()
+            row.set_spacing(2)
             box.add_widget(row)
             # arrange them in 8/row_len rows of row_len
             for j in range(i, i+row_len):
-                pic = Viewers.GingaViewerWidget(viewer=self.thumbnails[j])
-                pic.resize(300,300)
-                row.add_widget(pic)
+                if j < num_img:
+                    pic = Viewers.GingaViewerWidget(viewer=self.thumbnails[j])
+                    pic.resize(300,300)
+                    row.add_widget(pic)
 
         # end is an HBox that comes at the very end, after the rest of the gui
         end = Widgets.HBox()
