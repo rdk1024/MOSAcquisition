@@ -12,7 +12,7 @@ from ginga import GingaPlugin
 from ginga.gw import Widgets, Viewers
 
 # third-party imports
-import astroplan
+
 
 class MESOffset1(GingaPlugin.LocalPlugin):
 
@@ -69,7 +69,6 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.dc = fv.getDrawClasses()
         self.canvas = self.dc.DrawingCanvas()
         self.canvas.enable_draw(False)
-        self.canvas.set_drawtype('squarebox')
         self.canvas.set_callback('cursor-down', self.click_cb)  # left-click callback
         self.canvas.set_callback('draw-down', lambda w,x,y,z: self.close()) # right-click callback
         self.canvas.set_surface(self.fitsimage)
@@ -128,13 +127,17 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         x, y = point
         src_image = self.fitsimage.get_image()
         self.canvas.enable_draw(True)
-        self.canvas.set_drawcolor(self.colors[self.click_index%len(self.colors)])   # cycles through all the colors
+        color = self.colors[self.click_index%len(self.colors)]   # cycles through all the colors
         for i, viewer in enumerate(self.thumbnails):
             dx, dy = self.star_list[i]
         
-            # first, draw a square
-            self.canvas.draw_start(None, None, x+dx, y+dy, self.fitsimage)
-            self.canvas.draw_stop(None, None, x+self.sq_size+dx, y+dy, self.fitsimage)
+            # first, draw squares and numbers
+            self.canvas.add(self.dc.CompoundObject(
+                                self.dc.SquareBox(x+dx-self.sq_size+1, y+dy,
+                                                  self.sq_size,
+                                                  color=color),
+                                self.dc.Text(x+dx, y+dy, str(i+1),
+                                             color=color)))
 
             # then, update the little pictures
             x1, y1, x2, y2 = (x-self.sq_size+dx, y-self.sq_size+dy,
@@ -252,11 +255,17 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         Called when the plugin is invoked, right after build_gui()
         """
+        # stick our own canvas on top of the fitsimage canvas
         p_canvas = self.fitsimage.get_canvas()
         if not p_canvas.has_object(self.canvas):
-            p_canvas.add(self.canvas, tag='leedle leedle leedle lee')
-
+            p_canvas.add(self.canvas, tag='main-canvas')
+        
+        # clear the canvas
         self.canvas.delete_all_objects()
+        
+        # automatically select the first point and start
+        #if len(self.click_history) == 0:
+        self.click_cb(None, None, *self.star0)
         self.resume()
 
 
@@ -272,7 +281,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         Called when the plugin is refocused
         """
         self.canvas.ui_setActive(True)
-        self.fv.showStatus("Draw a ruler with the right mouse button")
+        self.fv.showStatus("Locate the star labeled '1' by clicking.")
 
 
     def stop(self):
@@ -281,7 +290,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         p_canvas = self.fitsimage.get_canvas()
         try:
-            p_canvas.delete_object_by_tag('leedle leedle leedle lee')
+            p_canvas.delete_object_by_tag('main-canvas')
         except:
             pass
         self.canvas.ui_setActive(False)
@@ -292,6 +301,8 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         Called whenever a new image is loaded
         """
+        # if this is the first image to be loaded, automatically
+        # select the default (uncalibrated) star position
         pass
 
 
