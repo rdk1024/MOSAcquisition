@@ -169,6 +169,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         # start by creating the container
         gui = Widgets.Box(orientation=orientation)
+        gui.set_spacing(4)
         
         # create a label to title this step
         lbl = Widgets.Label("Step 1")
@@ -182,8 +183,8 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         txt.set_font(self.body_font)
         txt.set_text("Left click on the star labeled '#1'. The other stars "+
                      "should appear in the boxes below. Click again to select "+
-                     "another position. Click 'Next' when you are satisfied "+
-                     "with your location.")
+                     "another position. Click 'Next' below or right-click "+
+                     "when you are satisfied with your location.")
         exp.set_widget(txt)
 
         # create a box to group the control buttons together
@@ -191,7 +192,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         box.set_spacing(3)
         gui.add_widget(box)
 
-        # the undo button goes back a step
+        # the undo button goes back a click
         btn = Widgets.Button("Undo")
         btn.add_callback('activated', self.undo_cb)
         btn.set_tooltip("Undo a single click (if a click took place)")
@@ -230,6 +231,8 @@ class MESOffset1(GingaPlugin.LocalPlugin):
                     pic = Viewers.GingaViewerWidget(viewer=self.thumbnails[i])
                     grd.add_widget(pic, row, col)
         
+        # space gui appropriately and return it
+        gui.add_widget(Widgets.Label(""), stretch=1)
         return gui
         
         
@@ -243,6 +246,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         # start by creating the container
         gui = Widgets.Box(orientation=orientation)
+        gui.set_spacing(4)
         
         # create a label to title this step
         lbl = Widgets.Label("Step 2")
@@ -255,11 +259,57 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         txt = Widgets.TextArea(wrap=True, editable=False)
         txt.set_font(self.body_font)
         txt.set_text("Click and drag to include or exclude regions; "+
-                     "left-click will crop to selection, right or "+
-                     "middle-click will omit. Click 'Next' below to proceed "+
-                     "to the next star.")
+                     "left-click will crop to selection and middle-click will "+
+                     "mask selection, or you can specify a selection option "+
+                     "below. Click 'Next' below or right-click to proceed to "+
+                     "the next star.")
         exp.set_widget(txt)
         
+        # now make an HBox to hold the main controls
+        box = Widgets.HBox()
+        box.set_spacing(3)
+        gui.add_widget(box)
+        
+        # the undo button goes back a crop
+        btn = Widgets.Button("Undo")
+        btn.add_callback('activated', self.undo_cb)
+        btn.set_tooltip("Undo a single click (if a click took place)")
+        box.add_widget(btn)
+
+        # the redo button goes forward
+        btn = Widgets.Button("Redo")
+        btn.add_callback('activated', self.redo_cb)
+        btn.set_tooltip("Undo an undo action (if an undo action took place)")
+        box.add_widget(btn)
+
+        # the clear button nullifies all crops
+        btn = Widgets.Button("Clear")
+        btn.add_callback('activated', lambda w: self.canvas.delete_all_objects())
+        btn.set_tooltip("Erase all marks on the canvas")
+        box.add_widget(btn)
+        
+        # the next button moves on to the next star
+        btn = Widgets.Button("Next")
+        btn.add_callback('activated', self.next_cb)
+        btn.set_tooltip("Accept and proceed to step 2")
+        box.add_widget(btn)
+        
+        # make a box for a combobox+label combo
+        box = Widgets.VBox()
+        box.set_spacing(3)
+        gui.add_widget(box)
+        lbl = Widgets.Label("Selection Mode:")
+        box.add_widget(lbl)
+        
+        # last is the combobox of selection options
+        com = Widgets.ComboBox()
+        com.append_text("Automatic")
+        com.append_text("Star Region")
+        com.append_text("Mask Region")
+        box.add_widget(com)
+        
+        # space gui appropriately and return it
+        gui.add_widget(Widgets.Label(""), stretch=1)
         return gui
 
 
@@ -272,7 +322,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         # create the outer Box that will hold the stack of GUIs and close button
         out, out_wrapper, orientation = Widgets.get_oriented_box(container)
         out.set_border_width(4)
-        out.set_spacing
+        out.set_spacing(3)
         container.add_widget(out_wrapper)
         
         # the rest depends on which step we are on
