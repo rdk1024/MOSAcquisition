@@ -32,6 +32,7 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         self.title_font = self.fv.getFont("sansFont", 18)
         self.body_font = self.fv.getFont("sansFont", 10)
         self.sq_size = 30
+        self.colors = ('green','red','blue','yellow','magenta','cyan','orange')
 
         # and some attributes
         self.click_history = []
@@ -60,9 +61,6 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         for i in range(len(self.star_list)):
             viewer = Viewers.CanvasView(logger=self.logger)
             viewer.set_desired_size(400,400)
-            viewer.enable_autozoom('off')
-            viewer.enable_autocuts('off')
-            viewer.zoom_to(3)
             self.thumbnails.append(viewer)
         
         # now set up the ginga.canvas.types.layer.DrawingCanvas self.canvas,
@@ -70,7 +68,7 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         self.dc = fv.getDrawClasses()
         self.canvas = self.dc.DrawingCanvas()
         self.canvas.enable_draw(False)
-        self.canvas.set_drawtype('squarebox', color='green') #TODO: find out about different colors
+        self.canvas.set_drawtype('squarebox')
         self.canvas.set_callback('cursor-down', self.click_cb)  # left-click callback
         self.canvas.set_callback('draw-down', lambda w,x,y,z: self.close()) # right-click callback
         self.canvas.set_surface(self.fitsimage)
@@ -129,6 +127,7 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         x, y = point
         src_image = self.fitsimage.get_image()
         self.canvas.enable_draw(True)
+        self.canvas.set_drawcolor(self.colors[self.click_index%len(self.colors)])   # cycles through all the colors
         for i, viewer in enumerate(self.thumbnails):
             dx, dy = self.star_list[i]
         
@@ -166,15 +165,17 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         out.add_widget(gui_wrapper)
         
         # create a label to title this step
-        lbl = Widgets.Label("Step 1:")
+        lbl = Widgets.Label("Step 1")
         lbl.set_font(self.title_font)
         gui.add_widget(lbl)
 
-        # fill a text box with brief instructions
+        # fill a text box with brief instructions and put in in an expander
+        exp = Widgets.Expander(title="Instructions")
+        gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
         txt.set_font(self.body_font)
         txt.set_text("Left click on the star labeled '#1'. The other stars should appear in the boxes below. Click again to select another position. Click 'Next' when you are satisfied with your location.")
-        gui.add_widget(txt)
+        exp.set_widget(txt)
 
         # create a box to group the controls together
         box = Widgets.HBox()
@@ -205,26 +206,20 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         btn.set_tooltip("Accept and proceed to step 2")
         box.add_widget(btn)
         
-        # lastly, we need the zoomed-in images. This is the frame we put them in
-        frm = Widgets.Frame()
-        gui.add_widget(frm)
-        box = Widgets.VBox()
-        box.set_spacing(2)
-        frm.set_widget(box)
-        
-        # these are the images we put in the frame
-        row_len = 3                     # number in each row
+        # lastly, we need the zoomed-in images. This is the grid we put them in
         num_img = len(self.star_list)   # total number of alignment stars
-        for i in range(0, num_img, row_len):
-            row = Widgets.HBox()
-            row.set_spacing(2)
-            box.add_widget(row)
-            # arrange them in len(self.star_list)/row_len rows of row_len boxes
-            for j in range(i, i+row_len):
-                if j < num_img:
-                    pic = Viewers.GingaViewerWidget(viewer=self.thumbnails[j])
-                    pic.resize(400,400)
-                    row.add_widget(pic)
+        columns = 2                       # pictures in each row
+        rows = int(math.ceil(float(num_img)/columns))
+        grd = Widgets.GridBox(rows=rows, columns=columns)
+        gui.add_widget(grd)
+        
+        # these are the images we put in the grid
+        for row in range(0, rows):
+            for col in range(0, columns):
+                i = row*columns + col
+                if i < num_img:
+                    pic = Viewers.GingaViewerWidget(viewer=self.thumbnails[i])
+                    grd.add_widget(pic, row, col)
 
         # end is an HBox that comes at the very end, after the rest of the gui
         end = Widgets.HBox()
