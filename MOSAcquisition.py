@@ -18,11 +18,11 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
 
     def __init__(self, fv, fitsimage):
         """
-        class constructor
+        Class constructor
         @param fv:
-            a reference to the GingaShell object (reference viewer)
+            A reference to the GingaShell object (reference viewer)
         @param fitsimage:
-            a reference to the specific ImageViewCanvas object associated with the channel
+            A reference to the specific ImageViewCanvas object associated with the channel
             on which the plugin is being invoked
         """
         # superclass constructor defines self.fv, self.fitsimage, and self.logger
@@ -36,12 +36,30 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         # and some attributes
         self.click_history = []
         self.click_index = -1
-        
+
+        # read the given SBR file to get the star positions
+        self.star_list = []
+        self.star0 = None
+        sbr = open("sf_a1689final.sbr", 'r')
+        line = sbr.readline()
+        while line != "":
+            # for each line, get the important values and save them in star_list
+            vals = [word.strip(" \n") for word in line.split(",")]
+            if vals[0] == "C":
+                newX, newY = imgXY_from_sbrXY((vals[1], vals[2]))
+                if self.star0 == None:
+                    self.star_list.append((0, 0))
+                    self.star0 = (newX, newY)
+                else:
+                    self.star_list.append((newX-self.star0[0],   # don't forget to shift it so star #0 is at the origin
+                                           newY-self.star0[1]))
+            line = sbr.readline()
+            
         # create the list of thumbnails that will go in the GUI
         self.thumbnails = []
-        for i in range(8):
+        for i in range(len(self.star_list)):
             viewer = Viewers.CanvasView(logger=self.logger)
-            viewer.set_desired_size(300,300)
+            viewer.set_desired_size(400,400)
             viewer.enable_autozoom('off')
             viewer.enable_autocuts('off')
             viewer.zoom_to(3)
@@ -52,7 +70,7 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         self.dc = fv.getDrawClasses()
         self.canvas = self.dc.DrawingCanvas()
         self.canvas.enable_draw(False)
-        self.canvas.set_drawtype('squarebox', color='white') #TODO: find out about different colors
+        self.canvas.set_drawtype('squarebox', color='green') #TODO: find out about different colors
         self.canvas.set_callback('cursor-down', self.click_cb)  # left-click callback
         self.canvas.set_callback('draw-down', lambda w,x,y,z: self.close()) # right-click callback
         self.canvas.set_surface(self.fitsimage)
@@ -62,7 +80,7 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
 
     def click_cb(self, canvas, event, x, y):
         """
-        Resopnds to a click on the screen
+        Responds to a click on the screen
         @param canvas:
             The DrawingCanvas object that called this method
         @param event:
@@ -107,29 +125,32 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         @param point:
             An int tuple containing the location of star #1
         """
+        # define some variables before iterationg through the stars
         x, y = point
-        
-        # first, draw a square
-        self.canvas.enable_draw(True)
-        self.canvas.draw_start(None, None, x, y, self.fitsimage)
-        self.canvas.draw_stop(None, None, x+self.sq_size, y, self.fitsimage)
-        self.canvas.enable_draw(False)
-        
-        # finally, update the smaller pictures
         src_image = self.fitsimage.get_image()
-        for viewer in self.thumbnails:
-            x1, y1, x2, y2 = (x-self.sq_size, y-self.sq_size,
-                              x+self.sq_size, y+self.sq_size)
+        self.canvas.enable_draw(True)
+        for i, viewer in enumerate(self.thumbnails):
+            dx, dy = self.star_list[i]
+        
+            # first, draw a square
+            self.canvas.draw_start(None, None, x+dx, y+dy, self.fitsimage)
+            self.canvas.draw_stop(None, None, x+self.sq_size+dx, y+dy, self.fitsimage)
+
+            # then, update the little pictures
+            x1, y1, x2, y2 = (x-self.sq_size+dx, y-self.sq_size+dy,
+                              x+self.sq_size+dx, y+self.sq_size+dy)
             cropped_data = src_image.cutout_adjust(x1,y1,x2,y2)[0]
             viewer.set_data(cropped_data)
             self.fitsimage.copy_attributes(viewer, ['transforms','cutlevels','rgbmap'])
+            
+        self.canvas.enable_draw(False)
 
 
     def build_gui(self, container):
         """
         Called when the plugin is invoked; setus up all the components of the GUI
         @param container:
-            the widget.VBox this GUI will be added into
+            The widget.VBox this GUI will be added into
         """
         # create the outer VBox that will hold everything else
         out = Widgets.VBox()
@@ -192,17 +213,17 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
         frm.set_widget(box)
         
         # these are the images we put in the frame
-        row_len = 2 # number in each row
-        num_img = 8 # total number of alignment stars
+        row_len = 3                     # number in each row
+        num_img = len(self.star_list)   # total number of alignment stars
         for i in range(0, num_img, row_len):
             row = Widgets.HBox()
             row.set_spacing(2)
             box.add_widget(row)
-            # arrange them in 8/row_len rows of row_len
+            # arrange them in len(self.star_list)/row_len rows of row_len boxes
             for j in range(i, i+row_len):
                 if j < num_img:
                     pic = Viewers.GingaViewerWidget(viewer=self.thumbnails[j])
-                    pic.resize(300,300)
+                    pic.resize(400,400)
                     row.add_widget(pic)
 
         # end is an HBox that comes at the very end, after the rest of the gui
@@ -271,17 +292,36 @@ class MOSAcquisition(GingaPlugin.LocalPlugin):
     def redo(self):
         """
         Called whenever a new image is loaded
-        @returns:
-            Either True or None...? I don't even...
         """
-        for viewer in self.thumbnails:
-            self.fitsimage.copy_attributes(viewer,
-                                           ['transforms', 'cutlevels',
-                                           'rgbmap'])
+       # for viewer in self.thumbnails:
+       #     self.fitsimage.copy_attributes(viewer,
+       #                                    ['transforms', 'cutlevels',
+       #                                    'rgbmap'])
+        pass
 
 
     def __str__(self):
         return "MOSAcquisition"
+        
+        
+
+def imgXY_from_sbrXY(sbr_coords):
+    """
+    Converts coordinates from the SBR file to coordinates
+    compatible with FITS files
+    @param sbr_coords:
+        A string or float tuple of x and y read from *.sbr
+    @returns:
+        A float tuple of x amd u that will work with the rest of Ginga
+    """
+    # I'm sorry; I have no idea what any of this math is.
+    sbrX, sbrY = sbr_coords
+    fX = 1078.0 - float(sbrX)*17.57789
+    fY = 1857.0 + float(sbrY)*17.57789
+    SBRROT = 0  #XXX: What the heck is SBRROT?!
+    fHoleX = 365.0 + (fX-300.0)*math.cos(SBRROT) - (fY-2660.0)*math.sin(SBRROT)
+    fHoleY = 2580.0 + (fX-300.0)*math.sin(SBRROT) + (fY-2660.0)*math.cos(SBRROT)
+    return (fHoleX, fHoleY)
 
 #END
 
