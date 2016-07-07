@@ -42,6 +42,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.body_font = self.fv.getFont('sansFont', 10)
         self.sq_size = 30
         self.colors = ('green','red','blue','yellow','magenta','cyan','orange')
+        self.selection_modes = ("Automatic", "Star", "Mask")
 
         # and some attributes
         self.click_history = [] # places we've clicked
@@ -62,15 +63,14 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.canvas.register_for_cursor_drawing(self.fitsimage)
         self.canvas.name = 'MOSA-canvas'
         
-        self.fitsimage.get_bindings().get_settings().addSettings(ms_panset='potato')
-        print "Name of the game is",self.fitsimage.get_bindings().get_settings().name
-        
-        print self.fv.get_preferences().getSettings('bindings').getSetting('ms_panset')
         
         
-    def set_callbacks(self):
+    def set_callbacks(self, selection_mode="Automatic"):
         """
         Assigns all necessary callbacks to the canvas for the current step
+        @param selection_mode:
+            Either 'Automatic', 'Star', or 'Mask'. It decides what happens
+            when we click and drag
         """
         canvas = self.canvas
         step = self.get_step()
@@ -87,10 +87,18 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         
         # for step two, you need callbacks for left-drag and middle-drag, too
         elif step == 2:
-            canvas.add_callback('cursor-down', self.start_select_star_cb)
-            canvas.add_callback('cursor-up', self.end_select_star_cb)
-            canvas.add_callback('panset-down', self.start_select_mask_cb)
-            canvas.add_callback('panset-up', self.end_select_mask_cb)
+            if selection_mode == "Mask":
+                canvas.add_callback('cursor-down', self.start_select_mask_cb)
+                canvas.add_callback('cursor-up', self.end_select_mask_cb)
+            else:
+                canvas.add_callback('cursor-down', self.start_select_star_cb)
+                canvas.add_callback('cursor-up', self.end_select_star_cb)
+            if selection_mode == "Star":
+                canvas.add_callback('panset-down', self.start_select_star_cb)
+                canvas.add_callback('panset-up', self.end_select_star_cb)
+            else:
+                canvas.add_callback('panset-down', self.start_select_mask_cb)
+                canvas.add_callback('panset-up', self.end_select_mask_cb)
             canvas.add_callback('draw-up', self.next_star_cb)
     
     
@@ -98,7 +106,6 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         Responds to next button or right click by proceeding to the next step
         """
-        print self.fitsimage.get_bindings().get_settings().getSetting('ms_panset')
         self.stack.set_index(self.get_step())
         self.fv.showStatus("Crop each star image by clicking and dragging")
         self.set_callbacks()
@@ -146,12 +153,15 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             An int corresponding to the x coordinate of where the click happened
         @param y:
             An int corresponding to the y coordinate of where the click happened
+        @returns:
+            True, in order to cancel the panset callback that comes after it
         """
         # enable drawing and then start drawing
         self.canvas.enable_draw(True)
         self.canvas.set_drawtype(drawtype='rectangle', color='white',
                                  fill=False)
         self.canvas.draw_start(self.canvas, 1, x, y, self.fitsimage)
+        return True
         
         
     def start_select_mask_cb(self, _, __, x, y):
@@ -216,6 +226,14 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         if self.click_index < len(self.click_history)-1:
             self.click_index += 1
             self.select_point(self.click_history[self.click_index])
+            
+            
+    def choose_select_cb(self, _, mode_idx):
+        """
+        Keeps track of our selection mode as determined by the combobox
+        """
+        # update the callbacks to account for this new mode
+        self.set_callbacks(selection_mode=self.selection_modes[mode_idx])
     
     
     def select_point(self, point):
@@ -422,9 +440,9 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         
         # last is the combobox of selection options
         com = Widgets.ComboBox()
-        com.append_text("Automatic")
-        com.append_text("Star Region")
-        com.append_text("Mask Region")
+        for text in self.selection_modes:
+            com.append_text(text)
+        com.add_callback('activated', self.choose_select_cb)
         box.add_widget(com)
         
         # space gui appropriately and return it
