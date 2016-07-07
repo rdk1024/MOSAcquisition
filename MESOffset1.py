@@ -57,69 +57,36 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.dc = fv.getDrawClasses()
         self.canvas = self.dc.DrawingCanvas()
         self.canvas.enable_draw(False)
-        self.canvas.add_callback('button-press', self.press_cb)  # press callback
-        self.canvas.add_callback('button-release', self.release_cb)  # release callback
+        self.set_callbacks()
         self.canvas.set_surface(self.fitsimage)
         self.canvas.register_for_cursor_drawing(self.fitsimage)
         self.canvas.name = 'MOSA-canvas'
-
-
-    def press_cb(self, *args, **kwdargs):
+        
+        
+    def set_callbacks(self):
         """
-        interprets all 'button-press' events and redirects
-        to the appropriate callback method
-        @param args:
-            The arguments passed in by whatever calls this callback. We only
-            care about args[1], the int that specifies which button(s)
-            was/were pressed
-        @param kwdargs:
-            I don't know if this will ever have a value, and I really don't care
+        Assigns all necessary callbacks to the canvas for the current step
         """
-        event = args[1]
+        canvas = self.canvas
         step = self.get_step()
         
-        if step == 1:   # if we are on step 1
-            if event&1:     # if the event contains 1 (left click)
-                self.click1_cb(*args, **kwdargs)
-            if event&2:   # if the event contains 2 (middle click)
-                pass
-            if event&4:   # if the event contains 4 (right click)
-                self.step2_cb(*args, **kwdargs)
-        elif step == 2: # if we are on step 2
-            if event&1:     # if the event contains 1 (left click)
-                self.start_select_star_cb(*args, **kwdargs)
-            if event&2:   # if the event contains 2 (middle click)
-                self.start_select_mask_cb(*args, **kwdargs)
-            if event&4:   # if the event contains 4 (right click)
-                self.next_star_cb(*args, **kwdargs)
-    
-    
-    def release_cb(self, *args, **kwdargs):
-        """
-        interprets all 'button-release' events and redirects
-        to the appropriate callback method
-        @param args:
-            The arguments passed in by whatever calls this callback. We only
-            care about args[1], the int that specifies which button(s)
-            was/were pressed
-        @param kwdargs:
-            I don't know if this will ever have a value, and I really don't care
-        """
-        event = args[1]
-        step = self.get_step()
+        # clear all existing callbacks first
+        for cb in ('cursor-down', 'cursor-up',
+                    'draw-down', 'draw-up', 'panset-up'):
+            canvas.clear_callback(cb)
         
-        if step == 1:   # if we are on step 1
-            if event&1:     # if the event contains 1 (left click)
-                pass
-            if event&2:   # if the event contains 2 (middle click)
-                pass
-            if event&4:   # if the event contains 4 (right click)
-                pass
-        elif step == 2: # if we are on step 2
-            if event&1:     # if the event contains 1 (left click)
-                self.end_select_star_cb(*args, **kwdargs)
-            if event&2:   # if the event contains 2 (middle click)
-                self.end_select_mask_cb(*args, **kwdargs)
+        # for step one, the only callbacks are for right-click and left-click
+        if step == 1:
+            canvas.add_callback('cursor-up', self.click1_cb)
+            canvas.add_callback('panset-up', self.step2_cb)
+        
+        # for step two, you need callbacks for left-drag and middle-drag, too
+        elif step == 2:
+            canvas.add_callback('cursor-down', self.start_select_star_cb)
+            canvas.add_callback('cursor-up', self.end_select_star_cb)
+            canvas.add_callback('draw-down', self.start_select_mask_cb)
+            canvas.add_callback('draw-up', self.end_select_mask_cb)
+            canvas.add_callback('panset-up', self.next_star_cb)
     
     
     def step2_cb(self, _, __=None, ___=None, ____=None):
@@ -128,7 +95,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         self.stack.set_index(self.get_step())
         self.fv.showStatus("Crop each star image by clicking and dragging")
-        self.canvas.set_drawtype('rectangle', color='black')
+        self.set_callbacks()
         self.zoom_in_on_current_star()
         
     
@@ -169,7 +136,6 @@ class MESOffset1(GingaPlugin.LocalPlugin):
     def start_select_star_cb(self, _, __, x, y):
         """
         Responds to the mouse starting a left-drag by starting to select a star
-        an area
         @param x:
             An int corresponding to the x coordinate of where the click happened
         @param y:
@@ -177,25 +143,29 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         # enable drawing and then start drawing
         self.canvas.enable_draw(True)
+        self.canvas.set_drawtype(drawtype='rectangle', color='white',
+                                 fill=False)
         self.canvas.draw_start(self.canvas, 1, x, y, self.fitsimage)
         
         
     def start_select_mask_cb(self, _, __, x, y):
         """
         Responds to the mouse starting a middle-drag by starting to mask a star
-        an area
         @param x:
             An int corresponding to the x coordinate of where the click happened
         @param y:
             An int corresponding to the y coordinate of where the click happened
         """
-        pass
+        # enable drawing and then start drawing
+        self.canvas.enable_draw(True)
+        self.canvas.set_drawtype(drawtype='rectangle', color='white',
+                                 fill=True, fillcolor='black')
+        self.canvas.draw_start(self.canvas, 1, x, y, self.fitsimage)
         
         
     def end_select_star_cb(self, _, __, x, y):
         """
         Responds to the mouse finishing a left-drag by finalizing star selection
-        an area
         @param x:
             An int corresponding to the x coordinate of where the click happened
         @param y:
@@ -209,13 +179,14 @@ class MESOffset1(GingaPlugin.LocalPlugin):
     def end_select_mask_cb(self, _, __, x, y):
         """
         Responds to the mouse finishing a middle-drag by finalizing star mask
-        an area
         @param x:
             An int corresponding to the x coordinate of where the click happened
         @param y:
             An int corresponding to the y coordinate of where the click happened
         """
-        pass
+        # finish the drawing and then make sure it becomes disabled again
+        self.canvas.draw_stop(self.canvas, 1, x, y, self.fitsimage)
+        self.canvas.enable_draw(False)
             
             
     def undo1_cb(self, _):
@@ -292,7 +263,10 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         @returns:
             An int: 1 for step 1 and 2 for step 2
         """
-        return self.stack.get_index()+1
+        try:
+            return self.stack.get_index()+1
+        except AttributeError:
+            return 1
         
         
     def make_gui1(self, orientation='vertical'):
@@ -409,7 +383,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         # the undo button goes back a crop
         btn = Widgets.Button("Undo")
         btn.add_callback('activated', self.undo1_cb)
-        btn.set_tooltip("Undo a single click (if a click took place)")
+        btn.set_tooltip("Undo a single selection (if a selection took place)")
         box.add_widget(btn)
 
         # the redo button goes forward
@@ -419,15 +393,15 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         box.add_widget(btn)
 
         # the clear button nullifies all crops
-        btn = Widgets.Button("Clear")
+        btn = Widgets.Button("Back")
         btn.add_callback('activated', lambda w: self.canvas.delete_all_objects())
-        btn.set_tooltip("Erase all marks on the canvas")
+        btn.set_tooltip("Go back to the previous star")
         box.add_widget(btn)
         
         # the next button moves on to the next star
         btn = Widgets.Button("Next")
         btn.add_callback('activated', self.next_star_cb)
-        btn.set_tooltip("Accept and proceed to step 2")
+        btn.set_tooltip("Accept and proceed to the next star")
         box.add_widget(btn)
         
         # make a box for a combobox+label combo
@@ -505,7 +479,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         
         # automatically select the first point and start
         self.resume()
-        self.press_cb(self.canvas, 1, *self.star0)
+        self.click1_cb(self.canvas, 1, *self.star0)
 
 
     def pause(self):
