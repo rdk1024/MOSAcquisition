@@ -62,6 +62,11 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.canvas.register_for_cursor_drawing(self.fitsimage)
         self.canvas.name = 'MOSA-canvas'
         
+        self.fitsimage.get_bindings().get_settings().addSettings(ms_panset='potato')
+        print "Name of the game is",self.fitsimage.get_bindings().get_settings().name
+        
+        print self.fv.get_preferences().getSettings('bindings').getSetting('ms_panset')
+        
         
     def set_callbacks(self):
         """
@@ -72,27 +77,28 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         
         # clear all existing callbacks first
         for cb in ('cursor-down', 'cursor-up',
-                    'draw-down', 'draw-up', 'panset-up'):
+                    'panset-down', 'panset-up', 'draw-up'):
             canvas.clear_callback(cb)
         
         # for step one, the only callbacks are for right-click and left-click
         if step == 1:
             canvas.add_callback('cursor-up', self.click1_cb)
-            canvas.add_callback('panset-up', self.step2_cb)
+            canvas.add_callback('draw-up', self.step2_cb)
         
         # for step two, you need callbacks for left-drag and middle-drag, too
         elif step == 2:
             canvas.add_callback('cursor-down', self.start_select_star_cb)
             canvas.add_callback('cursor-up', self.end_select_star_cb)
-            canvas.add_callback('draw-down', self.start_select_mask_cb)
-            canvas.add_callback('draw-up', self.end_select_mask_cb)
-            canvas.add_callback('panset-up', self.next_star_cb)
+            canvas.add_callback('panset-down', self.start_select_mask_cb)
+            canvas.add_callback('panset-up', self.end_select_mask_cb)
+            canvas.add_callback('draw-up', self.next_star_cb)
     
     
     def step2_cb(self, _, __=None, ___=None, ____=None):
         """
         Responds to next button or right click by proceeding to the next step
         """
+        print self.fitsimage.get_bindings().get_settings().getSetting('ms_panset')
         self.stack.set_index(self.get_step())
         self.fv.showStatus("Crop each star image by clicking and dragging")
         self.set_callbacks()
@@ -155,12 +161,15 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             An int corresponding to the x coordinate of where the click happened
         @param y:
             An int corresponding to the y coordinate of where the click happened
+        @returns:
+            True, in order to cancel the panset callback that comes after it
         """
         # enable drawing and then start drawing
         self.canvas.enable_draw(True)
         self.canvas.set_drawtype(drawtype='rectangle', color='white',
                                  fill=True, fillcolor='black')
         self.canvas.draw_start(self.canvas, 1, x, y, self.fitsimage)
+        return True
         
         
     def end_select_star_cb(self, _, __, x, y):
