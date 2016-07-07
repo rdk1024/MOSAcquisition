@@ -73,12 +73,8 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.fv.showStatus("Crop each star image by clicking and dragging")
         self.canvas.clear_callback('draw-down')
         self.canvas.set_callback('draw-down', self.next_star_cb)
-        
-        # save the current location for later
-        self.current_loc = self.fitsimage.get_reference_pt()
         self.zoom_in_on_current_star()
         
-    
     
     def next_star_cb(self, _, __=None, ___=None, ____=None):
         """
@@ -87,8 +83,8 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         # if there is no next star, finish up
         self.current_star += 1
         if self.current_star >= len(self.star_list):
-            self.fitsimage.move_to(*self.current_loc)
-            self.fitsimage.zoom_to(1)
+            self.fitsimage.center_image()
+            self.fitsimage.zoom_fit()
             self.close()
             return
             
@@ -180,8 +176,8 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         offsetX, offsetY = self.star_list[self.current_star]
         
         # then move and zoom
-        self.fitsimage.move_to(finalX + offsetX, finalY + offsetY)
-        self.fitsimage.zoom_to(2)
+        self.fitsimage.set_pan(finalX + offsetX, finalY + offsetY)
+        self.fitsimage.zoom_to(4)
         
         
     def make_gui1(self, orientation='vertical'):
