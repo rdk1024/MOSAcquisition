@@ -10,60 +10,47 @@ import math
 # ginga imports
 from ginga import GingaPlugin
 from ginga.gw import Widgets, Viewers
+from ginga.RGBImage import RGBImage
 
 # third-party imports
+import numpy as np
+
 
 
 class MESOffset1(GingaPlugin.LocalPlugin):
-
+    """
+    A custom LocalPlugin for ginga that locates a set of calibration stars,
+    asks for users to help locate anomolies and artifacts on its images
+    of those stars, and then calculates their centers of masses. Intended
+    for use as part of the MOS Acquisition software for aligning MOIRCS.
+    """
     def __init__(self, fv, fitsimage):
         """
         Class constructor
         @param fv:
-            A reference to the GingaShell object (reference viewer)
+            A reference to the ginga.main.GingaShell object (reference viewer)
         @param fitsimage:
-            A reference to the specific ImageViewCanvas object associated with the channel
-            on which the plugin is being invoked
+            A reference to the specific ginga.qtw.ImageViewCanvas object
+            associated with the channel on which the plugin is being invoked
         """
         # superclass constructor defines self.fv, self.fitsimage, and self.logger
         super(MESOffset1, self).__init__(fv, fitsimage)
+        fv.set_titlebar("MES Offset 1")
 
         # initialize some constants
-        self.title_font = self.fv.getFont("sansFont", 18)
-        self.body_font = self.fv.getFont("sansFont", 10)
+        self.title_font = self.fv.getFont('sansFont', 18)
+        self.body_font = self.fv.getFont('sansFont', 10)
         self.sq_size = 30
         self.colors = ('green','red','blue','yellow','magenta','cyan','orange')
 
         # and some attributes
-        self.click_history = []
-        self.click_index = -1
-
+        self.click_history = [] # places we've clicked
+        self.click_index = -1   # index of the last click
+        self.current_star = 0  # index of the current star
         # read the given SBR file to get the star positions
-        self.star_list = []
-        self.star0 = None
-        sbr = open("sf_a1689final.sbr", 'r')
-        line = sbr.readline()
-        while line != "":
-            # for each line, get the important values and save them in star_list
-            vals = [word.strip(" \n") for word in line.split(",")]
-            if vals[0] == "C":
-                newX, newY = imgXY_from_sbrXY((vals[1], vals[2]))
-                if self.star0 == None:
-                    self.star_list.append((0, 0))
-                    self.star0 = (newX, newY)
-                else:
-                    self.star_list.append((newX-self.star0[0],   # don't forget to shift it so star #0 is at the origin
-                                           newY-self.star0[1]))
-            line = sbr.readline()
-            
+        self.star_list, self.star0 = readSBR()
         # create the list of thumbnails that will go in the GUI
-        self.thumbnails = []
-        for i in range(len(self.star_list)):
-            viewer = Viewers.CanvasView(logger=self.logger)
-            viewer.set_desired_size(400,400)
-            viewer.enable_autozoom('on')
-            viewer.enable_autocuts('on')
-            self.thumbnails.append(viewer)
+        self.thumbnails = create_viewer_list(len(self.star_list), self.logger)
         
         # now set up the ginga.canvas.types.layer.DrawingCanvas self.canvas,
         # which is necessary to draw on the image
@@ -71,18 +58,43 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.canvas = self.dc.DrawingCanvas()
         self.canvas.enable_draw(False)
         self.canvas.set_callback('cursor-down', self.click_cb)  # left-click callback
-        self.canvas.set_callback('draw-down', lambda w,x,y,z: self.next_cb(w)) # right-click callback
+        self.canvas.set_callback('draw-down', self.step2_cb) # right-click callback
         self.canvas.set_surface(self.fitsimage)
         self.canvas.register_for_cursor_drawing(self.fitsimage)
         self.canvas.name = 'MOSA-canvas'
 
 
-    def next_cb(self, w):
+
+    def step2_cb(self, _, __=None, ___=None, ____=None):
         """
         Responds to the next button by proceeding to the next step
         """
         self.stack.set_index(self.stack.get_index()+1)
         self.fv.showStatus("Crop each star image by clicking and dragging")
+        self.canvas.clear_callback('draw-down')
+        self.canvas.set_callback('draw-down', self.next_star_cb)
+        
+        # save the current location for later
+        self.current_loc = self.fitsimage.get_reference_pt()
+        self.zoom_in_on_current_star()
+        
+    
+    
+    def next_star_cb(self, _, __=None, ___=None, ____=None):
+        """
+        Responds to the next button by proceeding to the next star
+        """
+        # if there is no next star, finish up
+        self.current_star += 1
+        if self.current_star >= len(self.star_list):
+            self.fitsimage.move_to(*self.current_loc)
+            self.fitsimage.zoom_to(1)
+            self.close()
+            return
+            
+        # if there is one, focus in on it
+        self.zoom_in_on_current_star()
+    
     
     def click_cb(self, canvas, event, x, y):
         """
@@ -104,17 +116,16 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.select_point(self.click_history[self.click_index])
             
             
-    def undo_cb(self, w):
+    def undo_cb(self, _):
         """
         Responds to the undo button by going back one click (if possible)
         """
-        if self.click_index >= 0:
+        if self.click_index > 0:
             self.click_index -= 1
-        if self.click_index >= 0:
             self.select_point(self.click_history[self.click_index])
     
     
-    def redo_cb(self, w):
+    def redo_cb(self, _):
         """
         Responds to the redo button by going forward one click (if possible)
         """
@@ -157,6 +168,20 @@ class MESOffset1(GingaPlugin.LocalPlugin):
                                            ['transforms','cutlevels','rgbmap'])
             
         self.canvas.enable_draw(False)
+        
+        
+    def zoom_in_on_current_star(self):
+        """
+        Set the position and zoom level on fitsimage such that the user can
+        only see the star at index self.current_star
+        """
+        # get the final click location and offset it based on idx
+        finalX, finalY = self.click_history[self.click_index]
+        offsetX, offsetY = self.star_list[self.current_star]
+        
+        # then move and zoom
+        self.fitsimage.move_to(finalX + offsetX, finalY + offsetY)
+        self.fitsimage.zoom_to(2)
         
         
     def make_gui1(self, orientation='vertical'):
@@ -212,7 +237,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         
         # the next button moves on to step 2
         btn = Widgets.Button("Next")
-        btn.add_callback('activated', self.next_cb)
+        btn.add_callback('activated', self.step2_cb)
         btn.set_tooltip("Accept and proceed to step 2")
         box.add_widget(btn)
         
@@ -290,7 +315,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         
         # the next button moves on to the next star
         btn = Widgets.Button("Next")
-        btn.add_callback('activated', self.next_cb)
+        btn.add_callback('activated', self.next_star_cb)
         btn.set_tooltip("Accept and proceed to step 2")
         box.add_widget(btn)
         
@@ -405,8 +430,6 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         Called whenever a new image is loaded
         """
-        # if this is the first image to be loaded, automatically
-        # select the default (uncalibrated) star position
         pass
 
 
@@ -414,6 +437,57 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         return "MESOffset1"
         
         
+
+def create_viewer_list(n, logger=None):
+    """
+    Create a list of n viewers with certain properties
+    @param n:
+        An integer - the length of the desired list
+    @param logger:
+        A Logger object to pass into the new Viewers
+    @returns:
+        A list of Viewers.CanvasView objects
+    """
+    output = []
+    for i in range(n):
+        viewer = Viewers.CanvasView(logger=logger)
+        viewer.set_desired_size(400,400)
+        viewer.enable_autozoom('on')
+        viewer.enable_autocuts('on')
+        output.append(viewer)
+    return output
+
+
+def readSBR():
+    """
+    Reads sf_a1689final.sbr and returns the position of the first active
+    star as well as the relative positions of all the other stars in a list
+    @returns:
+        A tuple containing a list of float tuples (relative locations of stars)
+        and a single float tuple (absolute location of first star)
+    """
+    # define variables
+    star_list = []
+    star0 = None
+    
+    # open and parse the file
+    sbr = open("sf_a1689final.sbr", 'r')
+    line = sbr.readline()
+    while line != "":
+        # for each line, get the important values and save them in star_list
+        vals = [word.strip(" \n") for word in line.split(",")]
+        if vals[0] == "C":
+            newX, newY = imgXY_from_sbrXY((vals[1], vals[2]))
+            if star0 == None:
+                star_list.append((0, 0))
+                star0 = (newX, newY)
+            else:
+                star_list.append((newX-star0[0],   # don't forget to shift it so star #0 is at the origin
+                                  newY-star0[1]))
+        line = sbr.readline()
+        
+    return star_list, star0
+
 
 def imgXY_from_sbrXY(sbr_coords):
     """
