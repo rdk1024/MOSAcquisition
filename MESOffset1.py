@@ -4,6 +4,8 @@
 # Justin Kunimune
 #
 
+
+
 # standard imports
 import math
 
@@ -11,9 +13,17 @@ import math
 from ginga import GingaPlugin
 from ginga.gw import Widgets, Viewers
 from ginga.RGBImage import RGBImage
+from ginga.util import iqcalc
 
 # third-party imports
 import numpy as np
+
+
+
+# constants
+sq_size = 30
+colors = ('green','red','blue','yellow','magenta','cyan','orange')
+selection_modes = ("Automatic", "Star", "Mask")
 
 
 
@@ -37,12 +47,10 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         super(MESOffset1, self).__init__(fv, fitsimage)
         fv.set_titlebar("MES Offset 1")
 
-        # initialize some constants
+        # initialize some class constants
         self.title_font = self.fv.getFont('sansFont', 18)
         self.body_font = self.fv.getFont('sansFont', 10)
-        self.sq_size = 30
-        self.colors = ('green','red','blue','yellow','magenta','cyan','orange')
-        self.selection_modes = ("Automatic", "Star", "Mask")
+        self.iqcalc = iqcalc.IQCalc(logger=self.logger)
 
         # and some attributes
         self.click_history = [] # places we've clicked
@@ -112,6 +120,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.fv.showStatus("Crop each star image by clicking and dragging")
         self.set_callbacks()
         self.zoom_in_on_current_star()
+        self.mark_current_star()
         
         
     def last_star_cb(self, _, __=None, ___=None, ____=None):
@@ -138,6 +147,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             
         # if there is one, focus in on it
         self.zoom_in_on_current_star()
+        self.mark_current_star()
     
     
     def click1_cb(self, _, __, x, y):
@@ -207,31 +217,37 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         # finish the drawing and then make sure it becomes disabled again
         self.canvas.draw_stop(self.canvas, 1, x, y, self.fitsimage)
         self.canvas.enable_draw(False)
+        
+        # now save that star
         self.drag_history.append((min(self.drag_start[0], x),
                                   min(self.drag_start[1], y),
                                   max(self.drag_start[0], x),
-                                  max(self.drag_start[1], y)))
+                                  max(self.drag_start[1], y),
+                                  'star'))
         
-        # shade in the outside areas
-        x0, y0 = self.star0
+        # shade in the outside areas and remark it
+        x0, y0 = self.click_history[self.click_index]
         dx, dy = self.star_list[self.current_star]
-        x1, y1, x2, y2 = self.drag_history[-1]
-        sq_size = self.sq_size
-        self.canvas.add(
-            self.dc.CompoundObject(
-                self.dc.Rectangle(x0+dx-sq_size, y0+dy-sq_size,
-                                  x0+dx+sq_size, y1,
-                                  color='black', fill=True, fillcolor='black'),
-                self.dc.Rectangle(x0+dx-sq_size, y2,
-                                  x0+dx+sq_size, y0+dy+sq_size,
-                                  color='black', fill=True, fillcolor='black'),
-                self.dc.Rectangle(x0+dx-sq_size, y1,
-                                  x1,            y2,
-                                  color='black', fill=True, fillcolor='black'),
-                self.dc.Rectangle(x2,            y1,
-                                  x0+dx+sq_size, y2,
-                                  color='black', fill=True, fillcolor='black'),
-                self.dc.Rectangle(x1, y1, x2, y2, color='white')))
+        x1, y1, x2, y2 = self.drag_history[-1][:-1]
+        self.canvas.add(self.dc.CompoundObject(
+                            self.dc.Rectangle(x0+dx-sq_size, y0+dy-sq_size,
+                                              x0+dx+sq_size, y1,
+                                              color='black', fill=True,
+                                              fillcolor='black'),
+                            self.dc.Rectangle(x0+dx-sq_size, y2,
+                                              x0+dx+sq_size, y0+dy+sq_size,
+                                              color='black', fill=True,
+                                              fillcolor='black'),
+                            self.dc.Rectangle(x0+dx-sq_size, y1,
+                                              x1,            y2,
+                                              color='black', fill=True,
+                                              fillcolor='black'),
+                            self.dc.Rectangle(x2,            y1,
+                                              x0+dx+sq_size, y2,
+                                              color='black', fill=True,
+                                              fillcolor='black'),
+                            self.dc.Rectangle(x1, y1, x2, y2, color='white')))
+        self.mark_current_star()
         
         
     def end_select_mask_cb(self, _, __, x, y):
@@ -245,7 +261,14 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         # finish the drawing and then make sure it becomes disabled again
         self.canvas.draw_stop(self.canvas, 1, x, y, self.fitsimage)
         self.canvas.enable_draw(False)
-        self.drag_history.append((self.drag_start[0], self.drag_start[1], x, y))
+        
+        # now save that mask
+        self.drag_history.append((min(self.drag_start[0], x),
+                                  min(self.drag_start[1], y),
+                                  max(self.drag_start[0], x),
+                                  max(self.drag_start[1], y),
+                                  'mask'))
+        self.mark_current_star()
             
             
     def undo1_cb(self, _):
@@ -273,7 +296,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         Keeps track of our selection mode as determined by the combobox
         """
         # update the callbacks to account for this new mode
-        self.set_callbacks(selection_mode=self.selection_modes[mode_idx])
+        self.set_callbacks(selection_mode=selection_modes[mode_idx])
     
     
     def select_point(self, point):
@@ -285,10 +308,9 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             An int tuple containing the location of star #1
         """
         # define some variables before iterationg through the stars
-        sq_size = self.sq_size
         x, y = point
         src_image = self.fitsimage.get_image()
-        color = self.colors[self.click_index%len(self.colors)]   # cycles through all the colors
+        color = colors[self.click_index%len(colors)]   # cycles through all the colors
         for i, viewer in enumerate(self.thumbnails):
             dx, dy = self.star_list[i]
         
@@ -313,15 +335,36 @@ class MESOffset1(GingaPlugin.LocalPlugin):
     def zoom_in_on_current_star(self):
         """
         Set the position and zoom level on fitsimage such that the user can
-        only see the star at index self.current_star
+        only see the star at index self.current_star. Also locates and marks it
         """
-        # get the final click location froms step 1 and offset it based on idx
+        # get the final click location from step 1 and offset it based on index
         finalX, finalY = self.click_history[self.click_index]
         offsetX, offsetY = self.star_list[self.current_star]
         
         # then move and zoom
         self.fitsimage.set_pan(finalX + offsetX, finalY + offsetY)
-        self.fitsimage.zoom_to(360.0/self.sq_size)
+        self.fitsimage.zoom_to(360.0/sq_size)
+    
+    
+    def mark_current_star(self):
+        """
+        Puts a point on the current star
+        """
+        # get the final click location from step 1 and offset it based on index
+        finalX, finalY = self.click_history[self.click_index]
+        offsetX, offsetY = self.star_list[self.current_star]
+        
+        # then locate and draw the point (if it exists)
+        
+        try:
+            p = locate_star((finalX+offsetX, finalY+offsetY), self.drag_history,
+                        self.fitsimage.get_image(), self.iqcalc)
+            self.canvas.add(self.dc.Point(p[0], p[1], sq_size/4, color='white',
+                                          linewidth=2))
+        except iqcalc.IQCalcError:
+            p = (finalX+offsetX, finalY+offsetY)
+            self.canvas.add(self.dc.Point(p[0], p[1], sq_size/4, color='red',
+                                          linewidth=2, linestyle='dash'))
         
         
     def get_step(self):
@@ -480,7 +523,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         
         # last is the combobox of selection options
         com = Widgets.ComboBox()
-        for text in self.selection_modes:
+        for text in selection_modes:
             com.append_text(text)
         com.add_callback('activated', self.choose_select_cb)
         box.add_widget(com)
@@ -658,6 +701,49 @@ def imgXY_from_sbrXY(sbr_coords):
     fHoleX = 365.0 + (fX-300.0)*math.cos(SBRROT) - (fY-2660.0)*math.sin(SBRROT)
     fHoleY = 2580.0 + (fX-300.0)*math.sin(SBRROT) + (fY-2660.0)*math.cos(SBRROT)
     return (fHoleX, fHoleY)
+    
+    
+def locate_star(approx, masks, image, calculator):
+    """
+    Finds the center of a star using the IQCalc peak location algorithm
+    @param approx:
+        A tuple of floats - the star should be within one sq_size of this.
+    @param masks:
+        A list of tuples of the form (x1, y1, x2, y2, type) where type is either
+        'mask' or 'star' and everything else is floats. Each tuple in masks
+        is one drag of the mouse that either ommitted its interior or its
+        exterior
+    @param image:
+        The AstroImage containing the data necessary for this calculation
+    @param calculator:
+        The IQCalc object
+    @returns:
+        A tuple of two floats representing the actual location of the star
+    @raises iqcalc.IQCalcError:
+        If it is unable to find any desirable peaks
+    """
+    # start by cropping the image to get the data matrix
+    data, x0,y0 = image.cutout_adjust(approx[0]-sq_size, approx[1]-sq_size,
+                                      approx[0]+sq_size, approx[1]+sq_size)[0:3]
+    
+    # first find any peaks that look good
+    peaks = calculator.find_bright_peaks(data, threshold=None, radius=10)
+    if len(peaks) <= 0:
+        raise iqcalc.IQCalcError("No bright peaks found.")
+    
+    # make sure they all hold up under closer evaluation
+    objlist = calculator.evaluate_peaks(peaks, data, fwhm_radius=10)
+    if len(objlist) <= 0:
+        raise iqcalc.IQCalcError("No candidates found.")
+    
+    # now sort them based on selection criteria
+    height, width = data.shape
+    results = calculator.objlist_select(objlist, width, height)
+    if len(results) <= 0:
+        raise iqcalc.IQCalcError("No peaks met selection criteria.")
+    
+    # if there are any left, take the best one
+    return (x0+results[0].objx, y0+results[0].objy)
 
 #END
 
