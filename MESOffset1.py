@@ -43,35 +43,41 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             A reference to the specific ginga.qtw.ImageViewCanvas object
             associated with the channel on which the plugin is being invoked
         """
-        # superclass constructor defines self.fv, self.fitsimage, and self.logger
+        # superclass constructor defines self.fv, self.fitsimage, and self.logger:
         super(MESOffset1, self).__init__(fv, fitsimage)
         fv.set_titlebar("MES Offset 1")
 
-        # initialize some class constants
+        # initializes some class constants:
         self.title_font = self.fv.getFont('sansFont', 18)
         self.body_font = self.fv.getFont('sansFont', 10)
         self.iqcalc = iqcalc.IQCalc(logger=self.logger)
 
-        # and some attributes
-        self.click_history = [] # places we've clicked
-        self.click_index = -1   # index of the last click
-        self.current_star = 0   # index of the current star
-        self.drag_history = []  # places we've click-dragged
-        self.drag_start = None  # the place where we most recently began to drag
-        # read the given SBR file to get the star positions
+        # reads the given SBR file to get the star positions
         self.star_list, self.star0 = readSBR()
-        # create the list of thumbnails that will go in the GUI
-        self.thumbnails = create_viewer_list(len(self.star_list), self.logger)
+        self.star_num = len(self.star_list)
+        # creates the list of thumbnails that will go in the GUI
+        self.thumbnails = create_viewer_list(self.star_num, self.logger)
+        # and creates some other attributes:
+        self.click_history = []     # places we've clicked
+        self.click_index = -1       # index of the last click
+        self.current_star = 0       # index of the current star
+        self.drag_history = [[]]*self.star_num    # places we've click-dragged*
+        self.drag_index = [-1]*self.star_num      # index of the current drag for each star
+        self.drag_start = None      # the place where we most recently began to drag
         
-        # now set up the ginga.canvas.types.layer.DrawingCanvas self.canvas,
-        # which is necessary to draw on the image
-        self.dc = fv.getDrawClasses()
+        # now sets up the ginga.canvas.types.layer.DrawingCanvas self.canvas,
+        # which is necessary to draw on the image:
+        self.dc = fv.get_draw_classes()
         self.canvas = self.dc.DrawingCanvas()
         self.canvas.enable_draw(False)
         self.set_callbacks()
         self.canvas.set_surface(self.fitsimage)
         self.canvas.register_for_cursor_drawing(self.fitsimage)
         self.canvas.name = 'MOSA-canvas'
+        
+        # * NOTE: self.drag_history is a list of lists, with one list for each
+        #       star; each inner list contains tuples of the form
+        #       (float x1, float y1, float x2, float y2, string ['mask'/'star'])
         
         
         
@@ -110,6 +116,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
                 canvas.add_callback('panset-down', self.start_select_mask_cb)
                 canvas.add_callback('panset-up', self.end_select_mask_cb)
             canvas.add_callback('draw-up', self.next_star_cb)
+            canvas.add_callback('draw-event', self.draw_cb)
     
     
     def step2_cb(self, _, __=None, ___=None, ____=None):
@@ -139,7 +146,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         # if there is no next star, finish up
         self.current_star += 1
-        if self.current_star >= len(self.star_list):
+        if self.current_star >= self.star_num:
             self.fitsimage.center_image()
             self.fitsimage.zoom_fit()
             self.close()
@@ -162,9 +169,8 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.click_index += 1
         # if there are things saved ahead of this index (because of undo), clear them
         if self.click_index < len(self.click_history):
-            self.click_history[self.click_index] = (x,y)
-        else:
-            self.click_history.append((x,y))
+            self.click_history = self.click_history[:self.click_index]
+        self.click_history.append((x,y))
         self.select_point(self.click_history[self.click_index])
         
         
@@ -214,39 +220,28 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         @param y:
             An int corresponding to the y coordinate of where the click happened
         """
-        # finish the drawing and then make sure it becomes disabled again
-        self.canvas.draw_stop(self.canvas, 1, x, y, self.fitsimage)
+        # if rectangle has area zero, ignore it
+        if (x,y) == self.drag_start:
+            return
+            
+        # finish the drawing, but make sure nothing is drawn; it won't be visible anyway
+        self.canvas.draw_stop(None, None, *self.drag_start, viewer=None)
         self.canvas.enable_draw(False)
+        # if anything is ahead of this in drag_history, clear it
+        cs = self.current_star
+        self.drag_index[cs] += 1
+        if self.drag_index[cs] < len(self.drag_history[cs]):
+            self.drag_history[cs] = self.drag_history[cs][:self.drag_index[cs]]
         
         # now save that star
-        self.drag_history.append((min(self.drag_start[0], x),
-                                  min(self.drag_start[1], y),
-                                  max(self.drag_start[0], x),
-                                  max(self.drag_start[1], y),
-                                  'star'))
+        self.drag_history[cs].append((min(self.drag_start[0], x),
+                                      min(self.drag_start[1], y),
+                                      max(self.drag_start[0], x),
+                                      max(self.drag_start[1], y),
+                                      'star'))
         
         # shade in the outside areas and remark it
-        x0, y0 = self.click_history[self.click_index]
-        dx, dy = self.star_list[self.current_star]
-        x1, y1, x2, y2 = self.drag_history[-1][:-1]
-        self.canvas.add(self.dc.CompoundObject(
-                            self.dc.Rectangle(x0+dx-sq_size, y0+dy-sq_size,
-                                              x0+dx+sq_size, y1,
-                                              color='black', fill=True,
-                                              fillcolor='black'),
-                            self.dc.Rectangle(x0+dx-sq_size, y2,
-                                              x0+dx+sq_size, y0+dy+sq_size,
-                                              color='black', fill=True,
-                                              fillcolor='black'),
-                            self.dc.Rectangle(x0+dx-sq_size, y1,
-                                              x1,            y2,
-                                              color='black', fill=True,
-                                              fillcolor='black'),
-                            self.dc.Rectangle(x2,            y1,
-                                              x0+dx+sq_size, y2,
-                                              color='black', fill=True,
-                                              fillcolor='black'),
-                            self.dc.Rectangle(x1, y1, x2, y2, color='white')))
+        self.draw_mask(*self.drag_history[self.current_star][-1])
         self.mark_current_star()
         
         
@@ -258,16 +253,28 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         @param y:
             An int corresponding to the y coordinate of where the click happened
         """
-        # finish the drawing and then make sure it becomes disabled again
-        self.canvas.draw_stop(self.canvas, 1, x, y, self.fitsimage)
+        # if rectangle has area zero, ignore it
+        if (x,y) == self.drag_start:
+            return
+            
+        # finish the drawing, but make sure nothing is drawn; we need to specify the tag
+        self.canvas.draw_stop(None, None, *self.drag_start, viewer=None)
         self.canvas.enable_draw(False)
+        # if anything is ahead of this in drag_history, clear it
+        cs = self.current_star
+        self.drag_index[cs] += 1
+        if self.drag_index[cs] < len(self.drag_history[cs]):
+            self.drag_history[cs] = self.drag_history[cs][:self.drag_index[cs]]
         
         # now save that mask
-        self.drag_history.append((min(self.drag_start[0], x),
-                                  min(self.drag_start[1], y),
-                                  max(self.drag_start[0], x),
-                                  max(self.drag_start[1], y),
-                                  'mask'))
+        self.drag_history[cs].append((min(self.drag_start[0], x),
+                                      min(self.drag_start[1], y),
+                                      max(self.drag_start[0], x),
+                                      max(self.drag_start[1], y),
+                                      'mask'))
+                                      
+        # shade that puppy in and remark it
+        self.draw_mask(*self.drag_history[self.current_star][-1])
         self.mark_current_star()
             
             
@@ -277,6 +284,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         by going back one click (if possible)
         """
         if self.click_index > 0:
+            self.canvas.delete_object_by_tag(tag(1, self.click_index))
             self.click_index -= 1
             self.select_point(self.click_history[self.click_index])
     
@@ -291,17 +299,60 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             self.select_point(self.click_history[self.click_index])
             
             
+    def undo2_cb(self, _):
+        """
+        Responds to the undo button in step 2
+        by going back one drag (if possible)
+        """
+        # sets drag_index backward for this star if possible
+        cs = self.current_star
+        if self.drag_index[cs] >= 0:
+            self.canvas.delete_object_by_tag(tag(2, cs, self.drag_index[cs]))
+            self.drag_index[cs] -= 1
+    
+    
+    def redo2_cb(self, _):
+        """
+        Responds to the redo button in step 2
+        by going forward one drag (if possible)
+        """
+        # sets drag_index forward for this star if possible
+        cs = self.current_star
+        if self.drag_index[cs] < len(self.drag_history[cs])-1:
+            self.drag_index[cs] += 1
+            
+        # redraws whatever kind of rectangle was there
+        self.draw_mask(*self.drag_history[cs][self.drag_index[cs]])
+            
+            
     def choose_select_cb(self, _, mode_idx):
         """
         Keeps track of our selection mode as determined by the combobox
         """
         # update the callbacks to account for this new mode
         self.set_callbacks(selection_mode=selection_modes[mode_idx])
+        
+        
+    def draw_cb(self, _, tag):
+        """
+        Saves the tag whenever something is drawn
+        """
+        pass
+        #self.tags.append(tag)
+        
+    
+    def delete_last_obj(self):
+        """
+        Deletes the item with the most recent tag
+        """
+        pass
+        #self.canvas.delete_object_by_tag(self.tags[-1])
+        #self.tags.pop()
     
     
     def select_point(self, point):
         """
-        Sets a point as the current location of star #1,
+        Sets a point in step 1 as the current location of star #1,
         draws squares where it thinks all the stars are accordingly,
         and updates all thumbnails
         @param point:
@@ -311,16 +362,14 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         x, y = point
         src_image = self.fitsimage.get_image()
         color = colors[self.click_index%len(colors)]   # cycles through all the colors
+        shapes = []
         for i, viewer in enumerate(self.thumbnails):
             dx, dy = self.star_list[i]
         
             # first, draw squares and numbers
-            self.canvas.add(self.dc.CompoundObject(
-                                self.dc.SquareBox(x+dx, y+dy, sq_size,
-                                                  color=color),
-                                self.dc.Text(x+dx-sq_size+1, y+dy-sq_size+1,
-                                             str(i+1),
-                                             color=color)))
+            shapes.append(self.dc.SquareBox(x+dx, y+dy, sq_size, color=color))
+            shapes.append(self.dc.Text(x+dx-sq_size+1, y+dy-sq_size+1,
+                                       str(i+1), color=color))
 
             # then, update the little pictures
             x1, y1, x2, y2 = (x-sq_size+dx, y-sq_size+dy,
@@ -329,7 +378,51 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             viewer.set_data(cropped_data)
             self.fitsimage.copy_attributes(viewer,
                                            ['transforms','cutlevels','rgbmap'])
+                                           
+        # draw all the squares and numbers to the canvas as one object
+        self.canvas.add(self.dc.CompoundObject(*shapes),
+                        tag=tag(1, self.click_index))
+                        
+                        
+    def draw_mask(self, x1, y1, x2, y2, kind):
+        """
+        Draws the giant rectangles around a star when you crop it
+        @param x1, y1, x2, y2:
+            floats representing the coordinates of the upper-left-hand corner
+            (1) and the bottom-right-hand corner (2)
+        @param kind:
+            A string - either 'mask' for an ommission or 'star' for a crop
+        """
+        if kind == 'star':
+            # calculate the coordinates of the outer box
+            x0, y0 = self.click_history[self.click_index]
+            dx, dy = self.star_list[self.current_star]
+            x1, y1, x2, y2 = self.drag_history[self.current_star][-1][:-1]
+            kwargs = {'color':'black', 'fill':True, 'fillcolor':'black'}
             
+            # then draw the thing as a CompoundObject
+            self.canvas.add(self.dc.CompoundObject(
+                                self.dc.Rectangle(x0+dx-sq_size, y0+dy-sq_size,
+                                                  x0+dx+sq_size, y1,
+                                                  **kwargs),
+                                self.dc.Rectangle(x0+dx-sq_size, y2,
+                                                  x0+dx+sq_size, y0+dy+sq_size,
+                                                  **kwargs),
+                                self.dc.Rectangle(x0+dx-sq_size, y1,
+                                                  x1,            y2,
+                                                  **kwargs),
+                                self.dc.Rectangle(x2,            y1,
+                                                  x0+dx+sq_size, y2,
+                                                  **kwargs),
+                                self.dc.Rectangle(x1, y1, x2, y2,
+                                                  color='white')),
+                            tag=tag(2, self.current_star,
+                                    self.drag_index[self.current_star]))
+        else:
+            self.canvas.add(self.dc.Rectangle(x1, y1, x2, y2, color='white',
+                                              fill=True, fillcolor='black'),
+                            tag=tag(2, self.current_star,
+                                    self.drag_index[self.current_star]))
         
         
     def zoom_in_on_current_star(self):
@@ -350,21 +443,26 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         Puts a point on the current star
         """
+        # if there is already a point for this star, delete it
+        t = tag(2, self.current_star, 'pt')
+        self.canvas.delete_object_by_tag(t)
+            
         # get the final click location from step 1 and offset it based on index
         finalX, finalY = self.click_history[self.click_index]
         offsetX, offsetY = self.star_list[self.current_star]
         
-        # then locate and draw the point (if it exists)
-        
+        # then locate with iqcalc and draw the point (if it exists)
         try:
-            p = locate_star((finalX+offsetX, finalY+offsetY), self.drag_history,
-                        self.fitsimage.get_image(), self.iqcalc)
-            self.canvas.add(self.dc.Point(p[0], p[1], sq_size/4, color='white',
-                                          linewidth=2))
+            star = locate_star((finalX+offsetX, finalY+offsetY),
+                            self.drag_history[self.current_star],
+                            self.fitsimage.get_image(), self.iqcalc)
+            self.canvas.add(self.dc.Point(star[0], star[1], sq_size/4,
+                                          color='white', linewidth=2), tag=t)
         except iqcalc.IQCalcError:
-            p = (finalX+offsetX, finalY+offsetY)
-            self.canvas.add(self.dc.Point(p[0], p[1], sq_size/4, color='red',
-                                          linewidth=2, linestyle='dash'))
+            star = (finalX+offsetX, finalY+offsetY)
+            self.canvas.add(self.dc.Point(star[0], star[1], sq_size/4,
+                                          color='red', linewidth=2,
+                                          linestyle='dash'), tag=t)
         
         
     def get_step(self):
@@ -437,7 +535,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         box.add_widget(btn)
         
         # lastly, we need the zoomed-in images. This is the grid we put them in
-        num_img = len(self.star_list)   # total number of alignment stars
+        num_img = self.star_num   # total number of alignment stars
         columns = 2                       # pictures in each row
         rows = int(math.ceil(float(num_img)/columns))
         grd = Widgets.GridBox(rows=rows, columns=columns)
@@ -492,13 +590,13 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         
         # the undo button goes back a crop
         btn = Widgets.Button("Undo")
-        btn.add_callback('activated', self.undo1_cb)
+        btn.add_callback('activated', self.undo2_cb)
         btn.set_tooltip("Undo a single selection (if a selection took place)")
         box.add_widget(btn)
 
         # the redo button goes forward
         btn = Widgets.Button("Redo")
-        btn.add_callback('activated', self.redo1_cb)
+        btn.add_callback('activated', self.redo2_cb)
         btn.set_tooltip("Undo an undo action (if an undo action took place)")
         box.add_widget(btn)
 
@@ -744,6 +842,25 @@ def locate_star(approx, masks, image, calculator):
     
     # if there are any left, take the best one
     return (x0+results[0].objx, y0+results[0].objy)
+    
+
+def tag(step, mod_1, mod_2=None):
+    """
+    Creates a new tag given the step and some modifiers,
+    to be used by self.canvas
+    @param step:
+        Which step we are on
+    @param mod_1:
+        The primary modifer to distinguish it from other objects
+    @param mod_2:
+        The secondary modifier, if it is needed for additional distinction
+    @returns:
+        A 'tag', probably a string, to be passed into CanvasMixin.add
+    """
+    if mod_2 == None:
+        return '@{}:{}'.format(step, mod_1)
+    else:
+        return '@{}:{}:{}'.format(step, mod_1, mod_2)
 
 #END
 
