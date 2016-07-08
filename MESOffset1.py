@@ -309,6 +309,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         if self.drag_index[cs] >= 0:
             self.canvas.delete_object_by_tag(tag(2, cs, self.drag_index[cs]))
             self.drag_index[cs] -= 1
+            self.mark_current_star()
     
     
     def redo2_cb(self, _):
@@ -320,9 +321,8 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         cs = self.current_star
         if self.drag_index[cs] < len(self.drag_history[cs])-1:
             self.drag_index[cs] += 1
-            
-        # redraws whatever kind of rectangle was there
-        self.draw_mask(*self.drag_history[cs][self.drag_index[cs]])
+            self.draw_mask(*self.drag_history[cs][self.drag_index[cs]])
+            self.mark_current_star()
             
             
     def choose_select_cb(self, _, mode_idx):
@@ -807,9 +807,9 @@ def locate_star(approx, masks, image, calculator):
     @param approx:
         A tuple of floats - the star should be within one sq_size of this.
     @param masks:
-        A list of tuples of the form (x1, y1, x2, y2, type) where type is either
+        A list of tuples of the form (x1, y1, x2, y2, kind) where kind is either
         'mask' or 'star' and everything else is floats. Each tuple in masks
-        is one drag of the mouse that either ommitted its interior or its
+        is one drag of the mouse that ommitted either its interior or its
         exterior
     @param image:
         The AstroImage containing the data necessary for this calculation
@@ -823,6 +823,28 @@ def locate_star(approx, masks, image, calculator):
     # start by cropping the image to get the data matrix
     data, x0,y0 = image.cutout_adjust(approx[0]-sq_size, approx[1]-sq_size,
                                       approx[0]+sq_size, approx[1]+sq_size)[0:3]
+    
+    # omit data based on the masks
+    for x1, y1, x2, y2, kind in masks:
+        x1, y1, x2, y2 = (int(x1-approx[0]+sq_size), int(y1-approx[1]+sq_size),
+                          int(x2-approx[0]+sq_size), int(y2-approx[1]+sq_size))
+        mask = np.ones((2*sq_size, 2*sq_size))
+        mask[x1:x2, y1:y2] = np.zeros((x2-x1, y2-y1))
+        if kind == 'star':
+            mask = 1-mask
+        data = data*mask
+        datast = ""
+        for row in data:
+            datast += '\n'
+            for datum in row:
+                datast += ' '
+                if datum < 0:
+                    datast += '-'
+                elif datum == 0:
+                    datast += '0'
+                else:
+                    datast += '+'
+        print datast
     
     # first find any peaks that look good
     peaks = calculator.find_bright_peaks(data, threshold=None, radius=10)
