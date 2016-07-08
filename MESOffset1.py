@@ -443,6 +443,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         Puts a point on the current star
         """
+        print "mark"
         # if there is already a point for this star, delete it
         t = tag(2, self.current_star, 'pt')
         self.canvas.delete_object_by_tag(t)
@@ -453,8 +454,9 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         
         # then locate with iqcalc and draw the point (if it exists)
         try:
+            cs = self.current_star
             star = locate_star((finalX+offsetX, finalY+offsetY),
-                            self.drag_history[self.current_star],
+                            self.drag_history[cs][:self.drag_index[cs]+1],
                             self.fitsimage.get_image(), self.iqcalc)
             self.canvas.add(self.dc.Point(star[0], star[1], sq_size/4,
                                           color='white', linewidth=2), tag=t)
@@ -463,6 +465,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             self.canvas.add(self.dc.Point(star[0], star[1], sq_size/4,
                                           color='red', linewidth=2,
                                           linestyle='dash'), tag=t)
+        print "watney"
         
         
     def get_step(self):
@@ -823,6 +826,8 @@ def locate_star(approx, masks, image, calculator):
     # start by cropping the image to get the data matrix
     data, x0,y0 = image.cutout_adjust(approx[0]-sq_size, approx[1]-sq_size,
                                       approx[0]+sq_size, approx[1]+sq_size)[0:3]
+    threshold = 0
+    data = data-threshold
     
     # omit data based on the masks
     for x1, y1, x2, y2, kind in masks:
@@ -833,37 +838,35 @@ def locate_star(approx, masks, image, calculator):
         if kind == 'star':
             mask = 1-mask
         data = data*mask
-        datast = ""
-        for row in data:
-            datast += '\n'
-            for datum in row:
-                datast += ' '
-                if datum < 0:
-                    datast += '-'
-                elif datum == 0:
-                    datast += '0'
-                else:
-                    datast += '+'
-        print datast
+        
+    datast = ""
+    for row in data:
+        datast += '\n'
+        for datum in row:
+            datast += ' '
+            if datum < 0:
+                datast += '-'
+            elif datum == 0:
+                datast += '0'
+            else:
+                datast += '+'
+    print datast
     
-    # first find any peaks that look good
-    peaks = calculator.find_bright_peaks(data, threshold=None, radius=10)
-    if len(peaks) <= 0:
-        raise iqcalc.IQCalcError("No bright peaks found.")
+    x_sum = 0.
+    y_sum = 0.
+    tot = 0.
+    for x in range(0, data.shape[0]):
+        for y in range(0, data.shape[1]):
+            x_sum += data[x, y]*x
+            y_sum += data[x, y]*y
+            tot += data[x, y]
     
-    # make sure they all hold up under closer evaluation
-    objlist = calculator.evaluate_peaks(peaks, data, fwhm_radius=10)
-    if len(objlist) <= 0:
-        raise iqcalc.IQCalcError("No candidates found.")
-    
-    # now sort them based on selection criteria
-    height, width = data.shape
-    results = calculator.objlist_select(objlist, width, height)
-    if len(results) <= 0:
-        raise iqcalc.IQCalcError("No peaks met selection criteria.")
+    if tot == 0:
+        raise iqcalc.IQCalcError("Data summed to zero")
+    centroid = (x_sum/tot, y_sum/tot)
     
     # if there are any left, take the best one
-    return (x0+results[0].objx, y0+results[0].objy)
+    return (x0+centroid[0], y0+centroid[1])
     
 
 def tag(step, mod_1, mod_2=None):
