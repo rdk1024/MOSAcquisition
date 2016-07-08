@@ -47,7 +47,9 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         # and some attributes
         self.click_history = [] # places we've clicked
         self.click_index = -1   # index of the last click
-        self.current_star = 0  # index of the current star
+        self.current_star = 0   # index of the current star
+        self.drag_history = []  # places we've click-dragged
+        self.drag_start = None  # the place where we most recently began to drag
         # read the given SBR file to get the star positions
         self.star_list, self.star0 = readSBR()
         # create the list of thumbnails that will go in the GUI
@@ -111,6 +113,16 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.set_callbacks()
         self.zoom_in_on_current_star()
         
+        
+    def last_star_cb(self, _, __=None, ___=None, ____=None):
+        """
+        Responds to back button by going back to the last star
+        """
+        # if there is no previous star, do nothing
+        if self.current_star > 0:
+            self.current_star -= 1
+            self.zoom_in_on_current_star()
+        
     
     def next_star_cb(self, _, __=None, ___=None, ____=None):
         """
@@ -161,6 +173,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.canvas.set_drawtype(drawtype='rectangle', color='white',
                                  fill=False)
         self.canvas.draw_start(self.canvas, 1, x, y, self.fitsimage)
+        self.drag_start = (x,y)
         return True
         
         
@@ -179,6 +192,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.canvas.set_drawtype(drawtype='rectangle', color='white',
                                  fill=True, fillcolor='black')
         self.canvas.draw_start(self.canvas, 1, x, y, self.fitsimage)
+        self.drag_start = (x,y)
         return True
         
         
@@ -193,6 +207,31 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         # finish the drawing and then make sure it becomes disabled again
         self.canvas.draw_stop(self.canvas, 1, x, y, self.fitsimage)
         self.canvas.enable_draw(False)
+        self.drag_history.append((min(self.drag_start[0], x),
+                                  min(self.drag_start[1], y),
+                                  max(self.drag_start[0], x),
+                                  max(self.drag_start[1], y)))
+        
+        # shade in the outside areas
+        x0, y0 = self.star0
+        dx, dy = self.star_list[self.current_star]
+        x1, y1, x2, y2 = self.drag_history[-1]
+        sq_size = self.sq_size
+        self.canvas.add(
+            self.dc.CompoundObject(
+                self.dc.Rectangle(x0+dx-sq_size, y0+dy-sq_size,
+                                  x0+dx+sq_size, y1,
+                                  color='black', fill=True, fillcolor='black'),
+                self.dc.Rectangle(x0+dx-sq_size, y2,
+                                  x0+dx+sq_size, y0+dy+sq_size,
+                                  color='black', fill=True, fillcolor='black'),
+                self.dc.Rectangle(x0+dx-sq_size, y1,
+                                  x1,            y2,
+                                  color='black', fill=True, fillcolor='black'),
+                self.dc.Rectangle(x2,            y1,
+                                  x0+dx+sq_size, y2,
+                                  color='black', fill=True, fillcolor='black'),
+                self.dc.Rectangle(x1, y1, x2, y2, color='white')))
         
         
     def end_select_mask_cb(self, _, __, x, y):
@@ -206,6 +245,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         # finish the drawing and then make sure it becomes disabled again
         self.canvas.draw_stop(self.canvas, 1, x, y, self.fitsimage)
         self.canvas.enable_draw(False)
+        self.drag_history.append((self.drag_start[0], self.drag_start[1], x, y))
             
             
     def undo1_cb(self, _):
@@ -275,13 +315,13 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         Set the position and zoom level on fitsimage such that the user can
         only see the star at index self.current_star
         """
-        # get the final click location and offset it based on idx
+        # get the final click location froms step 1 and offset it based on idx
         finalX, finalY = self.click_history[self.click_index]
         offsetX, offsetY = self.star_list[self.current_star]
         
         # then move and zoom
         self.fitsimage.set_pan(finalX + offsetX, finalY + offsetY)
-        self.fitsimage.zoom_to(12)
+        self.fitsimage.zoom_to(360.0/self.sq_size)
         
         
     def get_step(self):
@@ -421,7 +461,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
 
         # the clear button nullifies all crops
         btn = Widgets.Button("Back")
-        btn.add_callback('activated', lambda w: self.canvas.delete_all_objects())
+        btn.add_callback('activated', self.last_star_cb)
         btn.set_tooltip("Go back to the previous star")
         box.add_widget(btn)
         
