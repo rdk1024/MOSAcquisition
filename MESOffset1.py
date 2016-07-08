@@ -126,6 +126,8 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.stack.set_index(self.get_step())
         self.fv.showStatus("Crop each star image by clicking and dragging")
         self.set_callbacks()
+        self.canvas.delete_all_objects()
+        self.select_point(self.click_history[self.click_index])
         self.zoom_in_on_current_star()
         self.mark_current_star()
         
@@ -234,10 +236,11 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             self.drag_history[cs] = self.drag_history[cs][:self.drag_index[cs]]
         
         # now save that star
-        self.drag_history[cs].append((min(self.drag_start[0], x),
-                                      min(self.drag_start[1], y),
-                                      max(self.drag_start[0], x),
-                                      max(self.drag_start[1], y),
+        x1, y1, x2, y2 = self.get_current_box()
+        self.drag_history[cs].append((max(min(self.drag_start[0], x), x1),
+                                      max(min(self.drag_start[1], y), y1),
+                                      min(max(self.drag_start[0], x), x2),
+                                      min(max(self.drag_start[1], y), y2),
                                       'star'))
         
         # shade in the outside areas and remark it
@@ -267,10 +270,11 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             self.drag_history[cs] = self.drag_history[cs][:self.drag_index[cs]]
         
         # now save that mask
-        self.drag_history[cs].append((min(self.drag_start[0], x),
-                                      min(self.drag_start[1], y),
-                                      max(self.drag_start[0], x),
-                                      max(self.drag_start[1], y),
+        x1, y1, x2, y2 = self.get_current_box()
+        self.drag_history[cs].append((max(min(self.drag_start[0], x), x1),
+                                      max(min(self.drag_start[1], y), y1),
+                                      min(max(self.drag_start[0], x), x2),
+                                      min(max(self.drag_start[1], y), y2),
                                       'mask'))
                                       
         # shade that puppy in and remark it
@@ -384,42 +388,32 @@ class MESOffset1(GingaPlugin.LocalPlugin):
                         tag=tag(1, self.click_index))
                         
                         
-    def draw_mask(self, x1, y1, x2, y2, kind):
+    def draw_mask(self, xd1, yd1, xd2, yd2, kind):
         """
         Draws the giant rectangles around a star when you crop it
-        @param x1, y1, x2, y2:
+        @param xd1, yd1, xd2, yd2:
             floats representing the coordinates of the upper-left-hand corner
-            (1) and the bottom-right-hand corner (2)
+            (1) and the bottom-right-hand corner (2) of the drag
         @param kind:
             A string - either 'mask' for an ommission or 'star' for a crop
         """
         if kind == 'star':
-            # calculate the coordinates of the outer box
-            x0, y0 = self.click_history[self.click_index]
-            dx, dy = self.star_list[self.current_star]
-            x1, y1, x2, y2 = self.drag_history[self.current_star][-1][:-1]
+            # calculate the coordinates of the drag and the outer box
+            xb1, yb1, xb2, yb2 = self.get_current_box()
             kwargs = {'color':'black', 'fill':True, 'fillcolor':'black'}
             
             # then draw the thing as a CompoundObject
             self.canvas.add(self.dc.CompoundObject(
-                                self.dc.Rectangle(x0+dx-sq_size, y0+dy-sq_size,
-                                                  x0+dx+sq_size, y1,
-                                                  **kwargs),
-                                self.dc.Rectangle(x0+dx-sq_size, y2,
-                                                  x0+dx+sq_size, y0+dy+sq_size,
-                                                  **kwargs),
-                                self.dc.Rectangle(x0+dx-sq_size, y1,
-                                                  x1,            y2,
-                                                  **kwargs),
-                                self.dc.Rectangle(x2,            y1,
-                                                  x0+dx+sq_size, y2,
-                                                  **kwargs),
-                                self.dc.Rectangle(x1, y1, x2, y2,
+                                self.dc.Rectangle(xb1, yb1, xb2, yd1, **kwargs),
+                                self.dc.Rectangle(xb1, yd2, xb2, yb2, **kwargs),
+                                self.dc.Rectangle(xb1, yd1, xd1, yd2, **kwargs),
+                                self.dc.Rectangle(xd2, yd1, xb2, yd2, **kwargs),
+                                self.dc.Rectangle(xd1, yd1, xd2, yd2,
                                                   color='white')),
                             tag=tag(2, self.current_star,
                                     self.drag_index[self.current_star]))
-        else:
-            self.canvas.add(self.dc.Rectangle(x1, y1, x2, y2, color='white',
+        elif kind == 'mask':
+            self.canvas.add(self.dc.Rectangle(xd1, yd1, xd2, yd2, color='white',
                                               fill=True, fillcolor='black'),
                             tag=tag(2, self.current_star,
                                     self.drag_index[self.current_star]))
@@ -430,12 +424,11 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         Set the position and zoom level on fitsimage such that the user can
         only see the star at index self.current_star. Also locates and marks it
         """
-        # get the final click location from step 1 and offset it based on index
-        finalX, finalY = self.click_history[self.click_index]
-        offsetX, offsetY = self.star_list[self.current_star]
+        # get the bounding box that must be zoomed to
+        x1, y1, x2, y2 = self.get_current_box()
         
         # then move and zoom
-        self.fitsimage.set_pan(finalX + offsetX, finalY + offsetY)
+        self.fitsimage.set_pan((x1+x2)/2, (y1+y2)/2)
         self.fitsimage.zoom_to(360.0/sq_size)
     
     
@@ -443,29 +436,23 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         Puts a point on the current star
         """
-        print "mark"
         # if there is already a point for this star, delete it
         t = tag(2, self.current_star, 'pt')
         self.canvas.delete_object_by_tag(t)
-            
-        # get the final click location from step 1 and offset it based on index
-        finalX, finalY = self.click_history[self.click_index]
-        offsetX, offsetY = self.star_list[self.current_star]
         
         # then locate with iqcalc and draw the point (if it exists)
         try:
             cs = self.current_star
-            star = locate_star((finalX+offsetX, finalY+offsetY),
+            star = locate_star(self.get_current_box(),
                             self.drag_history[cs][:self.drag_index[cs]+1],
                             self.fitsimage.get_image(), self.iqcalc)
             self.canvas.add(self.dc.Point(star[0], star[1], sq_size/4,
                                           color='white', linewidth=2), tag=t)
         except iqcalc.IQCalcError:
-            star = (finalX+offsetX, finalY+offsetY)
-            self.canvas.add(self.dc.Point(star[0], star[1], sq_size/4,
+            x1, y1, x2, y2 = self.get_current_box()
+            self.canvas.add(self.dc.Point((x1+x2)/2, (y1+y2)/2, sq_size/4,
                                           color='red', linewidth=2,
                                           linestyle='dash'), tag=t)
-        print "watney"
         
         
     def get_step(self):
@@ -478,6 +465,19 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             return self.stack.get_index()+1
         except AttributeError:
             return 1
+            
+    
+    def get_current_box(self):
+        """
+        Calculates the bounds of the box surrounding the current star
+        @precondition:
+            This method only works in step 2
+        @returns x1, y1, x2, y2:
+            The float bounds of the current box
+        """
+        xf, yf = self.click_history[self.click_index]
+        dx, dy = self.star_list[self.current_star]
+        return (xf+dx-sq_size, yf+dy-sq_size, xf+dx+sq_size, yf+dy+sq_size)
         
         
     def make_gui1(self, orientation='vertical'):
@@ -804,11 +804,11 @@ def imgXY_from_sbrXY(sbr_coords):
     return (fHoleX, fHoleY)
     
     
-def locate_star(approx, masks, image, calculator):
+def locate_star(bounds, masks, image, calculator):
     """
     Finds the center of a star using the IQCalc peak location algorithm
-    @param approx:
-        A tuple of floats - the star should be within one sq_size of this.
+    @param bounds:
+        A tuple of floats x1, y1, x2, y2. The star should be within this box
     @param masks:
         A list of tuples of the form (x1, y1, x2, y2, kind) where kind is either
         'mask' or 'star' and everything else is floats. Each tuple in masks
@@ -824,17 +824,17 @@ def locate_star(approx, masks, image, calculator):
         If it is unable to find any desirable peaks
     """
     # start by cropping the image to get the data matrix
-    data, x0,y0 = image.cutout_adjust(approx[0]-sq_size, approx[1]-sq_size,
-                                      approx[0]+sq_size, approx[1]+sq_size)[0:3]
+    data, x0,y0 = image.cutout_adjust(*bounds)[0:3]
     threshold = 0
     data = data-threshold
     
     # omit data based on the masks
-    for x1, y1, x2, y2, kind in masks:
-        x1, y1, x2, y2 = (int(x1-approx[0]+sq_size), int(y1-approx[1]+sq_size),
-                          int(x2-approx[0]+sq_size), int(y2-approx[1]+sq_size))
+    for drag in masks:
+        x1, y1, x2, y2, kind = (int(drag[0]-bounds[0]), int(drag[1]-bounds[1]),
+                                int(drag[2]-bounds[0]), int(drag[3]-bounds[1]),
+                                drag[4])
         mask = np.ones((2*sq_size, 2*sq_size))
-        mask[x1:x2, y1:y2] = np.zeros((x2-x1, y2-y1))
+        mask[y1:y2, x1:x2] = np.zeros((y2-y1, x2-x1))
         if kind == 'star':
             mask = 1-mask
         data = data*mask
@@ -857,9 +857,9 @@ def locate_star(approx, masks, image, calculator):
     tot = 0.
     for x in range(0, data.shape[0]):
         for y in range(0, data.shape[1]):
-            x_sum += data[x, y]*x
-            y_sum += data[x, y]*y
-            tot += data[x, y]
+            x_sum += data[y, x]*x
+            y_sum += data[y, x]*y
+            tot += data[y, x]
     
     if tot == 0:
         raise iqcalc.IQCalcError("Data summed to zero")
