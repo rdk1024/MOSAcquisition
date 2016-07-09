@@ -116,14 +116,13 @@ class MESOffset1(GingaPlugin.LocalPlugin):
                 canvas.add_callback('panset-down', self.start_select_mask_cb)
                 canvas.add_callback('panset-up', self.end_select_mask_cb)
             canvas.add_callback('draw-up', self.next_star_cb)
-            canvas.add_callback('draw-event', self.draw_cb)
     
     
     def step2_cb(self, _, __=None, ___=None, ____=None):
         """
         Responds to next button or right click by proceeding to the next step
         """
-        self.stack.set_index(self.get_step())
+        self.stack.set_index(1)
         self.fv.showStatus("Crop each star image by clicking and dragging")
         self.set_callbacks()
         self.canvas.delete_all_objects()
@@ -134,7 +133,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         
     def last_star_cb(self, _, __=None, ___=None, ____=None):
         """
-        Responds to back button by going back to the last star
+        Responds to back button in step 2 by going back to the last star
         """
         # if there is no previous star, do nothing
         if self.current_star > 0:
@@ -149,9 +148,11 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         # if there is no next star, finish up
         self.current_star += 1
         if self.current_star >= self.star_num:
+            self.stack.set_index(2)
+            self.fv.showStatus("View the graphs and filter the data")
+            self.set_callbacks()
             self.fitsimage.center_image()
             self.fitsimage.zoom_fit()
-            self.close()
             return
             
         # if there is one, focus in on it
@@ -174,6 +175,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             self.click_history = self.click_history[:self.click_index]
         self.click_history.append((x,y))
         self.select_point(self.click_history[self.click_index])
+        return False
         
         
     def start_select_star_cb(self, _, __, x, y):
@@ -335,23 +337,6 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         # update the callbacks to account for this new mode
         self.set_callbacks(selection_mode=selection_modes[mode_idx])
-        
-        
-    def draw_cb(self, _, tag):
-        """
-        Saves the tag whenever something is drawn
-        """
-        pass
-        #self.tags.append(tag)
-        
-    
-    def delete_last_obj(self):
-        """
-        Deletes the item with the most recent tag
-        """
-        pass
-        #self.canvas.delete_object_by_tag(self.tags[-1])
-        #self.tags.pop()
     
     
     def select_point(self, point):
@@ -632,6 +617,52 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         # space gui appropriately and return it
         gui.add_widget(Widgets.Label(""), stretch=1)
         return gui
+        
+        
+    def make_gui3(self, orientation='vertical'):
+        """
+        Constructs a GUI for the third step: viewing the graph
+        @param orientation:
+            Either 'vertical' or 'horizontal', the orientation of this new GUI
+        @returns:
+            A Widgets.Box object containing all necessary buttons, labels, etc.
+        """
+        # start by creating the container
+        gui = Widgets.Box(orientation=orientation)
+        gui.set_spacing(4)
+        
+        # create a label to title this step
+        lbl = Widgets.Label("Step 3")
+        lbl.set_font(self.title_font)
+        gui.add_widget(lbl)
+
+        # fill a text box with brief instructions and put in in an expander
+        exp = Widgets.Expander(title="Instructions")
+        gui.add_widget(exp)
+        txt = Widgets.TextArea(wrap=True, editable=False)
+        txt.set_font(self.body_font)
+        txt.set_text("Look at the graphs. Use the 'Toggle' button below, or "+
+            "right- and left-click, to remove undesirable data and "+
+            "reintroduce removed data on the graph. Right-clicking will "+
+            "delete, and left-clicking will restore. Click 'Next' below or "+
+            "press 'Q' if the data is satisfactory.")
+        exp.set_widget(txt)
+        
+        # now make an HBox to hold the main controls
+        box = Widgets.HBox()
+        box.set_spacing(3)
+        gui.add_widget(box)
+        
+        # the undo button goes back a crop
+        btn = Widgets.Button("Toggle")
+        btn.add_callback('activated', self.undo2_cb)
+        btn.set_tooltip("Delete the star under your cursor if it is active, "+
+                        "or restore it if it is deleted.")
+        box.add_widget(btn)
+        
+        # space gui appropriately and return it
+        gui.add_widget(Widgets.Label(""), stretch=1)
+        return gui
 
 
     def build_gui(self, container):
@@ -650,6 +681,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         stk = Widgets.StackWidget()
         stk.add_widget(self.make_gui1(orientation))
         stk.add_widget(self.make_gui2(orientation))
+        stk.add_widget(self.make_gui3(orientation))
         out.add_widget(stk)
         self.stack = stk    # this stack is important, so save it for later
 
@@ -689,7 +721,6 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.canvas.delete_all_objects()
         
         # automatically select the first point and start
-        self.resume()
         self.click1_cb(self.canvas, 1, *self.star0)
 
 
@@ -747,7 +778,7 @@ def create_viewer_list(n, logger=None):
     output = []
     for i in range(n):
         viewer = Viewers.CanvasView(logger=logger)
-        viewer.set_desired_size(400,400)
+        viewer.set_desired_size(194,111)    # this is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
         viewer.enable_autozoom('on')
         viewer.enable_autocuts('on')
         output.append(viewer)
@@ -838,19 +869,6 @@ def locate_star(bounds, masks, image, calculator):
         if kind == 'star':
             mask = 1-mask
         data = data*mask
-        
-    datast = ""
-    for row in data:
-        datast += '\n'
-        for datum in row:
-            datast += ' '
-            if datum < 0:
-                datast += '-'
-            elif datum == 0:
-                datast += '0'
-            else:
-                datast += '+'
-    print datast
     
     x_sum = 0.
     y_sum = 0.
@@ -881,6 +899,9 @@ def tag(step, mod_1, mod_2=None):
         The secondary modifier, if it is needed for additional distinction
     @returns:
         A 'tag', probably a string, to be passed into CanvasMixin.add
+    
+    >>> tag(1, 3, 'pt')
+    '@1:3:pt'
     """
     if mod_2 == None:
         return '@{}:{}'.format(step, mod_1)
