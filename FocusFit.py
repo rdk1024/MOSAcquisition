@@ -98,6 +98,8 @@ class FocusFit(GingaPlugin.LocalPlugin):
 
     def _draw(self):
         self.ax.grid(True)
+        print "draw draw draw"
+        print self.plot.fig.canvas
         self.plot.draw()
 
     def set_err_msg(self,msg,x,y):
@@ -113,6 +115,7 @@ class FocusFit(GingaPlugin.LocalPlugin):
 
     def _drawGraph(self, title, result, data, minX, minY,
                    a, b, c):
+        print "do do dododo space."
 
         el = Ellipse((2, -1), 0.5, 0.5)
 

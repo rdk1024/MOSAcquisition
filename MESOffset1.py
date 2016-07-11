@@ -11,9 +11,9 @@ import math
 
 # ginga imports
 from ginga import GingaPlugin
-from ginga.gw import Widgets, Viewers
+from ginga.gw import Widgets, Viewers, Plot
 from ginga.RGBImage import RGBImage
-from ginga.util import iqcalc
+from ginga.util import iqcalc, plots
 
 # third-party imports
 import numpy as np
@@ -55,8 +55,9 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         # reads the given SBR file to get the star positions
         self.star_list, self.star0 = readSBR()
         self.star_num = len(self.star_list)
-        # creates the list of thumbnails that will go in the GUI
+        # creates the list of thumbnails and plots that will go in the GUI
         self.thumbnails = create_viewer_list(self.star_num, self.logger)
+        self.plots = create_plot_list(self.logger)
         # and creates some other attributes:
         self.click_history = []     # places we've clicked
         self.click_index = -1       # index of the last click
@@ -153,6 +154,11 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             self.set_callbacks()
             self.fitsimage.center_image()
             self.fitsimage.zoom_fit()
+            try:
+                self.update_plots()
+            except:
+                import traceback
+                traceback.print_exc()
             return
             
         # if there is one, focus in on it
@@ -438,6 +444,14 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             self.canvas.add(self.dc.Point((x1+x2)/2, (y1+y2)/2, sq_size/4,
                                           color='red', linewidth=2,
                                           linestyle='dash'), tag=t)
+                                          
+                                          
+    def update_plots(self):
+        """
+        Graphs data on all plots and displays it
+        """
+        for plot in self.plots:
+            plot.plot_radial(100, 100, 20, self.fitsimage.get_image())
         
         
     def get_step(self):
@@ -641,11 +655,10 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
         txt.set_font(self.body_font)
-        txt.set_text("Look at the graphs. Use the 'Toggle' button below, or "+
-            "right- and left-click, to remove undesirable data and "+
-            "reintroduce removed data on the graph. Right-clicking will "+
-            "delete, and left-clicking will restore. Click 'Next' below or "+
-            "press 'Q' if the data is satisfactory.")
+        txt.set_text("Look at the graphs. If a datum seems out of place, or "+
+                     "wrongfully deleted, right-click it to delete it or left-"+
+                     "click to restore it. Click 'Next' below or press 'Q' if "+
+                     "the data is satisfactory.")
         exp.set_widget(txt)
         
         # now make an HBox to hold the main controls
@@ -654,11 +667,22 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         gui.add_widget(box)
         
         # the undo button goes back a crop
-        btn = Widgets.Button("Toggle")
+        btn = Widgets.Button("Next")
         btn.add_callback('activated', self.undo2_cb)
-        btn.set_tooltip("Delete the star under your cursor if it is active, "+
-                        "or restore it if it is deleted.")
+        btn.set_tooltip("Get the MES Offset values!")
         box.add_widget(btn)
+        
+        # now a framed vbox to put the plots in
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
+        box = Widgets.VBox()
+        box.set_spacing(3)
+        frm.set_widget(box)
+        
+        # finally, add all three plots in frames
+        for graph in self.plots:
+            plt = Plot.PlotWidget(graph)
+            box.add_widget(plt)
         
         # space gui appropriately and return it
         gui.add_widget(Widgets.Label(""), stretch=1)
@@ -668,6 +692,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
     def build_gui(self, container):
         """
         Called when the plugin is invoked; sets up all the components of the GUI
+        One of the required LocalPlugin methods
         @param container:
             The widget.VBox this GUI will be added into
         """
@@ -700,6 +725,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
     def close(self):
         """
         Called when the plugin is closed
+        One of the required LocalPlugin methods
         @returns:
             True. I'm not sure why.
         """
@@ -711,6 +737,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
     def start(self):
         """
         Called when the plugin is invoked, right after build_gui()
+        One of the required LocalPlugin methods
         """
         # stick our own canvas on top of the fitsimage canvas
         p_canvas = self.fitsimage.get_canvas()
@@ -727,6 +754,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
     def pause(self):
         """
         Called when the plugin is unfocused
+        One of the required LocalPlugin methods
         """
         self.canvas.ui_setActive(False)
 
@@ -734,6 +762,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
     def resume(self):
         """
         Called when the plugin is refocused
+        One of the required LocalPlugin methods
         """
         # activate the GUI
         self.canvas.ui_setActive(True)
@@ -743,6 +772,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
     def stop(self):
         """
         Called when the plugin is stopped
+        One of the required LocalPlugin methods
         """
         p_canvas = self.fitsimage.get_canvas()
         try:
@@ -756,6 +786,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
     def redo(self):
         """
         Called whenever a new image is loaded
+        One of the required LocalPlugin methods
         """
         pass
 
@@ -782,6 +813,22 @@ def create_viewer_list(n, logger=None):
         viewer.enable_autozoom('on')
         viewer.enable_autocuts('on')
         output.append(viewer)
+    return output
+    
+    
+def create_plot_list(logger=None, image=None):
+    """
+    Create a list of two util.plots.Plot objects for step 3 of mesoffset1
+    @param logger:
+        A Logger object to pass into the new Viewers
+    @returns:
+        A list of plots.Plot objects
+    """
+    output = [plots.RadialPlot(logger=logger), plots.RadialPlot(logger=logger)]
+    output[0].add_axis()
+    output[1].add_axis()
+    output[0].set_titles('X (distances)', 'Y (years)', 'X versus Y',)
+    output[1].set_titles('Y Residual (buttloads)', 'Y (evers)', 'Y-Residual versus Y')
     return output
 
 
