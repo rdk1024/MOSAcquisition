@@ -61,7 +61,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.star_num = len(self.star_list)
         # creates the list of thumbnails and plots that will go in the GUI
         self.thumbnails = create_viewer_list(self.star_num, self.logger)
-        self.plots = create_plot_list(self.star_list, self.star0, self.logger)
+        self.plots = create_plot_list(self.logger)
         # and creates some other attributes:
         self.click_history = []     # places we've clicked
         self.click_index = -1       # index of the last click
@@ -69,6 +69,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.drag_history = [[]]*self.star_num    # places we've click-dragged*
         self.drag_index = [-1]*self.star_num      # index of the current drag for each star
         self.drag_start = None      # the place where we most recently began to drag
+        self.star_poss = [None]*self.star_num     # the new star_list based on user input and calculations
         
         # now sets up the ginga.canvas.types.layer.DrawingCanvas self.canvas,
         # which is necessary to draw on the image:
@@ -436,6 +437,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.canvas.delete_object_by_tag(t)
         
         # then locate with iqcalc and draw the point (if it exists)
+        star = None
         try:
             cs = self.current_star
             star = locate_star(self.get_current_box(),
@@ -449,11 +451,20 @@ class MESOffset1(GingaPlugin.LocalPlugin):
                                           color='red', linewidth=2,
                                           linestyle='dash'), tag=t)
                                           
+        self.star_poss[self.current_star] = star
+                                          
                                           
     def update_plots(self):
         """
         Graphs data on all plots and displays it
         """
+        for plot in self.plots:
+            try:
+                plot.set_data(self.star_poss)
+            except TypeError:
+                self.fv.showStatus("Could not locate one or more stars")
+                return
+            
         self.plots[0].plot_x_y()
         self.plots[1].plot_residual()
         
@@ -686,6 +697,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         # finally, add all three plots in frames
         for graph in self.plots:
             plt = Plot.PlotWidget(graph)
+            graph.set_callback('cursor-down', lambda w: self.close())
             box.add_widget(plt)
         
         # space gui appropriately and return it
@@ -820,7 +832,7 @@ def create_viewer_list(n, logger=None):
     return output
     
     
-def create_plot_list(star_list=None, offset=None, logger=None):
+def create_plot_list(logger=None):
     """
     Create a list of two ginga.util.plots.Plot objects for step 3 of mesoffset1
     @param logger:
@@ -832,8 +844,9 @@ def create_plot_list(star_list=None, offset=None, logger=None):
     @returns:
         A list of plots.Plot objects
     """
-    return [mosplots.StarXYPlot(star_list, offset, logger=logger),
-            mosplots.YResidualPlot(logger=logger)]
+    output = [mosplots.StarXYPlot(logger=logger),
+              mosplots.YResidualPlot(logger=logger)]
+    return output
 
 
 def readSBR():

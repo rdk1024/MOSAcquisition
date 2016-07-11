@@ -28,13 +28,11 @@ class StarXYPlot(plots.Plot):
             A list of float tuples representing the positions of the stars
         @param offset:
             A float tuple to offset star_list by, if star_list exists
-        """ # TODO: find out what the units in star_list are
+        """
         super(StarXYPlot, self).__init__(**kwargs)
         
         if star_list != None:
             self.set_data(star_list, offset=offset)
-            
-        #self.set_titles('X (distances)', 'Y (years)', 'X versus Y',)
         
         
     def set_data(self, star_list, offset=None):
@@ -44,6 +42,8 @@ class StarXYPlot(plots.Plot):
             A list of float tuples representing the positions of the stars
         @param offset:
             An optional float tuple to offset star_list by, if star_list exists
+        @raises TypeError:
+            If one or more stars could not be located
         """
         # create self.data by converting star_list to a numpy array
         if offset is not None:
@@ -80,7 +80,9 @@ class StarXYPlot(plots.Plot):
         Reads the star positions from self.x_arr and self.y_arr, and plots them
         """
         #self.clear()
-        self.plot(self.data[:,0], self.data[:,1], linestyle='None', marker='+', color='black')
+        self.plot(self.data[:,0], self.data[:,1], xtitle='X pos (pixels)',
+                  ytitle='Y pos (pixels)', title='X verus Y plot',
+                  linestyle='None', marker='+', color='black')
     
     
     
@@ -90,12 +92,20 @@ class YResidualPlot(plots.Plot):
     idea. Intended for use with the MESOffset plugins.
     """
     
+    def set_data(self, *args, **kwargs):
+        pass
+    
     def plot_residual(self, data=None):
         """
         Reads the Y residuals from self.??? and plots them
         """
-        x = np.arange(0,1,0.01)
+        x = np.arange(0,10,0.01)
         y = np.sin(x)
         
         #self.clear()
-        self.plot(x, y)
+        self.plot(x, y, xtitle='Y pos (pixels)',
+                  ytitle='Y residual (???)', title='Y Residual plot',
+                  linestyle='None', marker='+', color='black')
+
+#END
+
