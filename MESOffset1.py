@@ -24,6 +24,11 @@ import numpy as np
 
 
 # constants
+args = ["/home/justinku/moircs01/MOS/mes_star",
+        "sbr_elaisn1rev_starg10.fits",
+        "sbr_elaisn1rev.sbr",
+        "sbr_elaisn1rev_star.coo",
+        "yes"]
 sq_size = 30
 colors = ('green','red','blue','yellow','magenta','cyan','orange')
 selection_modes = ("Automatic", "Star", "Mask")
@@ -755,6 +760,9 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         Called when the plugin is invoked, right after build_gui()
         One of the required LocalPlugin methods
         """
+        # set the autocut to make things easier to see
+        self.fitsimage.get_settings().set(autocut_method='stddev')
+        
         # stick our own canvas on top of the fitsimage canvas
         p_canvas = self.fitsimage.get_canvas()
         if not p_canvas.has_object(self.canvas):
@@ -851,7 +859,7 @@ def create_plot_list(logger=None):
 
 def readSBR():
     """
-    Reads sf_a1689final.sbr and returns the position of the first active
+    Reads the SBR file and returns the position of the first active
     star as well as the relative positions of all the other stars in a list
     @returns:
         A tuple containing a list of float tuples (relative locations of stars)
@@ -862,7 +870,7 @@ def readSBR():
     star0 = None
     
     # open and parse the file
-    sbr = open("sf_a1689final.sbr", 'r')
+    sbr = open(args[2], 'r')
     line = sbr.readline()
     while line != "":
         # for each line, get the important values and save them in star_list
