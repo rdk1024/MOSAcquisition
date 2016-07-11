@@ -9,11 +9,14 @@
 # standard imports
 import math
 
+# local imports
+import mosplots
+
 # ginga imports
 from ginga import GingaPlugin
 from ginga.gw import Widgets, Viewers, Plot
 from ginga.RGBImage import RGBImage
-from ginga.util import iqcalc, plots
+from ginga.util import iqcalc
 
 # third-party imports
 import numpy as np
@@ -34,6 +37,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
     of those stars, and then calculates their centers of masses. Intended
     for use as part of the MOS Acquisition software for aligning MOIRCS.
     """
+    
     def __init__(self, fv, fitsimage):
         """
         Class constructor
@@ -57,7 +61,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.star_num = len(self.star_list)
         # creates the list of thumbnails and plots that will go in the GUI
         self.thumbnails = create_viewer_list(self.star_num, self.logger)
-        self.plots = create_plot_list(self.logger)
+        self.plots = create_plot_list(self.star_list, self.star0, self.logger)
         # and creates some other attributes:
         self.click_history = []     # places we've clicked
         self.click_index = -1       # index of the last click
@@ -438,7 +442,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
                             self.drag_history[cs][:self.drag_index[cs]+1],
                             self.fitsimage.get_image(), self.iqcalc)
             self.canvas.add(self.dc.Point(star[0], star[1], sq_size/4,
-                                          color='white', linewidth=2), tag=t)
+                                          color='green', linewidth=2), tag=t)
         except iqcalc.IQCalcError:
             x1, y1, x2, y2 = self.get_current_box()
             self.canvas.add(self.dc.Point((x1+x2)/2, (y1+y2)/2, sq_size/4,
@@ -450,8 +454,8 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         Graphs data on all plots and displays it
         """
-        for plot in self.plots:
-            plot.plot_radial(100, 100, 20, self.fitsimage.get_image())
+        self.plots[0].plot_x_y()
+        self.plots[1].plot_residual()
         
         
     def get_step(self):
@@ -667,8 +671,8 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         gui.add_widget(box)
         
         # the undo button goes back a crop
-        btn = Widgets.Button("Next")
-        btn.add_callback('activated', self.undo2_cb)
+        btn = Widgets.Button("Finish")
+        btn.add_callback('activated', lambda w: self.close())
         btn.set_tooltip("Get the MES Offset values!")
         box.add_widget(btn)
         
@@ -816,20 +820,20 @@ def create_viewer_list(n, logger=None):
     return output
     
     
-def create_plot_list(logger=None, image=None):
+def create_plot_list(star_list=None, offset=None, logger=None):
     """
-    Create a list of two util.plots.Plot objects for step 3 of mesoffset1
+    Create a list of two ginga.util.plots.Plot objects for step 3 of mesoffset1
     @param logger:
         A Logger object to pass into the new Viewers
+    @param star_list:
+        A list of float tuples representing the relative position of each star
+    @param offset:
+        An optional float tuple to offset all star positions by
     @returns:
         A list of plots.Plot objects
     """
-    output = [plots.RadialPlot(logger=logger), plots.RadialPlot(logger=logger)]
-    output[0].add_axis()
-    output[1].add_axis()
-    output[0].set_titles('X (distances)', 'Y (years)', 'X versus Y',)
-    output[1].set_titles('Y Residual (buttloads)', 'Y (evers)', 'Y-Residual versus Y')
-    return output
+    return [mosplots.StarXYPlot(star_list, offset, logger=logger),
+            mosplots.YResidualPlot(logger=logger)]
 
 
 def readSBR():
