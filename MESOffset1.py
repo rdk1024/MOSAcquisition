@@ -29,7 +29,7 @@ args = ["/home/justinku/moircs01/MOS/mes_star",
         "sbr_elaisn1rev.sbr",
         "sbr_elaisn1rev_star.coo",
         "yes"]
-sq_size = 30
+sq_size = 25
 colors = ('green','red','blue','yellow','magenta','cyan','orange')
 selection_modes = ("Automatic", "Star", "Mask")
 
@@ -232,7 +232,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         return True
         
         
-    def end_select_star_cb(self, _, __, x, y):
+    def end_select_star_cb(self, _, __, xf, yf):
         """
         Responds to the mouse finishing a left-drag by finalizing star selection
         @param x:
@@ -241,7 +241,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             An int corresponding to the y coordinate of where the click happened
         """
         # if rectangle has area zero, ignore it
-        if (x,y) == self.drag_start:
+        if (xf,yf) == self.drag_start:
             return
             
         # finish the drawing, but make sure nothing is drawn; it won't be visible anyway
@@ -255,18 +255,19 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         
         # now save that star
         x1, y1, x2, y2 = self.get_current_box()
-        self.drag_history[cs].append((max(min(self.drag_start[0], x), x1),
-                                      max(min(self.drag_start[1], y), y1),
-                                      min(max(self.drag_start[0], x), x2),
-                                      min(max(self.drag_start[1], y), y2),
-                                      'star'))
+        xi, yi = self.drag_start
+        self.drag_history[cs].append((min(max(min(xi, xf), x1), x2),
+                                      min(max(min(yi, yf), y1), y2),
+                                      min(max(max(xi, xf), x1), x2),
+                                      min(max(max(yi, yf), y1), y2),
+                                      'mask'))
         
         # shade in the outside areas and remark it
         self.draw_mask(*self.drag_history[self.current_star][-1])
         self.mark_current_star()
         
         
-    def end_select_mask_cb(self, _, __, x, y):
+    def end_select_mask_cb(self, _, __, xf, yf):
         """
         Responds to the mouse finishing a middle-drag by finalizing star mask
         @param x:
@@ -275,7 +276,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             An int corresponding to the y coordinate of where the click happened
         """
         # if rectangle has area zero, ignore it
-        if (x,y) == self.drag_start:
+        if (xf,yf) == self.drag_start:
             return
             
         # finish the drawing, but make sure nothing is drawn; we need to specify the tag
@@ -287,12 +288,13 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         if self.drag_index[cs] < len(self.drag_history[cs]):
             self.drag_history[cs] = self.drag_history[cs][:self.drag_index[cs]]
         
-        # now save that mask
+        # now save that mask (sorted and coerced in bounds)
         x1, y1, x2, y2 = self.get_current_box()
-        self.drag_history[cs].append((max(min(self.drag_start[0], x), x1),
-                                      max(min(self.drag_start[1], y), y1),
-                                      min(max(self.drag_start[0], x), x2),
-                                      min(max(self.drag_start[1], y), y2),
+        xi, yi = self.drag_start
+        self.drag_history[cs].append((min(max(min(xi, xf), x1), x2),
+                                      min(max(min(yi, yf), y1), y2),
+                                      min(max(max(xi, xf), x1), x2),
+                                      min(max(max(yi, yf), y1), y2),
                                       'mask'))
                                       
         # shade that puppy in and remark it
@@ -373,7 +375,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         
             # first, draw squares and numbers
             shapes.append(self.dc.SquareBox(x+dx, y+dy, sq_size, color=color))
-            shapes.append(self.dc.Text(x+dx-sq_size+1, y+dy-sq_size+1,
+            shapes.append(self.dc.Text(x+dx+sq_size, y+dy,
                                        str(i+1), color=color))
 
             # then, update the little pictures
@@ -455,7 +457,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             self.canvas.add(self.dc.Point((x1+x2)/2, (y1+y2)/2, sq_size/4,
                                           color='red', linewidth=2,
                                           linestyle='dash'), tag=t)
-                                          
+        
         self.star_poss[self.current_star] = star
                                           
                                           
@@ -901,9 +903,8 @@ def imgXY_from_sbrXY(sbr_coords):
     sbrX, sbrY = sbr_coords
     fX = 1078.0 - float(sbrX)*17.57789
     fY = 1857.0 + float(sbrY)*17.57789
-    SBRROT = 0  #XXX: What the heck is SBRROT?!
-    fHoleX = 365.0 + (fX-300.0)*math.cos(SBRROT) - (fY-2660.0)*math.sin(SBRROT)
-    fHoleY = 2580.0 + (fX-300.0)*math.sin(SBRROT) + (fY-2660.0)*math.cos(SBRROT)
+    fHoleX = 365.0 + (fX-300.0)
+    fHoleY = 2580.0 + (fY-2660.0)
     return (fHoleX, fHoleY)
     
     
@@ -928,28 +929,48 @@ def locate_star(bounds, masks, image, calculator):
     """
     # start by cropping the image to get the data matrix
     data, x0,y0 = image.cutout_adjust(*bounds)[0:3]
-    threshold = 0
-    data = data-threshold
     
-    # omit data based on the masks
+    # now make a mask array out of the drags recorded in masks
+    mask = np.ones(data.shape)
     for drag in masks:
         x1, y1, x2, y2, kind = (int(drag[0]-bounds[0]), int(drag[1]-bounds[1]),
                                 int(drag[2]-bounds[0]), int(drag[3]-bounds[1]),
                                 drag[4])
-        mask = np.ones((2*sq_size, 2*sq_size))
-        mask[y1:y2, x1:x2] = np.zeros((y2-y1, x2-x1))
+        mask_piece = np.ones(data.shape)
+        mask_piece[y1:y2, x1:x2] = np.zeros((y2-y1, x2-x1))
         if kind == 'star':
-            mask = 1-mask
-        data = data*mask
+            mask_piece = 1-mask_piece
+        mask *= mask_piece
+    
+    # omit data based on mask, calculate threshold, coerce values positive, and reapply mask
+    data *= mask
+    threshold = 3*np.std(data) + np.mean(data)
+    data = data - threshold
+    data = np.clip(data, 0, float('inf'))
+    data *= mask
+    
+    datast = ""
+    for row in data:
+        for datum in row:
+            if datum > 0:
+                datast += "+"
+            elif datum < 0:
+                datast += "-"
+            else:
+                datast += "0"
+            datast += " "
+        datast += "\n"
+    print datast
     
     x_sum = 0.
     y_sum = 0.
     tot = 0.
     for x in range(0, data.shape[0]):
         for y in range(0, data.shape[1]):
-            x_sum += data[y, x]*x
-            y_sum += data[y, x]*y
-            tot += data[y, x]
+            if data[y, x] > 0:
+                x_sum += data[y, x]*x
+                y_sum += data[y, x]*y
+                tot += data[y, x]
     
     if tot == 0:
         raise iqcalc.IQCalcError("Data summed to zero")
