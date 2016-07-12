@@ -930,24 +930,17 @@ def locate_star(bounds, masks, image, calculator):
     # start by cropping the image to get the data matrix
     data, x0,y0 = image.cutout_adjust(*bounds)[0:3]
     
-    # now make a mask array out of the drags recorded in masks
-    mask = np.ones(data.shape)
+    # omit data based on masks
     for drag in masks:
         x1, y1, x2, y2, kind = (int(drag[0]-bounds[0]), int(drag[1]-bounds[1]),
                                 int(drag[2]-bounds[0]), int(drag[3]-bounds[1]),
                                 drag[4])
-        mask_piece = np.ones(data.shape)
-        mask_piece[y1:y2, x1:x2] = np.zeros((y2-y1, x2-x1))
+        mask = np.ones(data.shape)
+        mask[y1:y2, x1:x2] = np.zeros((y2-y1, x2-x1))
+        print kind
         if kind == 'star':
-            mask_piece = 1-mask_piece
-        mask *= mask_piece
-    
-    # omit data based on mask, calculate threshold, coerce values positive, and reapply mask
-    data *= mask
-    threshold = 3*np.std(data) + np.mean(data)
-    data = data - threshold
-    data = np.clip(data, 0, float('inf'))
-    data *= mask
+            mask = 1-mask_piece
+        data = data*mask
     
     datast = ""
     for row in data:
@@ -962,22 +955,17 @@ def locate_star(bounds, masks, image, calculator):
         datast += "\n"
     print datast
     
-    x_sum = 0.
-    y_sum = 0.
-    tot = 0.
-    for x in range(0, data.shape[0]):
-        for y in range(0, data.shape[1]):
-            if data[y, x] > 0:
-                x_sum += data[y, x]*x
-                y_sum += data[y, x]*y
-                tot += data[y, x]
-    
-    if tot == 0:
-        raise iqcalc.IQCalcError("Data summed to zero")
-    centroid = (x_sum/tot, y_sum/tot)
-    
-    # if there are any left, take the best one
-    return (x0+centroid[0], y0+centroid[1])
+    # run the iqcalc bright peak finding algorithm on data now
+    try:
+        h, w = data.shape
+        peaks = calculator.find_bright_peaks(data, sigma=5, radius=5)
+        objects = calculator.evaluate_peaks(peaks, data, bright_radius=2,
+                                          fwhm_radius=15, fwhm_method=1)
+        results = calculator.objlist_select(objects, w, h, minfwhm=2.0, maxfwhm=150.0,
+                                          minelipse=0.5, edgew=0.01)
+        return (x0+results[0].objx, y0+results[0].objy)
+    except IndexError:
+        raise iqcalc.IQCalcError("No acceptable peaks found")
     
 
 def tag(step, mod_1, mod_2=None):
