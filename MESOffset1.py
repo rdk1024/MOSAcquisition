@@ -74,7 +74,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.drag_history = [[]]*self.star_num    # places we've click-dragged*
         self.drag_index = [-1]*self.star_num      # index of the current drag for each star
         self.drag_start = None      # the place where we most recently began to drag
-        self.star_poss = [None]*self.star_num     # the new star_list based on user input and calculations
+        self.star_centroids = [None]*self.star_num     # the new star_list based on user input and calculations
         
         # now sets up the ginga.canvas.types.layer.DrawingCanvas self.canvas,
         # which is necessary to draw on the image:
@@ -129,6 +129,18 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             canvas.add_callback('draw-up', self.next_star_cb)
     
     
+    def step1_cb(self, *args):
+        """
+        Responds to back button by returning to step 1
+        """
+        self.stack.set_index(0)
+        self.fv.showStatus("Locate the star labeled '1' by clicking.")
+        self.set_callbacks()
+        self.select_point(self.click_history[self.click_index])
+        self.fitsimage.center_image()
+        self.fitsimage.zoom_fit()
+    
+    
     def step2_cb(self, *args):
         """
         Responds to next button or right click by proceeding to the next step
@@ -146,10 +158,12 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         Responds to back button in step 2 by going back to the last star
         """
-        # if there is no previous star, do nothing
+        # if there is no previous star, return to step 1
         if self.current_star > 0:
             self.current_star -= 1
             self.zoom_in_on_current_star()
+        else:
+            self.step1_cb()
         
     
     def next_star_cb(self, *args):
@@ -169,7 +183,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             except:
                 import traceback
                 traceback.print_exc()
-            finish_cb()
+            self.finish_cb()
             return
             
         # if there is one, focus in on it
@@ -181,11 +195,12 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         Responds to the Finish button in step 3 by ending the program
         """
-        f = open(argv[3], 'w')
-        for i in range(0, self.num_stars):
-            f.write("%7.1f, %7.1f \n" % (0, 0))
+        f = open('sbr_elaisn1rev_star.coo', 'w')
+        for x, y in self.star_centroids:
+            f.write("%7.1f, %7.1f \n" % (x, y))
         f.close()
         self.close()
+        self.fv.quit()
     
     
     def click1_cb(self, _, __, x, y):
@@ -456,7 +471,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.canvas.delete_object_by_tag(t)
         
         # then locate with iqcalc and draw the point (if it exists)
-        star = None
+        star = (float('NaN'), float('NaN'))
         try:
             cs = self.current_star
             star = locate_star(self.get_current_box(),
@@ -470,7 +485,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
                                           color='red', linewidth=2,
                                           linestyle='dash'), tag=t)
         
-        self.star_poss[self.current_star] = star
+        self.star_centroids[self.current_star] = star
                                           
                                           
     def update_plots(self):
@@ -479,7 +494,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         for plot in self.plots:
             try:
-                plot.set_data(self.star_poss)
+                plot.set_data(self.star_centroids)
             except TypeError:
                 self.fv.showStatus("Could not locate one or more stars")
                 return
@@ -691,8 +706,8 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         txt.set_font(self.body_font)
         txt.set_text("Look at the graphs. If a datum seems out of place, or "+
                      "wrongfully deleted, right-click it to delete it or left-"+
-                     "click to restore it. Click 'Next' below or press 'Q' if "+
-                     "the data is satisfactory.")
+                     "click to restore it. Click 'Finish' below or press 'Q' "+
+                     "if the data is satisfactory.")
         exp.set_widget(txt)
         
         # now make an HBox to hold the main controls
@@ -700,7 +715,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         box.set_spacing(3)
         gui.add_widget(box)
         
-        # the undo button goes back a crop
+        # the finish button ends the program
         btn = Widgets.Button("Finish")
         btn.add_callback('activated', self.finish_cb)
         btn.set_tooltip("Get the MES Offset values!")
@@ -818,7 +833,6 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         except:
             pass
         self.canvas.ui_setActive(False)
-        self.fv.showStatus("")
 
 
     def redo(self):
