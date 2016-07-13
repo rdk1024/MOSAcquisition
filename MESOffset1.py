@@ -8,6 +8,7 @@
 
 # standard imports
 import math
+import sys
 
 # local imports
 import mosplots
@@ -24,11 +25,7 @@ import numpy as np
 
 
 # constants
-args = ["/home/justinku/moircs01/MOS/mes_star",
-        "sbr_elaisn1rev_starg10.fits",
-        "sbr_elaisn1rev.sbr",
-        "sbr_elaisn1rev_star.coo",
-        "yes"]
+args = sys.argv
 sq_size = 25
 colors = ('green','red','blue','yellow','magenta','cyan','orange')
 selection_modes = ("Automatic", "Star", "Mask")
@@ -145,6 +142,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         Responds to next button or right click by proceeding to the next step
         """
+        # set everything up for the first star of step 2
         self.stack.set_index(1)
         self.fv.showStatus("Crop each star image by clicking and dragging")
         self.set_callbacks()
@@ -152,6 +150,10 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.select_point(self.click_history[self.click_index])
         self.zoom_in_on_current_star()
         self.mark_current_star()
+        
+        # if interaction is turned off, immediately go to the next star
+        if argv[4][0].lower() == 'n':
+            self.next_star_cb()
         
         
     def last_star_cb(self, *args):
@@ -189,6 +191,10 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         # if there is one, focus in on it
         self.zoom_in_on_current_star()
         self.mark_current_star()
+        
+        # if interaction is turned off, immediately go to the next star
+        if argv[4][0].lower() == 'n':
+            self.next_star_cb()
         
         
     def finish_cb(self, *args):
