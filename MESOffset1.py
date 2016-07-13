@@ -129,7 +129,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             canvas.add_callback('draw-up', self.next_star_cb)
     
     
-    def step2_cb(self, _, __=None, ___=None, ____=None):
+    def step2_cb(self, *args):
         """
         Responds to next button or right click by proceeding to the next step
         """
@@ -142,7 +142,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.mark_current_star()
         
         
-    def last_star_cb(self, _, __=None, ___=None, ____=None):
+    def last_star_cb(self, *args):
         """
         Responds to back button in step 2 by going back to the last star
         """
@@ -152,7 +152,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             self.zoom_in_on_current_star()
         
     
-    def next_star_cb(self, _, __=None, ___=None, ____=None):
+    def next_star_cb(self, *args):
         """
         Responds to next button or right click by proceeding to the next star
         """
@@ -169,11 +169,23 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             except:
                 import traceback
                 traceback.print_exc()
+            finish_cb()
             return
             
         # if there is one, focus in on it
         self.zoom_in_on_current_star()
         self.mark_current_star()
+        
+        
+    def finish_cb(self, *args):
+        """
+        Responds to the Finish button in step 3 by ending the program
+        """
+        f = open(argv[3], 'w')
+        for i in range(0, self.num_stars):
+            f.write("%7.1f, %7.1f \n" % (0, 0))
+        f.close()
+        self.close()
     
     
     def click1_cb(self, _, __, x, y):
@@ -260,7 +272,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
                                       min(max(min(yi, yf), y1), y2),
                                       min(max(max(xi, xf), x1), x2),
                                       min(max(max(yi, yf), y1), y2),
-                                      'mask'))
+                                      'star'))
         
         # shade in the outside areas and remark it
         self.draw_mask(*self.drag_history[self.current_star][-1])
@@ -302,7 +314,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.mark_current_star()
             
             
-    def undo1_cb(self, _):
+    def undo1_cb(self, *args):
         """
         Responds to the undo button in step 1
         by going back one click (if possible)
@@ -313,7 +325,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             self.select_point(self.click_history[self.click_index])
     
     
-    def redo1_cb(self, _):
+    def redo1_cb(self, *args):
         """
         Responds to the redo button in step 1
         by going forward one click (if possible)
@@ -323,7 +335,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             self.select_point(self.click_history[self.click_index])
             
             
-    def undo2_cb(self, _):
+    def undo2_cb(self, *args):
         """
         Responds to the undo button in step 2
         by going back one drag (if possible)
@@ -336,7 +348,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             self.mark_current_star()
     
     
-    def redo2_cb(self, _):
+    def redo2_cb(self, *args):
         """
         Responds to the redo button in step 2
         by going forward one drag (if possible)
@@ -690,7 +702,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         
         # the undo button goes back a crop
         btn = Widgets.Button("Finish")
-        btn.add_callback('activated', lambda w: self.close())
+        btn.add_callback('activated', self.finish_cb)
         btn.set_tooltip("Get the MES Offset values!")
         box.add_widget(btn)
         
@@ -835,7 +847,7 @@ def create_viewer_list(n, logger=None):
     output = []
     for i in range(n):
         viewer = Viewers.CanvasView(logger=logger)
-        viewer.set_desired_size(194,111)    # this is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
+        viewer.set_desired_size(194,141)    # this is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
         viewer.enable_autozoom('on')
         viewer.enable_autocuts('on')
         output.append(viewer)
@@ -937,25 +949,11 @@ def locate_star(bounds, masks, image, calculator):
                                 drag[4])
         mask = np.ones(data.shape)
         mask[y1:y2, x1:x2] = np.zeros((y2-y1, x2-x1))
-        print kind
         if kind == 'star':
-            mask = 1-mask_piece
+            mask = 1-mask
         data = data*mask
     
-    datast = ""
-    for row in data:
-        for datum in row:
-            if datum > 0:
-                datast += "+"
-            elif datum < 0:
-                datast += "-"
-            else:
-                datast += "0"
-            datast += " "
-        datast += "\n"
-    print datast
-    
-    # run the iqcalc bright peak finding algorithm on data now
+    # now run the iqcalc bright peak finding algorithm on data
     try:
         h, w = data.shape
         peaks = calculator.find_bright_peaks(data, sigma=5, radius=5)
