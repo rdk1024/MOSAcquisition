@@ -25,9 +25,15 @@ import numpy as np
 
 
 # constants
-args = sys.argv
-sq_size = 25
+# the arguments passed in to the outer script
+argv = sys.argv
+# the object we are looking for
+mode = 'hole' if 'mask' in argv[1] else 'star'
+# the size of the object-finding squares (dependent on whether we look for holes or stars)
+sq_size = 60 if mode == 'hole' else 25
+# the colors of said squares
 colors = ('green','red','blue','yellow','magenta','cyan','orange')
+# the different ways we can select things
 selection_modes = ("Automatic", "Star", "Mask")
 
 
@@ -201,9 +207,13 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         Responds to the Finish button in step 3 by ending the program
         """
-        f = open('sbr_elaisn1rev_star.coo', 'w')
-        for x, y in self.star_centroids:
-            f.write("%7.1f, %7.1f \n" % (x, y))
+        f = open(argv[3], 'w')
+        if mode == 'star':
+            for x, y, r in self.star_centroids:
+                f.write("%7.1f, %7.1f \n" % (x, y))
+        else:
+            for x, y, r in self.star_centroids:
+                f.write("%7.1f, %7.1f, %7.1f \n" % (x, y, r))
         f.close()
         self.close()
         self.fv.quit()
@@ -903,8 +913,16 @@ def readSBR():
     star_list = []
     star0 = None
     
-    # open and parse the file
-    sbr = open(args[2], 'r')
+    # open the file
+    try:
+        sbr = open(argv[2], 'r')
+    except IOError:
+        try:
+            sbr = open("sbr_elaisn1rev.sbr")
+        except IOError:
+            return [(dx, dy) for dx in [0,1,-1] for dy in [0,1,-1]], (0,0)
+    
+    # now parse it!
     line = sbr.readline()
     while line != "":
         # for each line, get the important values and save them in star_list
@@ -981,7 +999,7 @@ def locate_star(bounds, masks, image, calculator):
                                           fwhm_radius=15, fwhm_method=1)
         results = calculator.objlist_select(objects, w, h, minfwhm=2.0, maxfwhm=150.0,
                                           minelipse=0.5, edgew=0.01)
-        return (x0+results[0].objx, y0+results[0].objy)
+        return (x0+results[0].objx, y0+results[0].objy, results[0].fwhm_radius)
     except IndexError:
         raise iqcalc.IQCalcError("No acceptable peaks found")
     
