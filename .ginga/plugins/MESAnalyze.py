@@ -12,7 +12,7 @@ import math
 import sys
 
 # local imports
-import mosplots
+from util import mosplots
 
 # ginga imports
 from ginga import GingaPlugin
@@ -228,8 +228,8 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
             gui.add_widget(txt)
         
         btn = Widgets.Button("Exit")
-        btn.add_callback('activated', self.finish)
-        gui.add(btn)
+        btn.add_callback('activated', self.finish_cb)
+        gui.add_widget(btn)
         
         # space gui appropriately and return it
         gui.add_widget(Widgets.Label(""), stretch=1)
