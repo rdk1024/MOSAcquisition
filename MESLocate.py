@@ -1,5 +1,5 @@
 #
-# MESLocate -- a ginga plugin designed to help locate a group of objects.
+# MESLocate.py -- a ginga plugin designed to help locate a group of objects.
 # Works in conjunction with mesoffset scripts for MOS Acquisition
 #
 # Justin Kunimune
@@ -10,9 +10,6 @@
 # standard imports
 import math
 import sys
-
-# local imports
-import mosplots
 
 # ginga imports
 from ginga import GingaPlugin
@@ -68,9 +65,8 @@ class MESLocate(GingaPlugin.LocalPlugin):
         # reads the given SBR file to get the object positions
         self.obj_list, self.obj0 = readSBR()
         self.obj_num = len(self.obj_list)
-        # creates the list of thumbnails and plots that will go in the GUI
+        # creates the list of thumbnails that will go in the GUI
         self.thumbnails = create_viewer_list(self.obj_num, self.logger)
-        self.plots = create_plot_list(self.logger)
         # and creates some other attributes:
         self.click_history = []     # places we've clicked
         self.click_index = -1       # index of the last click
@@ -181,16 +177,6 @@ class MESLocate(GingaPlugin.LocalPlugin):
         # if there is no next object, finish up
         self.current_obj += 1
         if self.current_obj >= self.obj_num:
-            self.stack.set_index(2)
-            self.fv.showStatus("View the graphs and filter the data")
-            self.set_callbacks()
-            self.fitsimage.center_image()
-            self.fitsimage.zoom_fit()
-            try:
-                self.update_plots()
-            except:
-                import traceback
-                traceback.print_exc()
             self.finish_cb()
             return
             
@@ -205,7 +191,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         
     def finish_cb(self, *args):
         """
-        Responds to the Finish button in step 3 by ending the program
+        Responds to the Next button at the last object by ending the program
         """
         f = open(argv[3], 'w')
         if mode == 'star':
@@ -504,21 +490,6 @@ class MESLocate(GingaPlugin.LocalPlugin):
                                           linestyle='dash'), tag=t)
         
         self.obj_centroids[self.current_obj] = obj
-                                          
-                                          
-    def update_plots(self):
-        """
-        Graphs data on all plots and displays it
-        """
-        for plot in self.plots:
-            try:
-                plot.set_data(self.obj_centroids)
-            except TypeError:
-                self.fv.showStatus("Could not locate one or more objects")
-                return
-            
-        self.plots[0].plot_x_y()
-        self.plots[1].plot_residual()
         
         
     def get_step(self):
@@ -548,7 +519,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         
     def make_gui1(self, orientation='vertical'):
         """
-        Constructs a GUI for the first step: finding the objects
+        Construct a GUI for the first step: finding the objects
         @param orientation:
             Either 'vertical' or 'horizontal', the orientation of this new GUI
         @returns:
@@ -626,7 +597,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         
     def make_gui2(self, orientation='vertical'):
         """
-        Constructs a GUI for the second step: cropping the stars
+        Construct a GUI for the second step: cropping the stars
         @param orientation:
             Either 'vertical' or 'horizontal', the orientation of this new GUI
         @returns:
@@ -702,63 +673,6 @@ class MESLocate(GingaPlugin.LocalPlugin):
         return gui
         
         
-    def make_gui3(self, orientation='vertical'):
-        """
-        Constructs a GUI for the third step: viewing the graph
-        @param orientation:
-            Either 'vertical' or 'horizontal', the orientation of this new GUI
-        @returns:
-            A Widgets.Box object containing all necessary buttons, labels, etc.
-        """
-        # start by creating the container
-        gui = Widgets.Box(orientation=orientation)
-        gui.set_spacing(4)
-        
-        # create a label to title this step
-        lbl = Widgets.Label("Step 3")
-        lbl.set_font(self.title_font)
-        gui.add_widget(lbl)
-
-        # fill a text box with brief instructions and put in in an expander
-        exp = Widgets.Expander(title="Instructions")
-        gui.add_widget(exp)
-        txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.body_font)
-        txt.set_text("Look at the graphs. If a datum seems out of place, or "+
-                     "wrongfully deleted, right-click it to delete it or left-"+
-                     "click to restore it. Click 'Finish' below or press 'Q' "+
-                     "once the data is satisfactory.")
-        exp.set_widget(txt)
-        
-        # now make an HBox to hold the main controls
-        box = Widgets.HBox()
-        box.set_spacing(3)
-        gui.add_widget(box)
-        
-        # the finish button ends the program
-        btn = Widgets.Button("Finish")
-        btn.add_callback('activated', self.finish_cb)
-        btn.set_tooltip("Get the MES Offset values!")
-        box.add_widget(btn)
-        
-        # now a framed vbox to put the plots in
-        frm = Widgets.Frame()
-        gui.add_widget(frm)
-        box = Widgets.VBox()
-        box.set_spacing(3)
-        frm.set_widget(box)
-        
-        # finally, add all three plots in frames
-        for graph in self.plots:
-            plt = Plot.PlotWidget(graph)
-            graph.set_callback('cursor-down', lambda w: self.close())
-            box.add_widget(plt)
-        
-        # space gui appropriately and return it
-        gui.add_widget(Widgets.Label(""), stretch=1)
-        return gui
-
-
     def build_gui(self, container):
         """
         Called when the plugin is invoked; sets up all the components of the GUI
@@ -776,7 +690,6 @@ class MESLocate(GingaPlugin.LocalPlugin):
         stk = Widgets.StackWidget()
         stk.add_widget(self.make_gui1(orientation))
         stk.add_widget(self.make_gui2(orientation))
-        stk.add_widget(self.make_gui3(orientation))
         out.add_widget(stk)
         self.stack = stk    # this stack is important, so save it for later
 
@@ -799,8 +712,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         @returns:
             True. I'm not sure why.
         """
-        chname = self.fv.get_channelName(self.fitsimage)
-        self.fv.stop_local_plugin(chname, str(self))
+        self.fv.stop_local_plugin(self.chname, str(self))
         return True
 
 
@@ -811,6 +723,9 @@ class MESLocate(GingaPlugin.LocalPlugin):
         """
         # set the autocut to make things easier to see
         self.fitsimage.get_settings().set(autocut_method='stddev')
+        
+        # set the initial status message
+        self.fv.showStatus("Locate the object labeled '1' by clicking.")
         
         # stick our own canvas on top of the fitsimage canvas
         p_canvas = self.fitsimage.get_canvas()
@@ -839,7 +754,6 @@ class MESLocate(GingaPlugin.LocalPlugin):
         """
         # activate the GUI
         self.canvas.ui_setActive(True)
-        self.fv.showStatus("Locate the object labeled '1' by clicking.")
 
 
     def stop(self):
@@ -886,23 +800,6 @@ def create_viewer_list(n, logger=None):
         viewer.enable_autocuts('on')
         output.append(viewer)
     return output
-    
-    
-def create_plot_list(logger=None):
-    """
-    Create a list of two ginga.util.plots.Plot objects for step 3 of mesoffset1
-    @param logger:
-        A Logger object to pass into the new Viewers
-    @param obj_list:
-        A list of float tuples representing the relative position of each object
-    @param offset:
-        An optional float tuple to offset all object positions by
-    @returns:
-        A list of plots.Plot objects
-    """
-    output = [mosplots.ObjXYPlot(logger=logger),
-              mosplots.YResidualPlot(logger=logger)]
-    return output
 
 
 def readSBR():
@@ -917,7 +814,7 @@ def readSBR():
     obj_list = []
     obj0 = None
     
-    # open the file
+    # try to open the file
     try:
         sbr = open(argv[2], 'r')
     except IOError:
@@ -999,9 +896,8 @@ def locate_obj(bounds, masks, image):
     threshold = threshold_dist*np.std(data) + np.mean(data)
     data = data - threshold
     data = np.clip(data, 0, float('inf'))
-    data = np.square(data)
     data = data * mask_tot
-    np.seterr(all='raise')
+    
     # now do a center-of mass calculation to find the size and centroid
     x = np.tile(np.arange(0, data.shape[1]), (data.shape[0], 1))
     y = np.tile(np.arange(0, data.shape[0]), (data.shape[1], 1)).T
@@ -1018,7 +914,7 @@ def locate_obj(bounds, masks, image):
 
 def tag(step, mod_1, mod_2=None):
     """
-    Creates a new tag given the step and some modifiers,
+    Create a new tag given the step and some modifiers,
     to be used by self.canvas
     @param step:
         Which step we are on
