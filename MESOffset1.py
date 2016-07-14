@@ -31,7 +31,7 @@ mode = 'star' if 'star' in argv[1] else 'hole'
 # the size of the object-finding squares (dependent on whether we look for holes or stars)
 sq_size = 25 if mode == 'star' else 60
 # the difference between the threshold and the mean, in standard deviations
-threshold_dist = 3 if mode == 'star' else 3
+threshold_dist = 3 if mode == 'star' else -.2
 # the colors of said squares
 colors = ('green','red','blue','yellow','magenta','cyan','orange')
 # the different ways we can select things
@@ -480,21 +480,25 @@ class MESOffset1(GingaPlugin.LocalPlugin):
     
     def mark_current_star(self):
         """
-        Puts a point on the current star
+        Puts a point and/or circle on the current star
         """
         # if there is already a point for this star, delete it
         t = tag(2, self.current_star, 'pt')
         self.canvas.delete_object_by_tag(t)
         
         # then locate and draw the point (if it exists)
-        star = (float('NaN'), float('NaN'))
+        star = (float('NaN'), float('NaN'), float('NaN'))
         try:
             cs = self.current_star
             star = locate_star(self.get_current_box(),
                             self.drag_history[cs][:self.drag_index[cs]+1],
                             self.fitsimage.get_image())
-            self.canvas.add(self.dc.Point(star[0], star[1], sq_size/4,
-                                          color='green', linewidth=2), tag=t)
+            self.canvas.add(self.dc.CompoundObject(
+                                    self.dc.Circle(star[0], star[1], star[2],
+                                                   color='green', linewidth=2),
+                                    self.dc.Point(star[0], star[1], sq_size/4,
+                                                  color='green', linewidth=2)),
+                            tag=t)
         except ZeroDivisionError:
             x1, y1, x2, y2 = self.get_current_box()
             self.canvas.add(self.dc.Point((x1+x2)/2, (y1+y2)/2, sq_size/4,
@@ -991,11 +995,11 @@ def locate_star(bounds, masks, image):
         mask_tot = mask_tot*mask
     
     # apply mask, calculate threshold, coerce data positive, and reapply mask
-    data = data*mask_tot
+    data = data * mask_tot
     threshold = threshold_dist*np.std(data) + np.mean(data)
-    data -= threshold
+    data = data - threshold
     data = np.clip(data, 0, float('inf'))
-    data = data*mask_tot
+    data = data * mask_tot
     np.seterr(all='raise')
     # now do a center-of mass calculation to find the size and centroid
     x = np.tile(np.arange(0, data.shape[1]), (data.shape[0], 1))
