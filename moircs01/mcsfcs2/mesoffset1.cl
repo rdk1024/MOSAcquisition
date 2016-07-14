@@ -35,6 +35,8 @@ struct *list1
 struct *list2
 
 begin
+    string    HOME = "/home/justinku/"
+    
     int       num_star_chip1, num_star_chip2
     string    instar_chip1, instar_chip2
     int       num_sky_chip1, num_sky_chip2
@@ -123,9 +125,10 @@ begin
 # New tasks
 #    task $sed = $foreign
     task $awk = $foreign
-#    task makemosaic = "/home/justinku/moircs/MOS/makemosaic.cl"
-    task $messtar = "$/home/justinku/moircs01/MOS/mes_star"
-    task $meshole = "$/home/justinku/moircs01/MOS/mes_hole"
+#    task makemosaic = "$"//HOME//"moircs/MOS/makemosaic.cl"
+    task $messtar = "$"//HOME//"moircs01/MOS2/mes_star.py"
+    task $meshole = "$"//HOME//"moircs01/MOS2/mes_hole.py"
+    task $mesplot = "$"//HOME//"moircs01/MOS2/mes_plot.py"
 
 # Check header info.
     imgets( instar_chip1, "DET-ID")
@@ -266,6 +269,8 @@ begin
 # Geotran
     list_geotran = rootname//"_starmask.dbs"
     geomap.fitgeom = "rotate"
+    geomap.interact = no
+    mesplot( list_starmask )
     geomap( list_starmask, list_geotran, xmin=INDEF, xmax=INDEF, ymin=INDEF, ymax=INDEF )
 
 # Calculate offset value
@@ -282,8 +287,8 @@ begin
     print("== Ignore rotate less than 0.01 (degree) ==")
     print(" ========================================== ")
     date( >> log_mesoffset )
-    awk ("-f /home/justinku/moircs01/MOS/results.awk", list_geotran  ) 
-    awk ("-f /home/justinku/moircs01/MOS/results.awk", list_geotran, >> log_mesoffset  ) 
+    awk ("-f "//HOME//"moircs01/MOS/results.awk", list_geotran  ) 
+    awk ("-f "//HOME//"moircs01/MOS/results.awk", list_geotran, >> log_mesoffset  ) 
     print("")
     print("=======================================================")
 

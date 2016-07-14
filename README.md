@@ -1,19 +1,44 @@
 # MOSAcquisition
-A series of scripts and plugins that use Ginga to align the Multi Object Camera and Spectrograph system for Subaru Telecope.
+A series of scripts and plugins that use ginga to align the Multi Object Camera
+and Spectrograph system for Subaru Telecope.
 
 ## Installation
 ### Dependencies
-This package makes use of numpy, astropy, and ginga. To install, simply use  
-`pip install numpy astropy ginga`  
-It also requires much of the existing MOIRCS Acquisition software, which is not on the internet as far as I know, so if you don't work for Subaru, ha ha, too bad.
+This package requires a Python interpreter and an IRAF interpreter. It also
+makes use of numpy, astropy, and ginga. To install those packages, simply use  
+`$ pip install numpy astropy ginga`  
+It also requires much of the existing MOIRCS Acquisition software, which is not
+on the internet as far as I know, so if you don't work for Subaru, ha ha, too
+bad.
 
-### Installation
+### File Locations
 The files in this repository need to go in several different places:  
 The .ginga subdirectory (might be invisible) must be merged with $HOME/.ginga.
 The moircs01 subdirectory must be merged with $HOME/moircs01.  
-Now, assuming you have the rest of the MOS Acquisition stuff and you know how to use it, it should work just fine.
+Now, assuming you have the rest of the MOS Acquisition stuff and you know how to
+use it, it should work just fine.
 
-## Liscense
+### Home Path
+Finally, mesoffset1.cl, mesoffset2.cl, and mesoffset3.cl all need to have the
+HOME variable declared at the beginning manually set to the value of $HOME, or
+whatever directory has moircs01 and .ginga in it. It's probably either /home/ or
+/home/username/. I can't imagine why you would put them anywhere else.  
+For example, if you are me, you would set line thirty-something in
+mesoffset1.cl, mesoffset2.cl, _and_ mesoffset3.cl to  
+```ini
+    string    HOME = "/home/justinku/"
+```  
+Except that it already says that, because I wrote it, and I am me.
+
+## Usage
+Once this package has been installed as specified above, one can run it the same
+way one would run the original MOS Acquisition:  
+`$ goiraf`  
+`ecl> epar mesoffset0`  
+If all has been installed correctly, IRAF should now use ginga instead of
+pgplot.
+
+## License
 Copyright (c) 2016, Justin Kunimune
 
 All rights reserved.
