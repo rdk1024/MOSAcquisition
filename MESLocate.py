@@ -1,5 +1,6 @@
 #
-# MOSAcquisition -- a ginga plugin designed to help measure the offset of the MOIRCS (works in conjunction with mesoffset scripts)
+# MESLocate -- a ginga plugin designed to help locate a group of objects.
+# Works in conjunction with mesoffset scripts for MOS Acquisition
 #
 # Justin Kunimune
 #
@@ -35,15 +36,15 @@ threshold_dist = 3 if mode == 'star' else -.2
 # the colors of said squares
 colors = ('green','red','blue','yellow','magenta','cyan','orange')
 # the different ways we can select things
-selection_modes = ("Automatic", "Star", "Mask")
+selection_modes = ("Automatic", "Crop", "Mask")
 
 
 
-class MESOffset1(GingaPlugin.LocalPlugin):
+class MESLocate(GingaPlugin.LocalPlugin):
     """
-    A custom LocalPlugin for ginga that locates a set of calibration stars,
+    A custom LocalPlugin for ginga that locates a set of calibration objects,
     asks for users to help locate anomolies and artifacts on its images
-    of those stars, and then calculates their centers of masses. Intended
+    of those objects, and then calculates their centers of masses. Intended
     for use as part of the MOS Acquisition software for aligning MOIRCS.
     """
     
@@ -57,27 +58,27 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             associated with the channel on which the plugin is being invoked
         """
         # superclass constructor defines self.fv, self.fitsimage, and self.logger:
-        super(MESOffset1, self).__init__(fv, fitsimage)
-        fv.set_titlebar("MES Offset 1")
+        super(MESLocate, self).__init__(fv, fitsimage)
+        fv.set_titlebar("MOIRCS Acquisition")
 
         # initializes some class constants:
         self.title_font = self.fv.getFont('sansFont', 18)
         self.body_font = self.fv.getFont('sansFont', 10)
 
-        # reads the given SBR file to get the star positions
-        self.star_list, self.star0 = readSBR()
-        self.star_num = len(self.star_list)
+        # reads the given SBR file to get the object positions
+        self.obj_list, self.obj0 = readSBR()
+        self.obj_num = len(self.obj_list)
         # creates the list of thumbnails and plots that will go in the GUI
-        self.thumbnails = create_viewer_list(self.star_num, self.logger)
+        self.thumbnails = create_viewer_list(self.obj_num, self.logger)
         self.plots = create_plot_list(self.logger)
         # and creates some other attributes:
         self.click_history = []     # places we've clicked
         self.click_index = -1       # index of the last click
-        self.current_star = 0       # index of the current star
-        self.drag_history = [[]]*self.star_num    # places we've click-dragged*
-        self.drag_index = [-1]*self.star_num      # index of the current drag for each star
+        self.current_obj = 0        # index of the current object
+        self.drag_history = [[]]*self.obj_num   # places we've click-dragged*
+        self.drag_index = [-1]*self.obj_num     # index of the current drag for each object
         self.drag_start = None      # the place where we most recently began to drag
-        self.star_centroids = [None]*self.star_num     # the new star_list based on user input and calculations
+        self.obj_centroids = [None]*self.obj_num     # the new obj_list based on user input and calculations
         
         # now sets up the ginga.canvas.types.layer.DrawingCanvas self.canvas,
         # which is necessary to draw on the image:
@@ -90,8 +91,8 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.canvas.name = 'MOSA-canvas'
         
         # * NOTE: self.drag_history is a list of lists, with one list for each
-        #       star; each inner list contains tuples of the form
-        #       (float x1, float y1, float x2, float y2, string ['mask'/'star'])
+        #       object; each inner list contains tuples of the form
+        #       (float x1, float y1, float x2, float y2, string ['mask'/'crop'])
         
         
         
@@ -99,7 +100,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         Assigns all necessary callbacks to the canvas for the current step
         @param selection_mode:
-            Either 'Automatic', 'Star', or 'Mask'. It decides what happens
+            Either 'Automatic', 'Crop', or 'Mask'. It decides what happens
             when we click and drag
         """
         canvas = self.canvas
@@ -121,15 +122,15 @@ class MESOffset1(GingaPlugin.LocalPlugin):
                 canvas.add_callback('cursor-down', self.start_select_mask_cb)
                 canvas.add_callback('cursor-up', self.end_select_mask_cb)
             else:
-                canvas.add_callback('cursor-down', self.start_select_star_cb)
-                canvas.add_callback('cursor-up', self.end_select_star_cb)
-            if selection_mode == "Star":
-                canvas.add_callback('panset-down', self.start_select_star_cb)
-                canvas.add_callback('panset-up', self.end_select_star_cb)
+                canvas.add_callback('cursor-down', self.start_select_crop_cb)
+                canvas.add_callback('cursor-up', self.end_select_crop_cb)
+            if selection_mode == "Crop":
+                canvas.add_callback('panset-down', self.start_select_crop_cb)
+                canvas.add_callback('panset-up', self.end_select_crop_cb)
             else:
                 canvas.add_callback('panset-down', self.start_select_mask_cb)
                 canvas.add_callback('panset-up', self.end_select_mask_cb)
-            canvas.add_callback('draw-up', self.next_star_cb)
+            canvas.add_callback('draw-up', self.next_obj_cb)
     
     
     def step1_cb(self, *args):
@@ -137,9 +138,8 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         Responds to back button by returning to step 1
         """
         self.stack.set_index(0)
-        self.fv.showStatus("Locate the star labeled '1' by clicking.")
+        self.fv.showStatus("Locate the object labeled '1' by clicking.")
         self.set_callbacks()
-        self.select_point(self.click_history[self.click_index])
         self.fitsimage.center_image()
         self.fitsimage.zoom_fit()
     
@@ -148,39 +148,39 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         Responds to next button or right click by proceeding to the next step
         """
-        # set everything up for the first star of step 2
+        # set everything up for the first object of step 2
         self.stack.set_index(1)
-        self.fv.showStatus("Crop each star image by clicking and dragging")
+        self.fv.showStatus("Crop each object image by clicking and dragging")
         self.set_callbacks()
         self.canvas.delete_all_objects()
         self.select_point(self.click_history[self.click_index])
-        self.zoom_in_on_current_star()
-        self.mark_current_star()
+        self.zoom_in_on_current_obj()
+        self.mark_current_obj()
         
-        # if interaction is turned off, immediately go to the next star
+        # if interaction is turned off, immediately go to the next object
         if argv[4][0].lower() == 'n':
-            self.next_star_cb()
+            self.next_obj_cb()
         
         
-    def last_star_cb(self, *args):
+    def prev_obj_cb(self, *args):
         """
-        Responds to back button in step 2 by going back to the last star
+        Responds to back button in step 2 by going back to the last object
         """
-        # if there is no previous star, return to step 1
-        if self.current_star > 0:
-            self.current_star -= 1
-            self.zoom_in_on_current_star()
+        # if there is no previous object, return to step 1
+        if self.current_obj > 0:
+            self.current_obj -= 1
+            self.zoom_in_on_current_obj()
         else:
             self.step1_cb()
         
     
-    def next_star_cb(self, *args):
+    def next_obj_cb(self, *args):
         """
-        Responds to next button or right click by proceeding to the next star
+        Responds to next button or right click by proceeding to the next object
         """
-        # if there is no next star, finish up
-        self.current_star += 1
-        if self.current_star >= self.star_num:
+        # if there is no next object, finish up
+        self.current_obj += 1
+        if self.current_obj >= self.obj_num:
             self.stack.set_index(2)
             self.fv.showStatus("View the graphs and filter the data")
             self.set_callbacks()
@@ -195,12 +195,12 @@ class MESOffset1(GingaPlugin.LocalPlugin):
             return
             
         # if there is one, focus in on it
-        self.zoom_in_on_current_star()
-        self.mark_current_star()
+        self.zoom_in_on_current_obj()
+        self.mark_current_obj()
         
-        # if interaction is turned off, immediately go to the next star
+        # if interaction is turned off, immediately go to the next object
         if argv[4][0].lower() == 'n':
-            self.next_star_cb()
+            self.next_obj_cb()
         
         
     def finish_cb(self, *args):
@@ -209,10 +209,10 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         f = open(argv[3], 'w')
         if mode == 'star':
-            for x, y, r in self.star_centroids:
+            for x, y, r in self.obj_centroids:
                 f.write("%7.1f, %7.1f \n" % (x, y))
         else:
-            for x, y, r in self.star_centroids:
+            for x, y, r in self.obj_centroids:
                 f.write("%7.1f, %7.1f, %7.1f \n" % (x, y, r))
         f.close()
         self.close()
@@ -237,9 +237,9 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         return False
         
         
-    def start_select_star_cb(self, _, __, x, y):
+    def start_select_crop_cb(self, _, __, x, y):
         """
-        Responds to the mouse starting a left-drag by starting to select a star
+        Responds to the mouse starting a left-drag by starting to select a crop
         @param x:
             An int corresponding to the x coordinate of where the click happened
         @param y:
@@ -258,7 +258,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         
     def start_select_mask_cb(self, _, __, x, y):
         """
-        Responds to the mouse starting a middle-drag by starting to mask a star
+        Responds to the mouse starting a middle-drag by starting to draw a mask
         @param x:
             An int corresponding to the x coordinate of where the click happened
         @param y:
@@ -275,9 +275,9 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         return True
         
         
-    def end_select_star_cb(self, _, __, xf, yf):
+    def end_select_crop_cb(self, _, __, xf, yf):
         """
-        Responds to the mouse finishing a left-drag by finalizing star selection
+        Responds to the mouse finishing a left-drag by finalizing crop selection
         @param x:
             An int corresponding to the x coordinate of where the click happened
         @param y:
@@ -291,28 +291,28 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.canvas.draw_stop(None, None, *self.drag_start, viewer=None)
         self.canvas.enable_draw(False)
         # if anything is ahead of this in drag_history, clear it
-        cs = self.current_star
-        self.drag_index[cs] += 1
-        if self.drag_index[cs] < len(self.drag_history[cs]):
-            self.drag_history[cs] = self.drag_history[cs][:self.drag_index[cs]]
+        co = self.current_obj
+        self.drag_index[co] += 1
+        if self.drag_index[co] < len(self.drag_history[co]):
+            self.drag_history[co] = self.drag_history[co][:self.drag_index[co]]
         
-        # now save that star
+        # now save that crop
         x1, y1, x2, y2 = self.get_current_box()
         xi, yi = self.drag_start
-        self.drag_history[cs].append((min(max(min(xi, xf), x1), x2),
+        self.drag_history[co].append((min(max(min(xi, xf), x1), x2),
                                       min(max(min(yi, yf), y1), y2),
                                       min(max(max(xi, xf), x1), x2),
                                       min(max(max(yi, yf), y1), y2),
-                                      'star'))
+                                      'crop'))
         
         # shade in the outside areas and remark it
-        self.draw_mask(*self.drag_history[self.current_star][-1])
-        self.mark_current_star()
+        self.draw_mask(*self.drag_history[self.current_obj][-1])
+        self.mark_current_obj()
         
         
     def end_select_mask_cb(self, _, __, xf, yf):
         """
-        Responds to the mouse finishing a middle-drag by finalizing star mask
+        Responds to the mouse finishing a middle-drag by finalizing object mask
         @param x:
             An int corresponding to the x coordinate of where the click happened
         @param y:
@@ -326,23 +326,23 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.canvas.draw_stop(None, None, *self.drag_start, viewer=None)
         self.canvas.enable_draw(False)
         # if anything is ahead of this in drag_history, clear it
-        cs = self.current_star
-        self.drag_index[cs] += 1
-        if self.drag_index[cs] < len(self.drag_history[cs]):
-            self.drag_history[cs] = self.drag_history[cs][:self.drag_index[cs]]
+        co = self.current_obj
+        self.drag_index[co] += 1
+        if self.drag_index[co] < len(self.drag_history[co]):
+            self.drag_history[co] = self.drag_history[co][:self.drag_index[co]]
         
         # now save that mask (sorted and coerced in bounds)
         x1, y1, x2, y2 = self.get_current_box()
         xi, yi = self.drag_start
-        self.drag_history[cs].append((min(max(min(xi, xf), x1), x2),
+        self.drag_history[co].append((min(max(min(xi, xf), x1), x2),
                                       min(max(min(yi, yf), y1), y2),
                                       min(max(max(xi, xf), x1), x2),
                                       min(max(max(yi, yf), y1), y2),
                                       'mask'))
                                       
         # shade that puppy in and remark it
-        self.draw_mask(*self.drag_history[self.current_star][-1])
-        self.mark_current_star()
+        self.draw_mask(*self.drag_history[self.current_obj][-1])
+        self.mark_current_obj()
             
             
     def undo1_cb(self, *args):
@@ -371,12 +371,11 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         Responds to the undo button in step 2
         by going back one drag (if possible)
         """
-        # sets drag_index backward for this star if possible
-        cs = self.current_star
-        if self.drag_index[cs] >= 0:
-            self.canvas.delete_object_by_tag(tag(2, cs, self.drag_index[cs]))
-            self.drag_index[cs] -= 1
-            self.mark_current_star()
+        co = self.current_obj
+        if self.drag_index[co] >= 0:
+            self.canvas.delete_object_by_tag(tag(2, co, self.drag_index[co]))
+            self.drag_index[co] -= 1
+            self.mark_current_obj()
     
     
     def redo2_cb(self, *args):
@@ -384,12 +383,11 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         Responds to the redo button in step 2
         by going forward one drag (if possible)
         """
-        # sets drag_index forward for this star if possible
-        cs = self.current_star
-        if self.drag_index[cs] < len(self.drag_history[cs])-1:
-            self.drag_index[cs] += 1
-            self.draw_mask(*self.drag_history[cs][self.drag_index[cs]])
-            self.mark_current_star()
+        co = self.current_obj
+        if self.drag_index[co] < len(self.drag_history[co])-1:
+            self.drag_index[co] += 1
+            self.draw_mask(*self.drag_history[co][self.drag_index[co]])
+            self.mark_current_obj()
             
             
     def choose_select_cb(self, _, mode_idx):
@@ -402,19 +400,19 @@ class MESOffset1(GingaPlugin.LocalPlugin):
     
     def select_point(self, point):
         """
-        Sets a point in step 1 as the current location of star #1,
-        draws squares where it thinks all the stars are accordingly,
+        Sets a point in step 1 as the current location of object #0,
+        draws squares where it thinks all the objects are accordingly,
         and updates all thumbnails
         @param point:
-            An int tuple containing the location of star #1
+            An int tuple containing the location of object #0
         """
-        # define some variables before iterationg through the stars
+        # define some variables before iterationg through the objects
         x, y = point
         src_image = self.fitsimage.get_image()
         color = colors[self.click_index%len(colors)]   # cycles through all the colors
         shapes = []
         for i, viewer in enumerate(self.thumbnails):
-            dx, dy = self.star_list[i]
+            dx, dy = self.obj_list[i]
         
             # first, draw squares and numbers
             shapes.append(self.dc.SquareBox(x+dx, y+dy, sq_size, color=color))
@@ -436,14 +434,14 @@ class MESOffset1(GingaPlugin.LocalPlugin):
                         
     def draw_mask(self, xd1, yd1, xd2, yd2, kind):
         """
-        Draws the giant rectangles around a star when you crop it
+        Draws the giant rectangles around an object when you crop it
         @param xd1, yd1, xd2, yd2:
             floats representing the coordinates of the upper-left-hand corner
             (1) and the bottom-right-hand corner (2) of the drag
         @param kind:
-            A string - either 'mask' for an ommission or 'star' for a crop
+            A string - either 'mask' for an ommission or 'crop' for an inclusion
         """
-        if kind == 'star':
+        if kind == 'crop':
             # calculate the coordinates of the drag and the outer box
             xb1, yb1, xb2, yb2 = self.get_current_box()
             kwargs = {'color':'black', 'fill':True, 'fillcolor':'black'}
@@ -456,19 +454,19 @@ class MESOffset1(GingaPlugin.LocalPlugin):
                                 self.dc.Rectangle(xd2, yd1, xb2, yd2, **kwargs),
                                 self.dc.Rectangle(xd1, yd1, xd2, yd2,
                                                   color='white')),
-                            tag=tag(2, self.current_star,
-                                    self.drag_index[self.current_star]))
+                            tag=tag(2, self.current_obj,
+                                    self.drag_index[self.current_obj]))
         elif kind == 'mask':
             self.canvas.add(self.dc.Rectangle(xd1, yd1, xd2, yd2, color='white',
                                               fill=True, fillcolor='black'),
-                            tag=tag(2, self.current_star,
-                                    self.drag_index[self.current_star]))
+                            tag=tag(2, self.current_obj,
+                                    self.drag_index[self.current_obj]))
         
         
-    def zoom_in_on_current_star(self):
+    def zoom_in_on_current_obj(self):
         """
         Set the position and zoom level on fitsimage such that the user can
-        only see the star at index self.current_star. Also locates and marks it
+        only see the object at index self.current_obj. Also locates and marks it
         """
         # get the bounding box that must be zoomed to
         x1, y1, x2, y2 = self.get_current_box()
@@ -478,25 +476,25 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.fitsimage.zoom_to(360.0/sq_size)
     
     
-    def mark_current_star(self):
+    def mark_current_obj(self):
         """
-        Puts a point and/or circle on the current star
+        Puts a point and/or circle on the current object
         """
-        # if there is already a point for this star, delete it
-        t = tag(2, self.current_star, 'pt')
+        # if there is already a point for this object, delete it
+        t = tag(2, self.current_obj, 'pt')
         self.canvas.delete_object_by_tag(t)
         
         # then locate and draw the point (if it exists)
-        star = (float('NaN'), float('NaN'), float('NaN'))
+        obj = (float('NaN'), float('NaN'), float('NaN'))
         try:
-            cs = self.current_star
-            star = locate_star(self.get_current_box(),
-                            self.drag_history[cs][:self.drag_index[cs]+1],
+            co = self.current_obj
+            obj = locate_obj(self.get_current_box(),
+                            self.drag_history[co][:self.drag_index[co]+1],
                             self.fitsimage.get_image())
             self.canvas.add(self.dc.CompoundObject(
-                                    self.dc.Circle(star[0], star[1], star[2],
+                                    self.dc.Circle(obj[0], obj[1], obj[2],
                                                    color='green', linewidth=2),
-                                    self.dc.Point(star[0], star[1], sq_size/4,
+                                    self.dc.Point(obj[0], obj[1], sq_size/4,
                                                   color='green', linewidth=2)),
                             tag=t)
         except ZeroDivisionError:
@@ -505,7 +503,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
                                           color='red', linewidth=2,
                                           linestyle='dash'), tag=t)
         
-        self.star_centroids[self.current_star] = star
+        self.obj_centroids[self.current_obj] = obj
                                           
                                           
     def update_plots(self):
@@ -514,9 +512,9 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         for plot in self.plots:
             try:
-                plot.set_data(self.star_centroids)
+                plot.set_data(self.obj_centroids)
             except TypeError:
-                self.fv.showStatus("Could not locate one or more stars")
+                self.fv.showStatus("Could not locate one or more objects")
                 return
             
         self.plots[0].plot_x_y()
@@ -537,20 +535,20 @@ class MESOffset1(GingaPlugin.LocalPlugin):
     
     def get_current_box(self):
         """
-        Calculates the bounds of the box surrounding the current star
+        Calculates the bounds of the box surrounding the current object
         @precondition:
             This method only works in step 2
         @returns x1, y1, x2, y2:
             The float bounds of the current box
         """
         xf, yf = self.click_history[self.click_index]
-        dx, dy = self.star_list[self.current_star]
+        dx, dy = self.obj_list[self.current_obj]
         return (xf+dx-sq_size, yf+dy-sq_size, xf+dx+sq_size, yf+dy+sq_size)
         
         
     def make_gui1(self, orientation='vertical'):
         """
-        Constructs a GUI for the first step: locating the stars
+        Constructs a GUI for the first step: finding the objects
         @param orientation:
             Either 'vertical' or 'horizontal', the orientation of this new GUI
         @returns:
@@ -570,10 +568,11 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
         txt.set_font(self.body_font)
-        txt.set_text("Left click on the star labeled '#1'. The other stars "+
+        txt.set_text("Left click on the object labeled '1'. The other objects "+
                      "should appear in the boxes below. Click again to select "+
                      "another position. Click 'Next' below or right-click "+
-                     "when you are satisfied with your location.")
+                     "when you are satisfied with your location.\n"+
+                     "Remember - bright areas are shown in white.")
         exp.set_widget(txt)
 
         # create a box to group the control buttons together
@@ -606,7 +605,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         box.add_widget(btn)
         
         # lastly, we need the zoomed-in images. This is the grid we put them in
-        num_img = self.star_num   # total number of alignment stars
+        num_img = self.obj_num   # total number of alignment objects
         columns = 2                       # pictures in each row
         rows = int(math.ceil(float(num_img)/columns))
         grd = Widgets.GridBox(rows=rows, columns=columns)
@@ -647,11 +646,12 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
         txt.set_font(self.body_font)
-        txt.set_text("Click and drag to include or exclude regions; "+
+        txt.set_text("Help the computer find the centroid of this object. "+
+                     "Click and drag to include or exclude regions; "+
                      "left-click will crop to selection and middle-click will "+
                      "mask selection, or you can specify a selection option "+
-                     "below. Click 'Next' below or right-click to proceed to "+
-                     "the next star.")
+                     "below. Click 'Next' below or right-click when the "+
+                     "centroid has been found.")
         exp.set_widget(txt)
         
         # now make an HBox to hold the main controls
@@ -673,14 +673,14 @@ class MESOffset1(GingaPlugin.LocalPlugin):
 
         # the clear button nullifies all crops
         btn = Widgets.Button("Back")
-        btn.add_callback('activated', self.last_star_cb)
-        btn.set_tooltip("Go back to the previous star")
+        btn.add_callback('activated', self.prev_obj_cb)
+        btn.set_tooltip("Go back to the previous object")
         box.add_widget(btn)
         
-        # the next button moves on to the next star
+        # the next button moves on to the next object
         btn = Widgets.Button("Next")
-        btn.add_callback('activated', self.next_star_cb)
-        btn.set_tooltip("Accept and proceed to the next star")
+        btn.add_callback('activated', self.next_obj_cb)
+        btn.set_tooltip("Accept and proceed to the next object")
         box.add_widget(btn)
         
         # make a box for a combobox+label combo
@@ -727,7 +727,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         txt.set_text("Look at the graphs. If a datum seems out of place, or "+
                      "wrongfully deleted, right-click it to delete it or left-"+
                      "click to restore it. Click 'Finish' below or press 'Q' "+
-                     "if the data is satisfactory.")
+                     "once the data is satisfactory.")
         exp.set_widget(txt)
         
         # now make an HBox to hold the main controls
@@ -821,7 +821,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         self.canvas.delete_all_objects()
         
         # automatically select the first point and start
-        self.click1_cb(self.canvas, 1, *self.star0)
+        self.click1_cb(self.canvas, 1, *self.obj0)
 
 
     def pause(self):
@@ -839,7 +839,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         """
         # activate the GUI
         self.canvas.ui_setActive(True)
-        self.fv.showStatus("Locate the star labeled '1' by clicking.")
+        self.fv.showStatus("Locate the object labeled '1' by clicking.")
 
 
     def stop(self):
@@ -864,7 +864,7 @@ class MESOffset1(GingaPlugin.LocalPlugin):
 
 
     def __str__(self):
-        return "MESOffset1"
+        return "MESLocate"
         
         
 
@@ -893,14 +893,14 @@ def create_plot_list(logger=None):
     Create a list of two ginga.util.plots.Plot objects for step 3 of mesoffset1
     @param logger:
         A Logger object to pass into the new Viewers
-    @param star_list:
-        A list of float tuples representing the relative position of each star
+    @param obj_list:
+        A list of float tuples representing the relative position of each object
     @param offset:
-        An optional float tuple to offset all star positions by
+        An optional float tuple to offset all object positions by
     @returns:
         A list of plots.Plot objects
     """
-    output = [mosplots.StarXYPlot(logger=logger),
+    output = [mosplots.ObjXYPlot(logger=logger),
               mosplots.YResidualPlot(logger=logger)]
     return output
 
@@ -908,14 +908,14 @@ def create_plot_list(logger=None):
 def readSBR():
     """
     Reads the SBR file and returns the position of the first active
-    star as well as the relative positions of all the other stars in a list
+    object as well as the relative positions of all the other objects in a list
     @returns:
-        A tuple containing a list of float tuples (relative locations of stars)
-        and a single float tuple (absolute location of first star)
+        A tuple containing a list of float tuples, relative locations of objects
+        and a single float tuple (absolute location of first object)
     """
     # define variables
-    star_list = []
-    star0 = None
+    obj_list = []
+    obj0 = None
     
     # open the file
     try:
@@ -929,19 +929,19 @@ def readSBR():
     # now parse it!
     line = sbr.readline()
     while line != "":
-        # for each line, get the important values and save them in star_list
+        # for each line, get the important values and save them in obj_list
         vals = [word.strip(" \n") for word in line.split(",")]
         if vals[0] == "C":
             newX, newY = imgXY_from_sbrXY((vals[1], vals[2]))
-            if star0 == None:
-                star_list.append((0, 0))
-                star0 = (newX, newY)
+            if obj0 == None:
+                obj_list.append((0, 0))
+                obj0 = (newX, newY)
             else:
-                star_list.append((newX-star0[0],   # don't forget to shift it so star #0 is at the origin
-                                  newY-star0[1]))
+                obj_list.append((newX-obj0[0],   # don't forget to shift it so object #0 is at the origin
+                                  newY-obj0[1]))
         line = sbr.readline()
         
-    return star_list, star0
+    return obj_list, obj0
 
 
 def imgXY_from_sbrXY(sbr_coords):
@@ -962,20 +962,20 @@ def imgXY_from_sbrXY(sbr_coords):
     return (fHoleX, fHoleY)
     
     
-def locate_star(bounds, masks, image):
+def locate_obj(bounds, masks, image):
     """
-    Finds the center of a star using center of mass calculation
+    Finds the center of an object using center of mass calculation
     @param bounds:
-        A tuple of floats x1, y1, x2, y2. The star should be within this box
+        A tuple of floats x1, y1, x2, y2. The object should be within this box
     @param masks:
         A list of tuples of the form (x1, y1, x2, y2, kind) where kind is either
-        'mask' or 'star' and everything else is floats. Each tuple in masks
+        'mask' or 'crop' and everything else is floats. Each tuple in masks
         is one drag of the mouse that ommitted either its interior or its
         exterior
     @param image:
         The AstroImage containing the data necessary for this calculation
     @returns:
-        A tuple of two floats representing the actual location of the star
+        A tuple of two floats representing the actual location of the object
     @raises ZeroDivisionError:
         If no object is visible in the frame
     """
@@ -990,7 +990,7 @@ def locate_star(bounds, masks, image):
                                 drag[4])
         mask = np.ones(data.shape)
         mask[y1:y2, x1:x2] = np.zeros((y2-y1, x2-x1))
-        if kind == 'star':
+        if kind == 'crop':
             mask = 1-mask
         mask_tot = mask_tot*mask
     
@@ -999,6 +999,7 @@ def locate_star(bounds, masks, image):
     threshold = threshold_dist*np.std(data) + np.mean(data)
     data = data - threshold
     data = np.clip(data, 0, float('inf'))
+    data = np.square(data)
     data = data * mask_tot
     np.seterr(all='raise')
     # now do a center-of mass calculation to find the size and centroid

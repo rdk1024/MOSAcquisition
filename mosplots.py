@@ -14,43 +14,43 @@ import numpy as np
 
 
 
-class StarXYPlot(plots.Plot):
+class ObjXYPlot(plots.Plot):
     """
-    Plots a short series of stars on the X-Y plane as a scatterplot. Has the
-    ability to mark various stars as active or inactive, which will influence
+    Plots a short series of objects on the X-Y plane as a scatterplot. Has the
+    ability to mark various objects as active or inactive, which will influence
     the eventual fit calculations. Intended for use with the MESOffset plugins.
     """
     
-    def __init__(self, star_list=None, offset=None, **kwargs):
+    def __init__(self, obj_list=None, offset=None, **kwargs):
         """
         Class constructor
-        @param star_list:
-            A list of float tuples representing the positions of the stars
+        @param obj_list:
+            A list of float tuples representing the positions of the objects
         @param offset:
-            A float tuple to offset star_list by, if star_list exists
+            A float tuple to offset obj_list by, if obj_list exists
         """
-        super(StarXYPlot, self).__init__(**kwargs)
+        super(ObjXYPlot, self).__init__(**kwargs)
         
-        if star_list != None:
-            self.set_data(star_list, offset=offset)
+        if obj_list != None:
+            self.set_data(obj_list, offset=offset)
         
         
-    def set_data(self, star_list, offset=None):
+    def set_data(self, obj_list, offset=None):
         """
         Setter method for self.x_arr and self.y_arr
-        @param star_list:
+        @param obj_list:
             A list of float tuples representing the positions of the stars
         @param offset:
-            An optional float tuple to offset star_list by, if star_list exists
+            An optional float tuple to offset obj_list by, if obj_list exists
         @raises TypeError:
             If one or more stars could not be located
         """
-        # create self.data by converting star_list to a numpy array
+        # create self.data by converting obj_list to a numpy array
         if offset is not None:
             dx, dy = offset
         else:
             dx, dy = (0,0)
-        self.data = np.array([[x+dx,y+dy] for x, y, r in star_list])
+        self.data = np.array([[x+dx,y+dy] for x, y, r in obj_list])
         
         #self.deleted represents which stars are deleted (defaults to none of them)
         self.deleted = []
@@ -58,7 +58,7 @@ class StarXYPlot(plots.Plot):
         
     def delete(self, x, y):
         """
-        Deletes the star at the given position by setting it to inactive
+        Deletes the object at the given position by setting it to inactive
         @param x
             The float value for the x position
         @param y
@@ -77,7 +77,7 @@ class StarXYPlot(plots.Plot):
     
     def plot_x_y(self):
         """
-        Reads the star positions from self.x_arr and self.y_arr, and plots them
+        Reads the object positions from self.x_arr and self.y_arr and plots them
         """
         #self.clear()
         self.plot(self.data[:,0], self.data[:,1], xtitle='X pos (pixels)',

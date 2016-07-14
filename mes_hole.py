@@ -7,4 +7,4 @@ args = sys.argv
 
 ginga.main.reference_viewer(['$HOME/Install/bin/ginga',
                              args[1],
-                             '--plugins=MESOffset1'])
+                             '--plugins=MESLocate'])
