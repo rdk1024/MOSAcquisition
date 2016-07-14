@@ -17,7 +17,6 @@ import mosplots
 from ginga import GingaPlugin
 from ginga.gw import Widgets, Viewers, Plot
 from ginga.RGBImage import RGBImage
-from ginga.util import iqcalc
 
 # third-party imports
 import numpy as np
@@ -28,9 +27,11 @@ import numpy as np
 # the arguments passed in to the outer script
 argv = sys.argv
 # the object we are looking for
-mode = 'hole' if 'mask' in argv[1] else 'star'
+mode = 'star' if 'star' in argv[1] else 'hole'
 # the size of the object-finding squares (dependent on whether we look for holes or stars)
-sq_size = 60 if mode == 'hole' else 25
+sq_size = 25 if mode == 'star' else 60
+# the difference between the threshold and the mean, in standard deviations
+threshold_dist = 3 if mode == 'star' else 3
 # the colors of said squares
 colors = ('green','red','blue','yellow','magenta','cyan','orange')
 # the different ways we can select things
@@ -62,7 +63,6 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         # initializes some class constants:
         self.title_font = self.fv.getFont('sansFont', 18)
         self.body_font = self.fv.getFont('sansFont', 10)
-        self.iqcalc = iqcalc.IQCalc(logger=self.logger)
 
         # reads the given SBR file to get the star positions
         self.star_list, self.star0 = readSBR()
@@ -486,16 +486,16 @@ class MESOffset1(GingaPlugin.LocalPlugin):
         t = tag(2, self.current_star, 'pt')
         self.canvas.delete_object_by_tag(t)
         
-        # then locate with iqcalc and draw the point (if it exists)
+        # then locate and draw the point (if it exists)
         star = (float('NaN'), float('NaN'))
         try:
             cs = self.current_star
             star = locate_star(self.get_current_box(),
                             self.drag_history[cs][:self.drag_index[cs]+1],
-                            self.fitsimage.get_image(), self.iqcalc)
+                            self.fitsimage.get_image())
             self.canvas.add(self.dc.Point(star[0], star[1], sq_size/4,
                                           color='green', linewidth=2), tag=t)
-        except iqcalc.IQCalcError:
+        except ZeroDivisionError:
             x1, y1, x2, y2 = self.get_current_box()
             self.canvas.add(self.dc.Point((x1+x2)/2, (y1+y2)/2, sq_size/4,
                                           color='red', linewidth=2,
@@ -958,9 +958,9 @@ def imgXY_from_sbrXY(sbr_coords):
     return (fHoleX, fHoleY)
     
     
-def locate_star(bounds, masks, image, calculator):
+def locate_star(bounds, masks, image):
     """
-    Finds the center of a star using the IQCalc peak location algorithm
+    Finds the center of a star using center of mass calculation
     @param bounds:
         A tuple of floats x1, y1, x2, y2. The star should be within this box
     @param masks:
@@ -970,17 +970,16 @@ def locate_star(bounds, masks, image, calculator):
         exterior
     @param image:
         The AstroImage containing the data necessary for this calculation
-    @param calculator:
-        The IQCalc object
     @returns:
         A tuple of two floats representing the actual location of the star
-    @raises iqcalc.IQCalcError:
-        If it is unable to find any desirable peaks
+    @raises ZeroDivisionError:
+        If no object is visible in the frame
     """
     # start by cropping the image to get the data matrix
     data, x0,y0 = image.cutout_adjust(*bounds)[0:3]
     
     # omit data based on masks
+    mask_tot = np.ones(data.shape)
     for drag in masks:
         x1, y1, x2, y2, kind = (int(drag[0]-bounds[0]), int(drag[1]-bounds[1]),
                                 int(drag[2]-bounds[0]), int(drag[3]-bounds[1]),
@@ -989,19 +988,27 @@ def locate_star(bounds, masks, image, calculator):
         mask[y1:y2, x1:x2] = np.zeros((y2-y1, x2-x1))
         if kind == 'star':
             mask = 1-mask
-        data = data*mask
+        mask_tot = mask_tot*mask
     
-    # now run the iqcalc bright peak finding algorithm on data
-    try:
-        h, w = data.shape
-        peaks = calculator.find_bright_peaks(data, sigma=5, radius=5)
-        objects = calculator.evaluate_peaks(peaks, data, bright_radius=2,
-                                          fwhm_radius=15, fwhm_method=1)
-        results = calculator.objlist_select(objects, w, h, minfwhm=2.0, maxfwhm=150.0,
-                                          minelipse=0.5, edgew=0.01)
-        return (x0+results[0].objx, y0+results[0].objy, results[0].fwhm_radius)
-    except IndexError:
-        raise iqcalc.IQCalcError("No acceptable peaks found")
+    # apply mask, calculate threshold, coerce data positive, and reapply mask
+    data = data*mask_tot
+    threshold = threshold_dist*np.std(data) + np.mean(data)
+    data -= threshold
+    data = np.clip(data, 0, float('inf'))
+    data = data*mask_tot
+    np.seterr(all='raise')
+    # now do a center-of mass calculation to find the size and centroid
+    x = np.tile(np.arange(0, data.shape[1]), (data.shape[0], 1))
+    y = np.tile(np.arange(0, data.shape[0]), (data.shape[1], 1)).T
+    x_sum = float(np.sum(data*x))
+    y_sum = float(np.sum(data*y))
+    data_sum = float(np.sum(data))
+    area = float(np.sum(np.sign(data)))
+    
+    x_cen = x_sum/data_sum
+    y_cen = y_sum/data_sum
+    radius = math.sqrt(area/math.pi)
+    return (x0 + x_cen, y0 + y_cen, radius)
     
 
 def tag(step, mod_1, mod_2=None):

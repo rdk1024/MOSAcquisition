@@ -50,7 +50,7 @@ class StarXYPlot(plots.Plot):
             dx, dy = offset
         else:
             dx, dy = (0,0)
-        self.data = np.array([[x+dx,y+dy] for x, y in star_list])
+        self.data = np.array([[x+dx,y+dy] for x, y, r in star_list])
         
         #self.deleted represents which stars are deleted (defaults to none of them)
         self.deleted = []
