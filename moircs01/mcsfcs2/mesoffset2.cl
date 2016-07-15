@@ -101,8 +101,8 @@ begin
 #    task makemosaic = ""//HOME//"moircs01/MOS/makemosaic.cl"
 #    task $messtar = "$"//HOME//"moircs01/MOS/mes_star"
 #    task $meshole = "$"//HOME//"moircs01/MOS/mes_hole"
-    task $messtarhole_b = "$"//HOME//"moircs01/MOS/mes_starhole_b"
-    task $resviewer = "$"//HOME//"moircs01/MOS/res_viewer"
+    task $messtarhole_b = "$"//HOME//"moircs01/MOS2/mes_starhole_b.py"
+    task $resviewer = "$"//HOME//"moircs01/MOS2/res_viewer.py"
 
 # Check header info.
     imgets( instarhole_chip1, "DET-ID")

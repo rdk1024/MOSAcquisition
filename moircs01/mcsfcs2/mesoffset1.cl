@@ -269,8 +269,8 @@ begin
 # Geotran
     list_geotran = rootname//"_starmask.dbs"
     geomap.fitgeom = "rotate"
-    geomap.interact = no
-    mesplot( list_starmask )
+    #geomap.interact = no
+    mesplot( frame_starg10, list_starmask, list_starmask )
     geomap( list_starmask, list_geotran, xmin=INDEF, xmax=INDEF, ymin=INDEF, ymax=INDEF )
 
 # Calculate offset value

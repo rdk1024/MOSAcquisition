@@ -13,7 +13,7 @@ import sys
 argv = sys.argv
 
 if len(argv) != 5:
-    print("usage: mes_star(FITS_image_name, hole_pos_list, outputfile, interact?")
+    print("usage: mes_star( FITS_image_name, hole_pos_list, outputfile, interact? )")
     quit()
 
 ginga.main.reference_viewer(['$HOME/Install/bin/ginga',

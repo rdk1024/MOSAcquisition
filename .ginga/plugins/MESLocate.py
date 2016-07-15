@@ -14,7 +14,6 @@ import sys
 # ginga imports
 from ginga import GingaPlugin
 from ginga.gw import Widgets, Viewers, Plot
-from ginga.RGBImage import RGBImage
 
 # third-party imports
 import numpy as np
@@ -909,7 +908,7 @@ def locate_obj(bounds, masks, image):
     x_cen = x_sum/data_sum
     y_cen = y_sum/data_sum
     radius = math.sqrt(area/math.pi)
-    return (x0 + x_cen, y0 + y_cen, radius)
+    return (x0 + x_cen - 0.5, y0 + y_cen - 0.5, radius)
     
 
 def tag(step, mod_1, mod_2=None):

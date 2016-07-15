@@ -17,7 +17,6 @@ from util import mosplots
 # ginga imports
 from ginga import GingaPlugin
 from ginga.gw import Widgets, Viewers, Plot
-from ginga.RGBImage import RGBImage
 
 # third-party imports
 import numpy as np
@@ -27,6 +26,7 @@ import numpy as np
 # constants
 # the arguments passed in to the outer script
 argv = sys.argv
+# usage: %prog( FITS_filename, input_coo_filename, output_coo_filename )
 
 
 
@@ -50,13 +50,14 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         # superclass constructor defines self.fv, self.fitsimage, and self.logger:
         super(MESAnalyze, self).__init__(fv, fitsimage)
         fv.set_titlebar("MOIRCS Acquisition")
-
+        
         # initializes some class constants:
         self.title_font = self.fv.getFont('sansFont', 18)
         self.body_font = self.fv.getFont('sansFont', 10)
         
         # and some attributes
         self.data = readCOO()
+        self.active = np.ones(self.data.shape[0], dtype=np.bool)
         
         # creates the list of plots that will go in the GUI
         self.plots = create_plot_list(self.logger)
@@ -70,10 +71,6 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         self.canvas.set_surface(self.fitsimage)
         self.canvas.register_for_cursor_drawing(self.fitsimage)
         self.canvas.name = 'MOSA-canvas'
-        
-        # * NOTE: self.drag_history is a list of lists, with one list for each
-        #       object; each inner list contains tuples of the form
-        #       (float x1, float y1, float x2, float y2, string ['mask'/'crop'])
         
         
         
@@ -91,39 +88,71 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         
         # for step three, the only callbacks are for right-click and left-click
         if step == 3:
-            canvas.add_callback('draw-down', self.step4_cb)
+            canvas.add_callback('cursor-down', self.restore_cb)
+            canvas.add_callback('draw-down', self.delete_cb)
     
     
     def step4_cb(self, *args):
         """
-        Responds to the Finish button in step 3 by ending the program
+        Responds to the Finish button in step 3 by displaying the offset values
         """
+        # write the ammended data back into coo
+        coo = open(argv[2], 'w')
+        for i in range(self.data.shape[0]):
+            if self.active[i]:
+                for j in range(self.data.shape[1]):
+                    coo.write(str(self.data[i, j]))
+                    coo.write(' ')
+                coo.write('\n')
+        
+        # then move on to step 4
         self.stack.set_index(1)
         self.fv.showStatus("Read the MES Offset values!")
         self.set_callbacks()
         
         
-    def finish_cb(self, *args):
+    def exit_cb(self, *args):
         """
         Responds to the Exit button in step 4 by closing ginga
         """
         self.close()
         self.fv.quit()
+        
+        
+    def delete_cb(self, x, y, *args):
+        """
+        Responds to right click by deleting a random datum
+        """
+        import random
+        self.active[random.randint(0,self.data.shape[0]-1)] = 0
+        self.update_plots()
+        
+    
+    def restore_cb(self, x, y, *args):
+        """
+        Responds to left click by deleting a random datum
+        """#TODO: make it not random
+        import random
+        self.active[random.randint(0,self.data.shape[0]-1)] = 1
+        self.update_plots()
     
     
     def update_plots(self):
         """
         Graphs data on all plots and displays it
         """
-        for plot in self.plots:
-            try:
-                plot.set_data(process_data(self.data))
-            except TypeError:
-                self.fv.showStatus("Could not locate one or more objects")
-                return
-            
-        self.plots[0].plot_x_y()
-        self.plots[1].plot_residual()
+        # graph residual data on the plots
+        self.plots[0].x_residual(self.data)
+        self.plots[1].y_residual(self.data)
+        
+        # show the star positions on the canvas
+        self.canvas.delete_all_objects()
+        for i in range(0, self.data.shape[0]):
+            x, y = self.data[i, 2], self.data[i, 3]
+            if self.active[i]:
+                self.canvas.add(self.dc.Point(x, y, 20, color='green'))
+            else:
+                self.canvas.add(self.dc.Point(x, y, 20, color='grey'))
         
         
     def get_step(self):
@@ -228,7 +257,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
             gui.add_widget(txt)
         
         btn = Widgets.Button("Exit")
-        btn.add_callback('activated', self.finish_cb)
+        btn.add_callback('activated', self.exit_cb)
         gui.add_widget(btn)
         
         # space gui appropriately and return it
@@ -298,6 +327,9 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         
         # clear the canvas
         self.canvas.delete_all_objects()
+        
+        # initialize the plots
+        self.update_plots()
 
 
     def pause(self):
@@ -342,26 +374,28 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         return "MESAnalyze"
     
     
+    
 def create_plot_list(logger=None):
     """
     Create a list of two ginga.util.plots.Plot objects for step 3 of mesoffset1
     @param logger:
         A Logger object to pass into the new Viewers
-    @param obj_list:
-        A list of float tuples representing the relative position of each object
+    @param data:
+        The numpy array from which this is to read
     @param offset:
         An optional float tuple to offset all object positions by
     @returns:
         A list of plots.Plot objects
     """
-    output = [mosplots.ObjXYPlot(logger=logger),
-              mosplots.YResidualPlot(logger=logger)]
+    output = []
+    for i in range(2):
+        output.append(mosplots.MOSPlot(logger=logger))
     return output
 
 
 def readCOO():
     """
-    Read the COO file and return the data within as a list of float tuples
+    Read the COO file and return the data within as a numpy array
     @returns:
         A list of tuples of floats representing (x_in, y_in, x_out, y_out)
     """
@@ -370,22 +404,22 @@ def readCOO():
     
     # try to open the file
     try:
-        sbr = open(argv[1], 'r')
+        coo = open(argv[2], 'r')
     except IOError:
         try:
-            sbr = open("sbr_elaisn1rev_starmask.coo")
+            coo = open("sbr_elaisn1rev_starmask.coo")
         except IOError:
-            return [(0, 0, 0, 0)]
+            return np.array([[0, 0, 0, 0]])
     
     # now parse it!
-    line = sbr.readline()
+    line = coo.readline()
     while line != "":
         # for each line, get the important values and save them in val_list
         vals = [float(word) for word in line.split()]
         val_list.append(vals)
-        line = sbr.readline()
+        line = coo.readline()
         
-    return val_list
+    return np.array(val_list)
 
 #END
 
