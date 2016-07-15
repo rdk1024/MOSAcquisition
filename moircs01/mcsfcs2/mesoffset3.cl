@@ -34,8 +34,6 @@ bool    iinterac2        {yes, prompt = ' Interactive messtarhole ? :'}
 struct *list1
 
 begin
-    string    HOME = "/home/justinku/"
-    
     int       num_star_chip1, num_star_chip2
     string    instar_chip1, instar_chip2
     int       num_sky_chip1, num_sky_chip2
@@ -115,11 +113,11 @@ begin
 # New tasks
 #    task $sed = $foreign
     task $awk = $foreign
-#    task makemosaic = ""//HOME//"moircs/MOS/makemosaic.cl"
-#    task $messtar = "$"//HOME//"moircs01/MOS/mes_star"
-    task $meshole = "$"//HOME//"moircs01/MOS2/mes_hole.py"
-    task $messtarhole = "$"//HOME//"moircs01/MOS/mes_starhole"
-    task $resviewer = "$"//HOME//"moircs01/MOS/res_viewer"
+#    task makemosaic = "../../MOS/makemosaic.cl"
+#    task $messtar = "$../../MOS/mes_star"
+    task $meshole = "$../../MOS2/mes_hole.py"
+    task $messtarhole = "$../../MOS/mes_starhole"
+    task $resviewer = "$../../MOS/res_viewer"
 
 # Check header info.
     imgets( instar_chip1, "DET-ID")
@@ -253,8 +251,8 @@ begin
     print("== Ignore rotate less than 0.01 (degree) ==")
     print("===========================================")
     date( >> log_mesoffset )
-    awk ("-f "//HOME//"moircs01/MOS/results.awk", list_geotran  ) 
-    awk ("-f "//HOME//"moircs01/MOS/results.awk", list_geotran, >> log_mesoffset  ) 
+    awk ("-f ../../MOS/results.awk", list_geotran  ) 
+    awk ("-f ../../MOS/results.awk", list_geotran, >> log_mesoffset  ) 
     print("")
     print("=======================================================")
 

@@ -88,8 +88,8 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         
         # for step three, the only callbacks are for right-click and left-click
         if step == 3:
-            canvas.add_callback('cursor-down', self.restore_cb)
-            canvas.add_callback('draw-down', self.delete_cb)
+            canvas.add_callback('cursor-down', self.set_active_cb, True)
+            canvas.add_callback('draw-down', self.set_active_cb, False)
     
     
     def step4_cb(self, *args):
@@ -119,40 +119,64 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         self.fv.quit()
         
         
-    def delete_cb(self, x, y, *args):
+    def set_active_cb(self, _, __, x, y, val):
         """
-        Responds to right click by deleting a random datum
+        Responds to right click by deleting the datum nearest the cursor
+        @param val:
+            The new active value for the point - should be boolean
+        @param x:
+            The x coordinate of the click
+        @param y:
+            The y coordinate of the click
         """
-        import random
-        self.active[random.randint(0,self.data.shape[0]-1)] = 0
-        self.update_plots()
-        
-    
-    def restore_cb(self, x, y, *args):
-        """
-        Responds to left click by deleting a random datum
-        """#TODO: make it not random
-        import random
-        self.active[random.randint(0,self.data.shape[0]-1)] = 1
+        distance_from_click = np.hypot(self.data[:,0] - x, self.data[:,1] - y)
+        idx = np.argmin(distance_from_click)
+        self.active[idx] = val
         self.update_plots()
     
     
-    def update_plots(self):
+    def update_plots(self, updated_index=None):
         """
         Graphs data on all plots and displays it
+        @param updated_index:
+            The index of the datum that changed. If none is provided, then all
+            points will be updated
         """
         # graph residual data on the plots
         self.plots[0].x_residual(self.data)
         self.plots[1].y_residual(self.data)
         
-        # show the star positions on the canvas
-        self.canvas.delete_all_objects()
-        for i in range(0, self.data.shape[0]):
-            x, y = self.data[i, 2], self.data[i, 3]
-            if self.active[i]:
-                self.canvas.add(self.dc.Point(x, y, 20, color='green'))
-            else:
-                self.canvas.add(self.dc.Point(x, y, 20, color='grey'))
+        # show the object position(s) on the canvas
+        if updated_index == None:
+            for i in range(0, self.data.shape[0]):
+                self.draw_obj_on_canvas(i)
+        else:
+            self.draw_obj_on_canvas(updated_index)
+        
+                
+    def draw_obj_on_canvas(self, idx):
+        """
+        Draws the point at the given index on the canvas
+        @param idx:
+            The index of the datum to be drawn
+        """
+        # delete the corresponding points
+        self.canvas.delete_objects_by_tag([str(idx)+'ref', str(idx)+'in'])
+        
+        # then draw the new one
+        xref, yref, xin, yin = self.data[idx, :]
+        # color depends on whether this object is active or not
+        if self.active[idx]:
+            self.canvas.add(self.dc.Point(xref, yref, 30, color='blue'),
+                            tag=str(idx)+'ref')
+            self.canvas.add(self.dc.Point(xin,  yin,  30, color='green'),
+                            tag=str(idx)+'in')
+        else:
+            self.canvas.add(self.dc.Point(xref, yref, 30, color='grey'),
+                            tag=str(idx)+'ref')
+            self.canvas.add(self.dc.Point(xin,  yin,  30, color='grey'),
+                            tag=str(idx)+'in')
+        
         
         
     def get_step(self):

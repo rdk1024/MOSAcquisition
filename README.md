@@ -18,18 +18,6 @@ The moircs01 subdirectory must be merged with $HOME/moircs01.
 Now, assuming you have the rest of the MOS Acquisition stuff and you know how to
 use it, it should work just fine.
 
-### Home Path
-Finally, mesoffset1.cl, mesoffset2.cl, and mesoffset3.cl all need to have the
-HOME variable declared at the beginning manually set to the value of $HOME, or
-whatever directory has moircs01 and .ginga in it. It's probably either /home/ or
-/home/username/. I can't imagine why you would put them anywhere else.  
-For example, if you are me, you would set line thirty-something in
-mesoffset1.cl, mesoffset2.cl, _and_ mesoffset3.cl to  
-```ini
-    string    HOME = "/home/justinku/"
-```  
-Except that it already says that, because I wrote it, and I am me.
-
 ## Usage
 Once this package has been installed as specified above, one can run it the same
 way one would run the original MOS Acquisition:  
