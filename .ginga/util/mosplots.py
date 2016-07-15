@@ -9,9 +9,6 @@
 # ginga imports
 from ginga.util import plots
 
-# third-party imports
-import numpy as np
-
 
 
 class MOSPlot(plots.Plot):
@@ -34,32 +31,26 @@ class MOSPlot(plots.Plot):
                   linestyle='None', marker='+')
     
     
-    def x_residual(self, data):
+    def residual(self, x_observe, x_calculate, active, var_name=""):
         """
-        Plot the x residual of this data against the x axis.
-        x residual is defined as the third column substracted from the first_column
+        Plot the residual of this data against the real value.
+        Residual is defined as the difference between the calculated value of
+        xref and the observed value of xref.
+        @param x_observe:
+            A numpy array of the observed values of this variable
+        @param x_calculate:
+            A numpy array of the calculated values of this variable
+        @param active:
+            A numpy array representing which data are active, and which are not
+        @param var_name:
+            The name of this variable, if it has one
         """
-        x = data[:, 0]
-        x_res = data[:, 0] - data[:, 2]
-        self.plot(x, x_res,
-                  xtitle="X Position (pixels)",
-                  ytitle="X Residual (pixels)",
-                  title="X Residual by X-axis",
-                  linestyle='None', marker='+')
-    
-    
-    def y_residual(self, data):
-        """
-        Plot the y residual of this data against the y axis.
-        y residual is defined as the fourth column subtracted from the second column
-        """
-        y = data[:, 1]
-        y_res = data[:, 1] - data[:, 3]
-        self.plot(y, y_res,
-                  xtitle="Y Position (pixels)",
-                  ytitle="Y Residual (pixels)",
-                  title="Y Residual by Y-axis",
-                  linestyle='None', marker='+')
+        # then plot reference values by residual values
+        self.plot(x_observe, x_calculate - x_observe,
+                  xtitle="{0} Position (pixels)".format(var_name),
+                  ytitle="{0} Residual (pixels)".format(var_name),
+                  title="{0} Residual by {0}-axis".format(var_name),
+                  linestyle='None', marker='+', color='blue')
 
 #END
 

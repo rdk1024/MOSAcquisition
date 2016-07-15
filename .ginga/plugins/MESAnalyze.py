@@ -9,6 +9,7 @@
 
 # standard imports
 import math
+import os
 import sys
 
 # local imports
@@ -20,12 +21,16 @@ from ginga.gw import Widgets, Viewers, Plot
 
 # third-party imports
 import numpy as np
+from pyraf.iraf import geomap, INDEF
 
 
 
 # constants
 # the arguments passed in to the outer script
 argv = sys.argv
+fits_image = argv[1]
+input_coo = argv[2]
+output_dbs = argv[3]
 # usage: %prog( FITS_filename, input_coo_filename, output_coo_filename )
 
 
@@ -94,7 +99,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
     
     def step4_cb(self, *args):
         """
-        Responds to the Finish button in step 3 by displaying the offset values
+        Responds to the Next button in step 3 by displaying the offset values
         """
         # write the ammended data back into coo
         coo = open(argv[2], 'w')
@@ -132,7 +137,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         distance_from_click = np.hypot(self.data[:,0] - x, self.data[:,1] - y)
         idx = np.argmin(distance_from_click)
         self.active[idx] = val
-        self.update_plots()
+        self.update_plots(idx)
     
     
     def update_plots(self, updated_index=None):
@@ -142,9 +147,22 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
             The index of the datum that changed. If none is provided, then all
             points will be updated
         """
+        # call iraf.geomap and read its results
+        assert input_coo != output_dbs
+        geomap(input_coo, output_dbs, INDEF, INDEF, INDEF, INDEF)
+        xref = self.data[:, 0]
+        yref = self.data[:, 1]
+        xin  = self.data[:, 2]
+        yin  = self.data[:, 3]
+        trans = get_transformation(output_dbs)
+        print trans
+        xcalc, ycalc = transform(xin, yin, trans)
+        
         # graph residual data on the plots
-        self.plots[0].x_residual(self.data)
-        self.plots[1].y_residual(self.data)
+        print np.vstack((xref, xcalc)).T
+        print np.vstack((yref, ycalc)).T
+        self.plots[0].residual(xref, xcalc, self.active, var_name="X")
+        self.plots[1].residual(yref, ycalc, self.active, var_name="Y")
         
         # show the object position(s) on the canvas
         if updated_index == None:
@@ -167,7 +185,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         xref, yref, xin, yin = self.data[idx, :]
         # color depends on whether this object is active or not
         if self.active[idx]:
-            self.canvas.add(self.dc.Point(xref, yref, 30, color='blue'),
+            self.canvas.add(self.dc.Point(xref, yref, 30, color='blue'),    #TODO: plus
                             tag=str(idx)+'ref')
             self.canvas.add(self.dc.Point(xin,  yin,  30, color='green'),
                             tag=str(idx)+'in')
@@ -176,7 +194,6 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
                             tag=str(idx)+'ref')
             self.canvas.add(self.dc.Point(xin,  yin,  30, color='grey'),
                             tag=str(idx)+'in')
-        
         
         
     def get_step(self):
@@ -215,7 +232,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         txt.set_font(self.body_font)
         txt.set_text("Look at the graphs. If a datum seems out of place, or "+
                      "wrongfully deleted, right-click it to delete it or left-"+
-                     "click to restore it. Click 'Finish' below or press 'Q' "+
+                     "click to restore it. Click 'Next' below or press 'Q' "+
                      "once the data is satisfactory.")
         exp.set_widget(txt)
         
@@ -224,8 +241,8 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         box.set_spacing(3)
         gui.add_widget(box)
         
-        # the finish button ends the program
-        btn = Widgets.Button("Finish")
+        # the next button shows the values
+        btn = Widgets.Button("Next")
         btn.add_callback('activated', self.step4_cb)
         btn.set_tooltip("Get the MES Offset values!")
         box.add_widget(btn)
@@ -399,7 +416,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
     
     
     
-def create_plot_list(logger=None):
+def create_plot_list(logger=None):  #TODO: we don't need this
     """
     Create a list of two ginga.util.plots.Plot objects for step 3 of mesoffset1
     @param logger:
@@ -428,12 +445,12 @@ def readCOO():
     
     # try to open the file
     try:
-        coo = open(argv[2], 'r')
+        coo = open(input_coo, 'r')
     except IOError:
         try:
             coo = open("sbr_elaisn1rev_starmask.coo")
         except IOError:
-            return np.array([[0, 0, 0, 0]])
+            return np.array([[0., 0., 0., 0.]])
     
     # now parse it!
     line = coo.readline()
@@ -444,6 +461,51 @@ def readCOO():
         line = coo.readline()
         
     return np.array(val_list)
+    
+    
+def get_transformation(filename):
+    """
+    Read the DBS file written by iraf.geomap and return the useful data within
+    @param filename:
+        The str name of the file in which the transformation info can be found
+    @returns:
+        A tuple of three floats: (x_shift, y_shift, rotation in degrees)
+    """
+    print filename
+    try:
+        dbs = open(filename, 'r')
+    except IOError:
+        try:
+            dbs = open("sbr_elaisn1rev_starmask.dbs", 'r')
+        except IOError:
+            return (0., 0., 0.)
+    
+    # now skip to and read the important bits
+    lines = dbs.readlines()
+    x_shift = float(lines[-21].split()[1])
+    y_shift = float(lines[-20].split()[1])
+    x_rot = float(lines[-17].split()[1])
+    y_rot = float(lines[-16].split()[1])
+    return (-x_shift, -y_shift, (x_rot+y_rot)/2)
+    
+    
+def transform(x, y, trans):
+    """
+    Applies the given transformation to the given points
+    @param x:
+        A numpy array of x positions
+    @param y:
+        A numpy array of y positions
+    @param trans:
+        A tuple of floats: (x_shift, y_shift, rotation in degrees)
+    @returns:
+        A tuple of the new x value array and the new y value array
+    """
+    dx, dy, thetaD = trans
+    theta = math.radians(thetaD)
+    newX = (x + dx)*math.cos(theta) - (y + dy)*math.sin(theta)
+    newY = (x + dx)*math.sin(theta) + (y + dy)*math.cos(theta)
+    return newX, newY
 
 #END
 

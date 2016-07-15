@@ -5,8 +5,9 @@ and Spectrograph system for Subaru Telecope.
 ## Installation
 ### Dependencies
 This package requires a Python interpreter and an IRAF interpreter. It also
-makes use of numpy, astropy, and ginga. To install those packages, simply use  
-`$ pip install numpy astropy ginga`  
+makes use of numpy, astropy, ginga, and pyraf. To install those packages, simply
+call  
+`$ pip install numpy astropy ginga pyraf`  
 It also requires much of the existing MOIRCS Acquisition software, which is not
 on the internet as far as I know, so if you don't work for Subaru, ha ha, too
 bad.

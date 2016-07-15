@@ -721,7 +721,8 @@ class MESLocate(GingaPlugin.LocalPlugin):
         One of the required LocalPlugin methods
         """
         # set the autocut to make things easier to see
-        self.fitsimage.get_settings().set(autocut_method='stddev')
+        method = 'stddev' if mode == 'star' else 'minmax'
+        self.fitsimage.get_settings().set(autocut_method=method)
         
         # set the initial status message
         self.fv.showStatus("Locate the object labeled '1' by clicking.")

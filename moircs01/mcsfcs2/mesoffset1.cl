@@ -126,7 +126,7 @@ begin
 #    task makemosaic = "$../../MOS/makemosaic.cl"
     task $messtar = "$../../MOS2/mes_star.py"
     task $meshole = "$../../MOS2/mes_hole.py"
-    task $mesplot = "$../../MOS2/mes_plot.py"
+    task $geomap = "$../../MOS2/geo_map.py"
 
 # Check header info.
     imgets( instar_chip1, "DET-ID")
@@ -266,9 +266,7 @@ begin
 
 # Geotran
     list_geotran = rootname//"_starmask.dbs"
-    geomap.fitgeom = "rotate"
-    mesplot( frame_starg10, list_starmask, list_starmask )
-    geomap( list_starmask, list_geotran, xmin=INDEF, xmax=INDEF, ymin=INDEF, ymax=INDEF )
+    geomap( frame_starg10, list_starmask, list_geotran, xmin=INDEF, xmax=INDEF, ymin=INDEF, ymax=INDEF )
 
 # Calculate offset value
     log_mesoffset = rootname//"_log"
