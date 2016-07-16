@@ -21,15 +21,15 @@ class MOSPlot(plots.Plot):
     x-residual, and y-residual.
     """
     
-    def residual(self, z_observe, z_calculate, active, var_name=""):
+    def residual(self, z_observe, z_residual, active, var_name=""):
         """
         Plot the residual of this data against the real value.
         Residual is defined as the difference between the calculated value of
         zref and the observed value of zref.
         @param z_observe:
             A numpy array of the observed values of this variable
-        @param z_calculate:
-            A numpy array of the calculated values of this variable
+        @param z_residual:
+            A numpy array of the residuals for this variable
         @param active:
             A numpy array representing which data are active, and which are not
         @param var_name:
@@ -38,9 +38,9 @@ class MOSPlot(plots.Plot):
         #separate the active and inactive data
         inactive = np.logical_not(active)
         active_x = z_observe[np.nonzero(active)]
-        active_y = (z_calculate - z_observe)[np.nonzero(active)]
+        active_y = z_residual[np.nonzero(active)]
         inactive_x = z_observe[np.nonzero(inactive)]
-        inactive_y = (z_calculate - z_observe)[np.nonzero(inactive)]
+        inactive_y = z_residual[np.nonzero(inactive)]
         
         # then plot reference values by residual values
         self.add_axis()
@@ -52,6 +52,16 @@ class MOSPlot(plots.Plot):
                   xtitle="{0} Position (pixels)".format(var_name),
                   ytitle="{0} Residual (pixels)".format(var_name),
                   title="{0} Residual by {0}-axis".format(var_name))
+        
+        # shade in regions y > 1 and y < -1 TODO: WTF is going on with this part?
+        xlimits = self.get_axis().get_xlim()
+        ylimits = self.get_axis().get_ylim()
+        self.get_axis().fill_between(xlimits, [1,1],   [ylimits[1],ylimits[1]],
+                                     color='red', alpha=0.3)
+        self.get_axis().fill_between(xlimits, [-1,-1], [ylimits[0],ylimits[0]],
+                                     color='red', alpha=0.3)
+        #self.get_axis().set_xlim(left=xlimits[0], right=xlimits[1])
+        #self.get_axis().set_ylim(bottom=ylimits[0], top=ylimits[1])
 
 #END
 

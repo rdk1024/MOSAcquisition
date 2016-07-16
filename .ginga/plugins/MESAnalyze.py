@@ -142,6 +142,8 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         @param updated_index:
             The index of the datum that changed. If none is provided, then all
             points will be updated
+        @returns:
+            The x and y residuals in numpy array form
         """
         # start by recording the new data
         overwrite_data(input_coo, self.data, self.active)
@@ -160,10 +162,12 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         yin  = self.data[:, 3]
         self.offset = get_transformation(output_dbs)
         xcalc, ycalc = transform(xin, yin, self.offset)
+        xres = xcalc - xref
+        yres = ycalc - yref
         
         # graph residual data on the plots
-        self.plots[0].residual(xref, xcalc, self.active, var_name="X")
-        self.plots[1].residual(yref, ycalc, self.active, var_name="Y")
+        self.plots[0].residual(xref, xres, self.active, var_name="X")
+        self.plots[1].residual(yref, yres, self.active, var_name="Y")
         
         # show the object position(s) on the canvas
         if updated_index == None:
@@ -171,6 +175,9 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
                 self.draw_obj_on_canvas(i)
         else:
             self.draw_obj_on_canvas(updated_index)
+        
+        return xres, yres
+        
         
                 
     def draw_obj_on_canvas(self, idx):
@@ -246,7 +253,19 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         """
         Removes any data points with residuals of absolute values greater than 1
         """
-        pass
+        active = self.active
+        
+        xres, yres = self.update_plots()
+        abs_residual = np.absolute(np.vstack((xres*active, yres*active)))
+        
+        # as long as some residuals are out of bounds,
+        while np.any(abs_residual > 1):
+            # delete the point with the worst residual
+            idx = np.argmax(abs_residual)
+            active[idx%len(active)] = False
+            
+            xres, yres = self.update_plots()
+            abs_residual = np.absolute(np.vstack((xres*active, yres*active)))
     
     
     def get_step(self):
@@ -283,10 +302,10 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
         txt.set_font(self.body_font)
-        txt.set_text("Look at the graphs. If a datum seems out of place, or "+
-                     "wrongfully deleted, right-click it to delete it or left-"+
-                     "click to restore it. Click 'Next' below or press 'Q' "+
-                     "once the data is satisfactory.")
+        txt.set_text("Look at the graphs. Remove any data with residuals "+
+                     "greater than 1.0 or less than -1.0. Delete points by "+
+                     "right clicking, and restore them by left-clicking. "+
+                     "Press 'Next' below when the data is satisfactory.")
         exp.set_widget(txt)
         
         # now make an HBox to hold the main controls
