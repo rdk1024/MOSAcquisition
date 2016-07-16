@@ -282,7 +282,6 @@ begin
     print("== Ignore rotate less than 0.01 (degree) ==")
     print(" ========================================== ")
     date( >> log_mesoffset )
-    awk ("-f ../../MOS/results.awk", list_geotran  ) 
     awk ("-f ../../MOS/results.awk", list_geotran, >> log_mesoffset  ) 
     print("")
     print("=======================================================")

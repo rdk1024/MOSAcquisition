@@ -58,14 +58,17 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         
         # initializes some class constants:
         self.title_font = self.fv.getFont('sansFont', 18)
+        self.header_font = self.fv.getFont('sansFont', 14)
         self.body_font = self.fv.getFont('sansFont', 10)
         
         # and some attributes
         self.data = readCOO()
         self.active = np.ones(self.data.shape[0], dtype=np.bool)
+        self.offset = (0, 0, 0)
         
         # creates the list of plots that will go in the GUI
-        self.plots = create_plot_list(self.logger)
+        self.plots = [mosplots.MOSPlot(logger=self.logger),
+                      mosplots.MOSPlot(logger=self.logger)]
         
         # now sets up the ginga.canvas.types.layer.DrawingCanvas self.canvas,
         # which is necessary to draw on the image:
@@ -101,19 +104,10 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         """
         Responds to the Next button in step 3 by displaying the offset values
         """
-        # write the ammended data back into coo
-        coo = open(argv[2], 'w')
-        for i in range(self.data.shape[0]):
-            if self.active[i]:
-                for j in range(self.data.shape[1]):
-                    coo.write(str(self.data[i, j]))
-                    coo.write(' ')
-                coo.write('\n')
-        
-        # then move on to step 4
         self.stack.set_index(1)
         self.fv.showStatus("Read the MES Offset values!")
         self.set_callbacks()
+        self.display_values()
         
         
     def exit_cb(self, *args):
@@ -154,13 +148,10 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         yref = self.data[:, 1]
         xin  = self.data[:, 2]
         yin  = self.data[:, 3]
-        trans = get_transformation(output_dbs)
-        print trans
-        xcalc, ycalc = transform(xin, yin, trans)
+        self.offset = get_transformation(output_dbs)
+        xcalc, ycalc = transform(xin, yin, self.offset)
         
         # graph residual data on the plots
-        print np.vstack((xref, xcalc)).T
-        print np.vstack((yref, ycalc)).T
         self.plots[0].residual(xref, xcalc, self.active, var_name="X")
         self.plots[1].residual(yref, ycalc, self.active, var_name="Y")
         
@@ -194,7 +185,35 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
                             tag=str(idx)+'ref')
             self.canvas.add(self.dc.Point(xin,  yin,  30, color='grey'),
                             tag=str(idx)+'in')
+                            
+                            
+    def display_values(self):
+        """
+        Shows the final MES Offset values on the screen, based on self.offset
+        """
+        # collect values from other sources
+        xcenter = 1024.0
+        ycenter = 1750.0
+        xshift, yshift, thetaD = self.offset
+        thetaR = math.radians(thetaD)
         
+        # calculate dx and dy (no idea what all this math is)
+        dx = -yshift + xcenter*math.sin(thetaR) + ycenter*(1-math.cos(thetaR))
+        dy = xshift + xcenter*(math.cos(thetaR)-1) + ycenter*math.sin(thetaR)
+        
+        # ignore values with small absolute values
+        if abs(dx) < 0.5:
+            dx = 0
+        if abs(dy) < 0.5:
+            dy = 0
+        if abs(thetaD) < 0.01:
+            thetaD = 0
+        
+        # then display all values
+        self.final_value_displays["dx"].set_text("{:,.1f} pix".format(dx))
+        self.final_value_displays["dy"].set_text("{:,.1f} pix".format(dy))
+        self.final_value_displays["Rotation"].set_text("{:,.3f} deg".format(thetaD))
+
         
     def get_step(self):
         """
@@ -278,7 +297,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         gui.set_spacing(4)
         
         # create a label to title this step
-        lbl = Widgets.Label("Step 3")
+        lbl = Widgets.Label("Step 4")
         lbl.set_font(self.title_font)
         gui.add_widget(lbl)
 
@@ -291,11 +310,15 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         exp.set_widget(txt)
         
         # make the three TextAreas to hold the final values
-        for i in range(3):
-            txt = Widgets.TextArea(wrap=True, editable=False)
+        self.final_value_displays = {}
+        for val in ("dx", "dy", "Rotation"):
+            lbl = Widgets.Label(val+" =")
+            lbl.set_font(self.header_font)
+            gui.add_widget(lbl)
+            txt = Widgets.TextArea(editable=False)
             txt.set_font(self.title_font)
-            txt.set_text("Value {}:\n42".format(i))
             gui.add_widget(txt)
+            self.final_value_displays[val] = txt
         
         btn = Widgets.Button("Exit")
         btn.add_callback('activated', self.exit_cb)
@@ -414,24 +437,6 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
     def __str__(self):
         return "MESAnalyze"
     
-    
-    
-def create_plot_list(logger=None):  #TODO: we don't need this
-    """
-    Create a list of two ginga.util.plots.Plot objects for step 3 of mesoffset1
-    @param logger:
-        A Logger object to pass into the new Viewers
-    @param data:
-        The numpy array from which this is to read
-    @param offset:
-        An optional float tuple to offset all object positions by
-    @returns:
-        A list of plots.Plot objects
-    """
-    output = []
-    for i in range(2):
-        output.append(mosplots.MOSPlot(logger=logger))
-    return output
 
 
 def readCOO():
@@ -471,7 +476,6 @@ def get_transformation(filename):
     @returns:
         A tuple of three floats: (x_shift, y_shift, rotation in degrees)
     """
-    print filename
     try:
         dbs = open(filename, 'r')
     except IOError:
@@ -486,7 +490,7 @@ def get_transformation(filename):
     y_shift = float(lines[-20].split()[1])
     x_rot = float(lines[-17].split()[1])
     y_rot = float(lines[-16].split()[1])
-    return (-x_shift, -y_shift, (x_rot+y_rot)/2)
+    return (x_shift, y_shift, (x_rot+y_rot)/2)
     
     
 def transform(x, y, trans):
@@ -501,10 +505,10 @@ def transform(x, y, trans):
     @returns:
         A tuple of the new x value array and the new y value array
     """
-    dx, dy, thetaD = trans
-    theta = math.radians(thetaD)
-    newX = (x + dx)*math.cos(theta) - (y + dy)*math.sin(theta)
-    newY = (x + dx)*math.sin(theta) + (y + dy)*math.cos(theta)
+    xshift, yshift, thetaD = trans
+    thetaR = math.radians(thetaD)
+    newX = (x - xshift)*math.cos(thetaR) - (y - yshift)*math.sin(thetaR)
+    newY = (x - xshift)*math.sin(thetaR) + (y - yshift)*math.cos(thetaR)
     return newX, newY
 
 #END

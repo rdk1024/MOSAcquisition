@@ -575,11 +575,13 @@ class MESLocate(GingaPlugin.LocalPlugin):
         box.add_widget(btn)
         
         # lastly, we need the zoomed-in images. This is the grid we put them in
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
         num_img = self.obj_num   # total number of alignment objects
         columns = 2                       # pictures in each row
         rows = int(math.ceil(float(num_img)/columns))
         grd = Widgets.GridBox(rows=rows, columns=columns)
-        gui.add_widget(grd)
+        frm.set_widget(grd)
         
         # these are the images we put in the grid
         for row in range(0, rows):
