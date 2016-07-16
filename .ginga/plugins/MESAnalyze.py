@@ -11,6 +11,7 @@
 import math
 import os
 import sys
+import time
 
 # local imports
 from util import mosplots
@@ -31,7 +32,7 @@ argv = sys.argv
 fits_image = argv[1]
 input_coo = argv[2]
 output_dbs = argv[3]
-# usage: %prog( FITS_filename, input_coo_filename, output_coo_filename )
+log_file = argv[4]
 
 
 
@@ -65,6 +66,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         self.data = readCOO()
         self.active = np.ones(self.data.shape[0], dtype=np.bool)
         self.offset = (0, 0, 0)
+        self.final_displays = {}
         
         # creates the list of plots that will go in the GUI
         self.plots = [mosplots.MOSPlot(logger=self.logger),
@@ -141,9 +143,17 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
             The index of the datum that changed. If none is provided, then all
             points will be updated
         """
-        # call iraf.geomap and read its results
-        assert input_coo != output_dbs
-        geomap(input_coo, output_dbs, INDEF, INDEF, INDEF, INDEF)
+        # start by recording the new data
+        overwrite_data(input_coo, self.data, self.active)
+        
+        # call iraf.geomap
+        try:
+            geomap(input_coo, output_dbs, INDEF, INDEF, INDEF, INDEF)
+        except:
+            geomap("sbr_elaisn1rev_starmask.coo", "sbr_elaisn1rev_starmask.dbs",
+                   INDEF, INDEF, INDEF, INDEF)
+        
+        # use its results to calculate some stuff
         xref = self.data[:, 0]
         yref = self.data[:, 1]
         xin  = self.data[:, 2]
@@ -210,11 +220,35 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
             thetaD = 0
         
         # then display all values
-        self.final_value_displays["dx"].set_text("{:,.1f} pix".format(dx))
-        self.final_value_displays["dy"].set_text("{:,.1f} pix".format(dy))
-        self.final_value_displays["Rotation"].set_text("{:,.3f} deg".format(thetaD))
+        self.final_displays["dx"].set_text("{:,.1f} pix".format(dx))
+        self.final_displays["dy"].set_text("{:,.1f} pix".format(dy))
+        self.final_displays["Rotate"].set_text("{:,.3f} deg".format(thetaD))
+        
+        # now log it!
+        self.write_to_log(dx, dy, thetaD)
+        
+    
+    def write_to_log(self, *args):
+        """
+        Writes important information to log_file
+        @param args:
+            The values to be written to log - must be (dx, dy, rotate)
+        """
+        log = open(log_file, 'a')
+        log.write("=======================================================\n")
+        log.write("mesoffset1 :\n")
+        log.write(time.strftime("%a %b %d %H:%M:%S %Z %Y\n"))
+        log.write("dx = {:6,.1f} (pix) dy = {:6,.1f} (pix) "+
+                  "rotate = {:7,.3f} (degree) \n".format(*args))
 
         
+    def delete_outliers(self):
+        """
+        Removes any data points with residuals of absolute values greater than 1
+        """
+        pass
+    
+    
     def get_step(self):
         """
         Deduces which step we are on
@@ -306,19 +340,25 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
         txt.set_font(self.body_font)
-        txt.set_text("Enter the numbers you see below into your other computer.")
+        txt.set_text("Enter the numbers you see below into the ANA window.")
         exp.set_widget(txt)
         
+        # make a frame for the results
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
+        box = Widgets.VBox()
+        box.set_spacing(3)
+        frm.set_widget(box)
+        
         # make the three TextAreas to hold the final values
-        self.final_value_displays = {}
-        for val in ("dx", "dy", "Rotation"):
+        for val in ("dx", "dy", "Rotate"):
             lbl = Widgets.Label(val+" =")
             lbl.set_font(self.header_font)
-            gui.add_widget(lbl)
+            box.add_widget(lbl)
             txt = Widgets.TextArea(editable=False)
             txt.set_font(self.title_font)
-            gui.add_widget(txt)
-            self.final_value_displays[val] = txt
+            box.add_widget(txt)
+            self.final_displays[val] = txt
         
         btn = Widgets.Button("Exit")
         btn.add_callback('activated', self.exit_cb)
@@ -393,6 +433,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         self.canvas.delete_all_objects()
         
         # initialize the plots
+        self.delete_outliers()
         self.update_plots()
 
 
@@ -466,6 +507,25 @@ def readCOO():
         line = coo.readline()
         
     return np.array(val_list)
+
+
+def overwrite_data(filename, new_data, active):
+    """
+    Writes the new data to the filename
+    @param filename:
+        The name of a .coo file
+    @param new_data:
+        A numpy array
+    @active
+        A boolean array specifying which of the data are valid
+    """
+    coo = open(filename, 'w')
+    data = new_data[np.nonzero(active)]
+    for row in data:
+        for datum in row:
+            coo.write(str(datum))
+            coo.write(' ')
+        coo.write('\n')
     
     
 def get_transformation(filename):

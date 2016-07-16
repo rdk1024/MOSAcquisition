@@ -12,8 +12,9 @@ import ginga.main
 import sys
 argv = sys.argv
 
-if len(argv) < 4:
-    print("usage: mes_plot( FITS_image_name, input_coo_filename, output_dbs_filename )")
+if len(argv) < 5:
+    print("usage: mes_plot( FITS_image_name, input_coo_filename, "+
+                           "output_dbs_filename, log_filename )")
     quit()
 
 ginga.main.reference_viewer(['$HOME/Install/bin/ginga',

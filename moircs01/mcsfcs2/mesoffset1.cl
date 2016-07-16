@@ -265,26 +265,9 @@ begin
     }
 
 # Geotran
-    list_geotran = rootname//"_starmask.dbs"
-    geomap( frame_starg10, list_starmask, list_geotran, xmin=INDEF, xmax=INDEF, ymin=INDEF, ymax=INDEF )
-
-# Calculate offset value
     log_mesoffset = rootname//"_log"
-    print("=======================================================", >> log_mesoffset)
-    print("mesoffset1 :", >> log_mesoffset)
-    print("=======================================================")
-    print("")
-    print("=========================================== ")
-    print("==       USE TELOFFSET MODE ANA          == ")
-    print("== Put dx dy rotate to the ANA window    ==")
-    print("== Ignore dx less than 0.5 (pix)         ==")
-    print("== Ignore dy less than 0.5 (pix)         ==")
-    print("== Ignore rotate less than 0.01 (degree) ==")
-    print(" ========================================== ")
-    date( >> log_mesoffset )
-    awk ("-f ../../MOS/results.awk", list_geotran, >> log_mesoffset  ) 
-    print("")
-    print("=======================================================")
+    list_geotran = rootname//"_starmask.dbs"
+    geomap( frame_starg10, list_starmask, list_geotran, log_mesoffset )
 
     print("This procedure ended ......")
     print("Log file written in ",log_mesoffset)

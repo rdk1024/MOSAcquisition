@@ -723,7 +723,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         One of the required LocalPlugin methods
         """
         # set the autocut to make things easier to see
-        method = 'stddev' if mode == 'star' else 'minmax'
+        method = 'stddev' if mode == 'star' else 'zscale'
         self.fitsimage.get_settings().set(autocut_method=method)
         
         # set the initial status message
@@ -901,8 +901,8 @@ def locate_obj(bounds, masks, image):
     data = data * mask_tot
     
     # now do a center-of mass calculation to find the size and centroid
-    x = np.tile(np.arange(0, data.shape[1]), (data.shape[0], 1))
-    y = np.tile(np.arange(0, data.shape[0]), (data.shape[1], 1)).T
+    yx = np.indices(data.shape)
+    x, y = yx[1], yx[0]
     x_sum = float(np.sum(data*x))
     y_sum = float(np.sum(data*y))
     data_sum = float(np.sum(data))
