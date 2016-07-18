@@ -71,6 +71,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         self.obj_num = len(self.obj_list)
         # creates the list of thumbnails that will go in the GUI
         self.thumbnails = self.create_viewer_list(self.obj_num, self.logger)
+        self.step2_viewer = self.create_viewer_list(1, self.logger, 500, 500)[0]
         # and creates some other attributes:
         self.click_history = []     # places we've clicked
         self.click_index = -1       # index of the last click
@@ -287,7 +288,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
             self.drag_history[co] = self.drag_history[co][:self.drag_index[co]]
         
         # now save that crop
-        x1, y1, x2, y2 = self.get_current_box()
+        x1, y1, x2, y2, r = self.get_current_box()
         xi, yi = self.drag_start
         self.drag_history[co].append((min(max(min(xi, xf), x1), x2),
                                       min(max(min(yi, yf), y1), y2),
@@ -322,7 +323,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
             self.drag_history[co] = self.drag_history[co][:self.drag_index[co]]
         
         # now save that mask (sorted and coerced in bounds)
-        x1, y1, x2, y2 = self.get_current_box()
+        x1, y1, x2, y2, r = self.get_current_box()
         xi, yi = self.drag_start
         self.drag_history[co].append((min(max(min(xi, xf), x1), x2),
                                       min(max(min(yi, yf), y1), y2),
@@ -402,7 +403,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         color = colors[self.click_index%len(colors)]   # cycles through all the colors
         shapes = []
         for i, viewer in enumerate(self.thumbnails):
-            dx, dy = self.obj_list[i][:2]
+            dx, dy, r = self.obj_list[i]
         
             # first, draw squares and numbers
             shapes.append(self.dc.SquareBox(x+dx, y+dy, sq_size, color=color))
@@ -433,7 +434,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         """
         if kind == 'crop':
             # calculate the coordinates of the drag and the outer box
-            xb1, yb1, xb2, yb2 = self.get_current_box()
+            xb1, yb1, xb2, yb2, r = self.get_current_box()
             kwargs = {'color':'black', 'fill':True, 'fillcolor':'black'}
             
             # then draw the thing as a CompoundObject
@@ -459,7 +460,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         only see the object at index self.current_obj. Also locates and marks it
         """
         # get the bounding box that must be zoomed to
-        x1, y1, x2, y2 = self.get_current_box()
+        x1, y1, x2, y2, r = self.get_current_box()
         
         # then move and zoom
         self.fitsimage.set_pan((x1+x2)/2, (y1+y2)/2)
@@ -479,8 +480,9 @@ class MESLocate(GingaPlugin.LocalPlugin):
         try:
             co = self.current_obj
             obj = self.locate_obj(self.get_current_box(),
-                            self.drag_history[co][:self.drag_index[co]+1],
-                            self.fitsimage.get_image())
+                                  self.drag_history[co][:self.drag_index[co]+1],
+                                  self.fitsimage.get_image(),
+                                  viewer=self.step2_viewer)
             self.canvas.add(self.dc.CompoundObject(
                                     self.dc.Circle(obj[0], obj[1], obj[2],
                                                    color='green', linewidth=2),
@@ -488,7 +490,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
                                                   color='green', linewidth=2)),
                             tag=t)
         except ZeroDivisionError:
-            x1, y1, x2, y2 = self.get_current_box()
+            x1, y1, x2, y2, r = self.get_current_box()
             self.canvas.add(self.dc.Point((x1+x2)/2, (y1+y2)/2, sq_size/4,
                                           color='red', linewidth=2,
                                           linestyle='dash'), tag=t)
@@ -513,12 +515,12 @@ class MESLocate(GingaPlugin.LocalPlugin):
         Calculates the bounds of the box surrounding the current object
         @precondition:
             This method only works in step 2
-        @returns x1, y1, x2, y2:
-            The float bounds of the current box
+        @returns x1, y1, x2, y2, r:
+            The float bounds and radius of the current box
         """
         xf, yf = self.click_history[self.click_index]
-        dx, dy = self.obj_list[self.current_obj][:2]
-        return (xf+dx-sq_size, yf+dy-sq_size, xf+dx+sq_size, yf+dy+sq_size)
+        dx, dy, r = self.obj_list[self.current_obj]
+        return (xf+dx-sq_size, yf+dy-sq_size, xf+dx+sq_size, yf+dy+sq_size, r)
         
         
     def make_gui1(self, orientation='vertical'):
@@ -667,12 +669,18 @@ class MESLocate(GingaPlugin.LocalPlugin):
         lbl = Widgets.Label("Selection Mode:")
         box.add_widget(lbl)
         
-        # last is the combobox of selection options
+        # this is the combobox of selection options
         com = Widgets.ComboBox()
         for text in selection_modes:
             com.append_text(text)
         com.add_callback('activated', self.choose_select_cb)
         box.add_widget(com)
+        
+        # put a viewer in a frame
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
+        pic = Viewers.GingaViewerWidget(viewer=self.step2_viewer)
+        frm.set_widget(pic)
         
         # space gui appropriately and return it
         gui.add_widget(Widgets.Label(""), stretch=1)
@@ -790,11 +798,15 @@ class MESLocate(GingaPlugin.LocalPlugin):
         
 
     @staticmethod
-    def create_viewer_list(n, logger=None):
+    def create_viewer_list(n, logger=None, width=194, height=141):    # 194x141 is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
         """
         Create a list of n viewers with certain properties
         @param n:
             An integer - the length of the desired list
+        @param width:
+            The desired width of each viewer
+        @param height:
+            The desired height of each veiwer
         @param logger:
             A Logger object to pass into the new Viewers
         @returns:
@@ -803,7 +815,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         output = []
         for i in range(n):
             viewer = Viewers.CanvasView(logger=logger)
-            viewer.set_desired_size(194,141)    # this is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
+            viewer.set_desired_size(width, height)
             viewer.enable_autozoom('on')
             viewer.enable_autocuts('on')
             output.append(viewer)
@@ -813,11 +825,12 @@ class MESLocate(GingaPlugin.LocalPlugin):
     @staticmethod
     def readInputFile():
         """
-        Reads the SBR file and returns the position of the first active
+        Reads the COO file and returns the position of the first active
         object as well as the relative positions of all the other objects in a list
         @returns:
-            A tuple containing a list of float tuples, relative locations of objects
-            and a single float tuple (absolute location of first object)
+            A tuple containing a list of float tuples representing relative
+            locations and radii of objects, and a single float tuple (absolute
+            location of first object)
         """
         # define variables
         obj_list = []
@@ -840,11 +853,12 @@ class MESLocate(GingaPlugin.LocalPlugin):
             if vals[0] == "C":
                 newX, newY = MESLocate.imgXY_from_sbrXY((vals[1], vals[2]))
                 if obj0 == None:
-                    obj_list.append((0, 0))
+                    obj_list.append((0, 0, sq_size))
                     obj0 = (newX, newY)
                 else:
                     obj_list.append((newX-obj0[0],   # don't forget to shift it so object #0 is at the origin
-                                      newY-obj0[1]))
+                                     newY-obj0[1],
+                                     sq_size))
             line = sbr.readline()
             
         return obj_list, obj0
@@ -870,11 +884,12 @@ class MESLocate(GingaPlugin.LocalPlugin):
         
     
     @staticmethod
-    def locate_obj(bounds, masks, image):
+    def locate_obj(bounds, masks, image, viewer=None):
         """
         Finds the center of an object using center of mass calculation
         @param bounds:
-            A tuple of floats x1, y1, x2, y2. The object should be within this box
+            A tuple of floats x1, y1, x2, y2, r. The object should be within
+            this box
         @param masks:
             A list of tuples of the form (x1, y1, x2, y2, kind) where kind is either
             'mask' or 'crop' and everything else is floats. Each tuple in masks
@@ -882,13 +897,15 @@ class MESLocate(GingaPlugin.LocalPlugin):
             exterior
         @param image:
             The AstroImage containing the data necessary for this calculation
+        @param viewer:
+            The viewer object that will display the new data, if desired
         @returns:
             A tuple of two floats representing the actual location of the object
         @raises ZeroDivisionError:
             If no object is visible in the frame
         """
         # start by cropping the image to get the data matrix
-        data, x0,y0 = image.cutout_adjust(*bounds)[0:3]
+        data, x0,y0 = image.cutout_adjust(*bounds[:4])[0:3]
         
         # omit data based on masks
         mask_tot = np.ones(data.shape)
@@ -908,6 +925,10 @@ class MESLocate(GingaPlugin.LocalPlugin):
         data = data - threshold
         data = np.clip(data, 0, float('inf'))
         data = data * mask_tot
+        
+        # display the new data on the viewer, if necessary
+        if viewer != None:
+            viewer.set_data(data)
         
         # now do a center-of mass calculation to find the size and centroid
         yx = np.indices(data.shape)
