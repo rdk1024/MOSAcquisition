@@ -35,7 +35,7 @@ class MOSPlot(plots.Plot):
         @param var_name:
             The name of this variable, if it has one
         """
-        #separate the active and inactive data
+        # separate the active and inactive data
         inactive = np.logical_not(active)
         active_x = z_observe[np.nonzero(active)]
         active_y = z_residual[np.nonzero(active)]
@@ -43,8 +43,10 @@ class MOSPlot(plots.Plot):
         inactive_y = z_residual[np.nonzero(inactive)]
         
         # then plot reference values by residual values
-        self.add_axis()
-        self.clear()
+        try:
+            self.clear()
+        except AttributeError:
+            self.add_axis()
         self.plot(active_x, active_y,
                   linestyle='None', marker='+', color='blue')
         self.plot(inactive_x, inactive_y,
@@ -53,15 +55,17 @@ class MOSPlot(plots.Plot):
                   ytitle="{0} Residual (pixels)".format(var_name),
                   title="{0} Residual by {0}-axis".format(var_name))
         
-        # shade in regions y > 1 and y < -1 TODO: WTF is going on with this part?
+        # shade in regions y > 1 and y < -1
         xlimits = self.get_axis().get_xlim()
         ylimits = self.get_axis().get_ylim()
-        self.get_axis().fill_between(xlimits, [1,1],   [ylimits[1],ylimits[1]],
+        self.get_axis().fill_between(np.array(xlimits), 1, ylimits[1]+1,
                                      color='red', alpha=0.3)
-        self.get_axis().fill_between(xlimits, [-1,-1], [ylimits[0],ylimits[0]],
+        self.get_axis().fill_between(np.array(xlimits), -1, ylimits[0]-1,
                                      color='red', alpha=0.3)
-        #self.get_axis().set_xlim(left=xlimits[0], right=xlimits[1])
-        #self.get_axis().set_ylim(bottom=ylimits[0], top=ylimits[1])
+        self.get_axis().set_xlim(left=xlimits[0], right=xlimits[1])
+        self.get_axis().set_ylim(bottom=ylimits[0], top=ylimits[1])
+        
+        self.draw()
 
 #END
 

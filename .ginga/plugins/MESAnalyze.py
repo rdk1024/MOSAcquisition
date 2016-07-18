@@ -145,7 +145,14 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         @returns:
             The x and y residuals in numpy array form
         """
-        # start by recording the new data
+        # first, update the objects on the canvas
+        if updated_index == None:
+            for i in range(0, self.data.shape[0]):
+                self.draw_obj_on_canvas(i)
+        else:
+            self.draw_obj_on_canvas(updated_index)
+        
+        # then record the new data
         overwrite_data(input_coo, self.data, self.active)
         
         # call iraf.geomap
@@ -168,13 +175,6 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         # graph residual data on the plots
         self.plots[0].residual(xref, xres, self.active, var_name="X")
         self.plots[1].residual(yref, yres, self.active, var_name="Y")
-        
-        # show the object position(s) on the canvas
-        if updated_index == None:
-            for i in range(0, self.data.shape[0]):
-                self.draw_obj_on_canvas(i)
-        else:
-            self.draw_obj_on_canvas(updated_index)
         
         return xres, yres
         
