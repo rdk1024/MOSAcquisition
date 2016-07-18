@@ -58,9 +58,9 @@ class MOSPlot(plots.Plot):
         # shade in regions y > 1 and y < -1
         xlimits = self.get_axis().get_xlim()
         ylimits = self.get_axis().get_ylim()
-        self.get_axis().fill_between(np.array(xlimits), 1, ylimits[1]+1,
+        self.get_axis().fill_between(xlimits, 1, ylimits[1]+1,
                                      color='red', alpha=0.3)
-        self.get_axis().fill_between(np.array(xlimits), -1, ylimits[0]-1,
+        self.get_axis().fill_between(xlimits, -1, ylimits[0]-1,
                                      color='red', alpha=0.3)
         self.get_axis().set_xlim(left=xlimits[0], right=xlimits[1])
         self.get_axis().set_ylim(bottom=ylimits[0], top=ylimits[1])

@@ -63,7 +63,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         self.body_font = self.fv.getFont('sansFont', 10)
         
         # and some attributes
-        self.data = readCOO()
+        self.data = self.readInputFile()
         self.active = np.ones(self.data.shape[0], dtype=np.bool)
         self.offset = (0, 0, 0)
         self.final_displays = {}
@@ -153,7 +153,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
             self.draw_obj_on_canvas(updated_index)
         
         # then record the new data
-        overwrite_data(input_coo, self.data, self.active)
+        self.overwrite_data(input_coo, self.data, self.active)
         
         # call iraf.geomap
         try:
@@ -167,8 +167,8 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         yref = self.data[:, 1]
         xin  = self.data[:, 2]
         yin  = self.data[:, 3]
-        self.offset = get_transformation(output_dbs)
-        xcalc, ycalc = transform(xin, yin, self.offset)
+        self.offset = self.get_transformation(output_dbs)
+        xcalc, ycalc = self.transform(xin, yin, self.offset)
         xres = xcalc - xref
         yres = ycalc - yref
         
@@ -193,14 +193,18 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         xref, yref, xin, yin = self.data[idx, :]
         # color depends on whether this object is active or not
         if self.active[idx]:
-            self.canvas.add(self.dc.Point(xref, yref, 30, color='blue'),    #TODO: plus
+            self.canvas.add(self.dc.Point(xref, yref, radius=30,
+                                          color='blue', style='plus'),
                             tag=str(idx)+'ref')
-            self.canvas.add(self.dc.Point(xin,  yin,  30, color='green'),
+            self.canvas.add(self.dc.Point(xin,  yin,  radius=30,
+                                          color='green', style='plus'),
                             tag=str(idx)+'in')
         else:
-            self.canvas.add(self.dc.Point(xref, yref, 30, color='grey'),
+            self.canvas.add(self.dc.Point(xref, yref, radius=30,
+                                          color='grey', style='cross'),
                             tag=str(idx)+'ref')
-            self.canvas.add(self.dc.Point(xin,  yin,  30, color='grey'),
+            self.canvas.add(self.dc.Point(xin,  yin,  radius=30,
+                                          color='grey', style='cross'),
                             tag=str(idx)+'in')
                             
                             
@@ -499,96 +503,100 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
     
 
 
-def readCOO():
-    """
-    Read the COO file and return the data within as a numpy array
-    @returns:
-        A list of tuples of floats representing (x_in, y_in, x_out, y_out)
-    """
-    # define variables
-    val_list = []
-    
-    # try to open the file
-    try:
-        coo = open(input_coo, 'r')
-    except IOError:
-        try:
-            coo = open("sbr_elaisn1rev_starmask.coo")
-        except IOError:
-            return np.array([[0., 0., 0., 0.]])
-    
-    # now parse it!
-    line = coo.readline()
-    while line != "":
-        # for each line, get the important values and save them in val_list
-        vals = [float(word) for word in line.split()]
-        val_list.append(vals)
-        line = coo.readline()
+    @staticmethod
+    def readReadInputFile():
+        """
+        Read the COO file and return the data within as a numpy array
+        @returns:
+            A list of tuples of floats representing (x_in, y_in, x_out, y_out)
+        """
+        # define variables
+        val_list = []
         
-    return np.array(val_list)
-
-
-def overwrite_data(filename, new_data, active):
-    """
-    Writes the new data to the filename
-    @param filename:
-        The name of a .coo file
-    @param new_data:
-        A numpy array
-    @active
-        A boolean array specifying which of the data are valid
-    """
-    coo = open(filename, 'w')
-    data = new_data[np.nonzero(active)]
-    for row in data:
-        for datum in row:
-            coo.write(str(datum))
-            coo.write(' ')
-        coo.write('\n')
-    
-    
-def get_transformation(filename):
-    """
-    Read the DBS file written by iraf.geomap and return the useful data within
-    @param filename:
-        The str name of the file in which the transformation info can be found
-    @returns:
-        A tuple of three floats: (x_shift, y_shift, rotation in degrees)
-    """
-    try:
-        dbs = open(filename, 'r')
-    except IOError:
+        # try to open the file
         try:
-            dbs = open("sbr_elaisn1rev_starmask.dbs", 'r')
+            coo = open(input_coo, 'r')
         except IOError:
-            return (0., 0., 0.)
+            try:
+                coo = open("sbr_elaisn1rev_starmask.coo")
+            except IOError:
+                return np.array([[0., 0., 0., 0.]])
+        
+        # now parse it!
+        line = coo.readline()
+        while line != "":
+            # for each line, get the important values and save them in val_list
+            vals = [float(word) for word in line.split()]
+            val_list.append(vals)
+            line = coo.readline()
+            
+        return np.array(val_list)
+
     
-    # now skip to and read the important bits
-    lines = dbs.readlines()
-    x_shift = float(lines[-21].split()[1])
-    y_shift = float(lines[-20].split()[1])
-    x_rot = float(lines[-17].split()[1])
-    y_rot = float(lines[-16].split()[1])
-    return (x_shift, y_shift, (x_rot+y_rot)/2)
+    @staticmethod
+    def overwrite_data(filename, new_data, active):
+        """
+        Writes the new data to the filename
+        @param filename:
+            The name of a .coo file
+        @param new_data:
+            A numpy array
+        @active
+            A boolean array specifying which of the data are valid
+        """
+        coo = open(filename, 'w')
+        data = new_data[np.nonzero(active)]
+        for row in data:
+            for datum in row:
+                coo.write(str(datum))
+                coo.write(' ')
+            coo.write('\n')
+        
     
+    @staticmethod
+    def get_transformation(filename):
+        """
+        Read the DBS file written by iraf.geomap and return the useful data within
+        @param filename:
+            The str name of the file in which the transformation info can be found
+        @returns:
+            A tuple of three floats: (x_shift, y_shift, rotation in degrees)
+        """
+        try:
+            dbs = open(filename, 'r')
+        except IOError:
+            try:
+                dbs = open("sbr_elaisn1rev_starmask.dbs", 'r')
+            except IOError:
+                return (0., 0., 0.)
+        
+        # now skip to and read the important bits
+        lines = dbs.readlines()
+        x_shift = float(lines[-21].split()[1])
+        y_shift = float(lines[-20].split()[1])
+        x_rot = float(lines[-17].split()[1])
+        y_rot = float(lines[-16].split()[1])
+        return (x_shift, y_shift, (x_rot+y_rot)/2)
+        
     
-def transform(x, y, trans):
-    """
-    Applies the given transformation to the given points
-    @param x:
-        A numpy array of x positions
-    @param y:
-        A numpy array of y positions
-    @param trans:
-        A tuple of floats: (x_shift, y_shift, rotation in degrees)
-    @returns:
-        A tuple of the new x value array and the new y value array
-    """
-    xshift, yshift, thetaD = trans
-    thetaR = math.radians(thetaD)
-    newX = (x - xshift)*math.cos(thetaR) - (y - yshift)*math.sin(thetaR)
-    newY = (x - xshift)*math.sin(thetaR) + (y - yshift)*math.cos(thetaR)
-    return newX, newY
+    @staticmethod
+    def transform(x, y, trans):
+        """
+        Applies the given transformation to the given points
+        @param x:
+            A numpy array of x positions
+        @param y:
+            A numpy array of y positions
+        @param trans:
+            A tuple of floats: (x_shift, y_shift, rotation in degrees)
+        @returns:
+            A tuple of the new x value array and the new y value array
+        """
+        xshift, yshift, thetaD = trans
+        thetaR = math.radians(thetaD)
+        newX = (x - xshift)*math.cos(thetaR) - (y - yshift)*math.sin(thetaR)
+        newY = (x - xshift)*math.sin(thetaR) + (y - yshift)*math.cos(thetaR)
+        return newX, newY
 
 #END
 

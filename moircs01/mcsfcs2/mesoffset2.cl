@@ -100,7 +100,8 @@ begin
 #    task $messtar = "$../../MOS/mes_star"
 #    task $meshole = "$../../MOS/mes_hole"
     task $messtarhole_b = "$../../MOS2/mes_starhole_b.py"
-    task $resviewer = "$../../MOS2/res_viewer.py"
+    task $resviewer = "$../../MOS/res_viewer"
+    task $geomap = "$../../MOS2/geo_map.py"
 
 # Check header info.
     imgets( instarhole_chip1, "DET-ID")
@@ -177,31 +178,12 @@ print("test",list_starhole)
     }
 
 # Geotran
+    log_mesoffset = rootname//"_log"
     list_geotran = rootname//"_starholemask.dbs"
     list_geores = rootname//"_starholemask.res"
     delete( list_geotran, >&"dev$null" )
     delete( list_geores, >&"dev$null" )
-    geomap.fitgeom = "rotate"
-    geomap( list_starmask, list_geotran, results=list_geores, xmin=INDEF, xmax=INDEF, ymin=INDEF, ymax=INDEF )
-
-# Calculate offset value
-    log_mesoffset = rootname//"_log"
-    print("=======================================================", >> log_mesoffset)
-    print("mesoffset2b :", >> log_mesoffset)
-    print("=======================================================")
-    print("")
-    print("=========================================== ")
-    print("==       USE TELOFFSET MODE ANA          == ")
-    print("== Put dx dy rotate to the ANA window    ==")
-    print("== Ignore dx less than 0.5 (pix)         ==")
-    print("== Ignore dy less than 0.5 (pix)         ==")
-    print("== Ignore rotate less than 0.01 (degree) ==")
-    print(" ========================================== ")
-    date( >> log_mesoffset )
-    awk ("-f ../../MOS/results.awk", list_geotran  ) 
-    awk ("-f ../../MOS/results.awk", list_geotran, >> log_mesoffset  ) 
-    print("")
-    print("=======================================================")
+    geomap( frame_starhole, list_starmask, list_geotran, log_mesoffset, results=list_geores )   # TODO: ???
 
 # Plot the results
     resviewer( list_geores )

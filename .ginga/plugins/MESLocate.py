@@ -23,8 +23,13 @@ import numpy as np
 # constants
 # the arguments passed in to the outer script
 argv = sys.argv
+fits_image = argv[1]
+input_sbr = argv[2]
+output_coo = argv[3]
+interact = argv[4]
+
 # the object we are looking for
-mode = 'star' if 'star' in argv[1] else 'hole'
+mode = 'star' if 'star' in fits_image else 'hole'
 # the size of the object-finding squares (dependent on whether we look for holes or stars)
 sq_size = 25 if mode == 'star' else 60
 # the difference between the threshold and the mean, in standard deviations
@@ -62,10 +67,10 @@ class MESLocate(GingaPlugin.LocalPlugin):
         self.body_font = self.fv.getFont('sansFont', 10)
 
         # reads the given SBR file to get the object positions
-        self.obj_list, self.obj0 = readSBR()
+        self.obj_list, self.obj0 = self.readInputFile()
         self.obj_num = len(self.obj_list)
         # creates the list of thumbnails that will go in the GUI
-        self.thumbnails = create_viewer_list(self.obj_num, self.logger)
+        self.thumbnails = self.create_viewer_list(self.obj_num, self.logger)
         # and creates some other attributes:
         self.click_history = []     # places we've clicked
         self.click_index = -1       # index of the last click
@@ -153,7 +158,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         self.mark_current_obj()
         
         # if interaction is turned off, immediately go to the next object
-        if argv[4][0].lower() == 'n':
+        if interact[0].lower() == 'n':
             self.next_obj_cb()
         
         
@@ -184,7 +189,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         self.mark_current_obj()
         
         # if interaction is turned off, immediately go to the next object
-        if argv[4][0].lower() == 'n':
+        if interact[0].lower() == 'n':
             self.next_obj_cb()
         
         
@@ -192,7 +197,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         """
         Responds to the Next button at the last object by ending the program
         """
-        f = open(argv[3], 'w')
+        f = open(output_coo, 'w')
         if mode == 'star':
             for x, y, r in self.obj_centroids:
                 f.write("%7.1f, %7.1f \n" % (x, y))
@@ -397,7 +402,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         color = colors[self.click_index%len(colors)]   # cycles through all the colors
         shapes = []
         for i, viewer in enumerate(self.thumbnails):
-            dx, dy = self.obj_list[i]
+            dx, dy = self.obj_list[i][:2]
         
             # first, draw squares and numbers
             shapes.append(self.dc.SquareBox(x+dx, y+dy, sq_size, color=color))
@@ -473,7 +478,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         obj = (float('NaN'), float('NaN'), float('NaN'))
         try:
             co = self.current_obj
-            obj = locate_obj(self.get_current_box(),
+            obj = self.locate_obj(self.get_current_box(),
                             self.drag_history[co][:self.drag_index[co]+1],
                             self.fitsimage.get_image())
             self.canvas.add(self.dc.CompoundObject(
@@ -512,7 +517,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
             The float bounds of the current box
         """
         xf, yf = self.click_history[self.click_index]
-        dx, dy = self.obj_list[self.current_obj]
+        dx, dy = self.obj_list[self.current_obj][:2]
         return (xf+dx-sq_size, yf+dy-sq_size, xf+dx+sq_size, yf+dy+sq_size)
         
         
@@ -784,135 +789,139 @@ class MESLocate(GingaPlugin.LocalPlugin):
         
         
 
-def create_viewer_list(n, logger=None):
-    """
-    Create a list of n viewers with certain properties
-    @param n:
-        An integer - the length of the desired list
-    @param logger:
-        A Logger object to pass into the new Viewers
-    @returns:
-        A list of Viewers.CanvasView objects
-    """
-    output = []
-    for i in range(n):
-        viewer = Viewers.CanvasView(logger=logger)
-        viewer.set_desired_size(194,141)    # this is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
-        viewer.enable_autozoom('on')
-        viewer.enable_autocuts('on')
-        output.append(viewer)
-    return output
+    @staticmethod
+    def create_viewer_list(n, logger=None):
+        """
+        Create a list of n viewers with certain properties
+        @param n:
+            An integer - the length of the desired list
+        @param logger:
+            A Logger object to pass into the new Viewers
+        @returns:
+            A list of Viewers.CanvasView objects
+        """
+        output = []
+        for i in range(n):
+            viewer = Viewers.CanvasView(logger=logger)
+            viewer.set_desired_size(194,141)    # this is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
+            viewer.enable_autozoom('on')
+            viewer.enable_autocuts('on')
+            output.append(viewer)
+        return output
 
-
-def readSBR():
-    """
-    Reads the SBR file and returns the position of the first active
-    object as well as the relative positions of all the other objects in a list
-    @returns:
-        A tuple containing a list of float tuples, relative locations of objects
-        and a single float tuple (absolute location of first object)
-    """
-    # define variables
-    obj_list = []
-    obj0 = None
     
-    # try to open the file
-    try:
-        sbr = open(argv[2], 'r')
-    except IOError:
-        try:
-            sbr = open("sbr_elaisn1rev.sbr")
-        except IOError:
-            return [(dx, dy) for dx in [0,1,-1] for dy in [0,1,-1]], (0,0)
-    
-    # now parse it!
-    line = sbr.readline()
-    while line != "":
-        # for each line, get the important values and save them in obj_list
-        vals = [word.strip(" \n") for word in line.split(",")]
-        if vals[0] == "C":
-            newX, newY = imgXY_from_sbrXY((vals[1], vals[2]))
-            if obj0 == None:
-                obj_list.append((0, 0))
-                obj0 = (newX, newY)
-            else:
-                obj_list.append((newX-obj0[0],   # don't forget to shift it so object #0 is at the origin
-                                  newY-obj0[1]))
-        line = sbr.readline()
+    @staticmethod
+    def readInputFile():
+        """
+        Reads the SBR file and returns the position of the first active
+        object as well as the relative positions of all the other objects in a list
+        @returns:
+            A tuple containing a list of float tuples, relative locations of objects
+            and a single float tuple (absolute location of first object)
+        """
+        # define variables
+        obj_list = []
+        obj0 = None
         
-    return obj_list, obj0
+        # try to open the file
+        try:
+            sbr = open(input_sbr, 'r')
+        except IOError:
+            try:
+                sbr = open("sbr_elaisn1rev.sbr")
+            except IOError:
+                return [(dx, dy) for dx in [0,1,-1] for dy in [0,1,-1]], (0,0)
+        
+        # now parse it!
+        line = sbr.readline()
+        while line != "":
+            # for each line, get the important values and save them in obj_list
+            vals = [word.strip(" \n") for word in line.split(",")]
+            if vals[0] == "C":
+                newX, newY = MESLocate.imgXY_from_sbrXY((vals[1], vals[2]))
+                if obj0 == None:
+                    obj_list.append((0, 0))
+                    obj0 = (newX, newY)
+                else:
+                    obj_list.append((newX-obj0[0],   # don't forget to shift it so object #0 is at the origin
+                                      newY-obj0[1]))
+            line = sbr.readline()
+            
+        return obj_list, obj0
 
 
-def imgXY_from_sbrXY(sbr_coords):
-    """
-    Converts coordinates from the SBR file to coordinates
-    compatible with FITS files
-    @param sbr_coords:
-        A string or float tuple of x and y read from *.sbr
-    @returns:
-        A float tuple of x amd u that will work with the rest of Ginga
-    """
-    # I'm sorry; I have no idea what any of this math is.
-    sbrX, sbrY = sbr_coords
-    fX = 1078.0 - float(sbrX)*17.57789
-    fY = 1857.0 + float(sbrY)*17.57789
-    fHoleX = 365.0 + (fX-300.0)
-    fHoleY = 2580.0 + (fY-2660.0)
-    return (fHoleX, fHoleY)
+    @staticmethod
+    def imgXY_from_sbrXY(sbr_coords):
+        """
+        Converts coordinates from the SBR file to coordinates
+        compatible with FITS files
+        @param sbr_coords:
+            A string or float tuple of x and y read from *.sbr
+        @returns:
+            A float tuple of x amd u that will work with the rest of Ginga
+        """
+        # I'm sorry; I have no idea what any of this math is.
+        sbrX, sbrY = sbr_coords
+        fX = 1078.0 - float(sbrX)*17.57789
+        fY = 1857.0 + float(sbrY)*17.57789
+        fHoleX = 365.0 + (fX-300.0)
+        fHoleY = 2580.0 + (fY-2660.0)
+        return (fHoleX, fHoleY)
+        
     
-    
-def locate_obj(bounds, masks, image):
-    """
-    Finds the center of an object using center of mass calculation
-    @param bounds:
-        A tuple of floats x1, y1, x2, y2. The object should be within this box
-    @param masks:
-        A list of tuples of the form (x1, y1, x2, y2, kind) where kind is either
-        'mask' or 'crop' and everything else is floats. Each tuple in masks
-        is one drag of the mouse that ommitted either its interior or its
-        exterior
-    @param image:
-        The AstroImage containing the data necessary for this calculation
-    @returns:
-        A tuple of two floats representing the actual location of the object
-    @raises ZeroDivisionError:
-        If no object is visible in the frame
-    """
-    # start by cropping the image to get the data matrix
-    data, x0,y0 = image.cutout_adjust(*bounds)[0:3]
-    
-    # omit data based on masks
-    mask_tot = np.ones(data.shape)
-    for drag in masks:
-        x1, y1, x2, y2, kind = (int(drag[0]-bounds[0]), int(drag[1]-bounds[1]),
-                                int(drag[2]-bounds[0]), int(drag[3]-bounds[1]),
-                                drag[4])
-        mask = np.ones(data.shape)
-        mask[y1:y2, x1:x2] = np.zeros((y2-y1, x2-x1))
-        if kind == 'crop':
-            mask = 1-mask
-        mask_tot = mask_tot*mask
-    
-    # apply mask, calculate threshold, coerce data positive, and reapply mask
-    data = data * mask_tot
-    threshold = threshold_dist*np.std(data) + np.mean(data)
-    data = data - threshold
-    data = np.clip(data, 0, float('inf'))
-    data = data * mask_tot
-    
-    # now do a center-of mass calculation to find the size and centroid
-    yx = np.indices(data.shape)
-    x, y = yx[1], yx[0]
-    x_sum = float(np.sum(data*x))
-    y_sum = float(np.sum(data*y))
-    data_sum = float(np.sum(data))
-    area = float(np.sum(np.sign(data)))
-    
-    x_cen = x_sum/data_sum
-    y_cen = y_sum/data_sum
-    radius = math.sqrt(area/math.pi)
-    return (x0 + x_cen - 0.5, y0 + y_cen - 0.5, radius)
-    
+    @staticmethod
+    def locate_obj(bounds, masks, image):
+        """
+        Finds the center of an object using center of mass calculation
+        @param bounds:
+            A tuple of floats x1, y1, x2, y2. The object should be within this box
+        @param masks:
+            A list of tuples of the form (x1, y1, x2, y2, kind) where kind is either
+            'mask' or 'crop' and everything else is floats. Each tuple in masks
+            is one drag of the mouse that ommitted either its interior or its
+            exterior
+        @param image:
+            The AstroImage containing the data necessary for this calculation
+        @returns:
+            A tuple of two floats representing the actual location of the object
+        @raises ZeroDivisionError:
+            If no object is visible in the frame
+        """
+        # start by cropping the image to get the data matrix
+        data, x0,y0 = image.cutout_adjust(*bounds)[0:3]
+        
+        # omit data based on masks
+        mask_tot = np.ones(data.shape)
+        for drag in masks:
+            x1, y1, x2, y2, kind = (int(drag[0]-bounds[0]), int(drag[1]-bounds[1]),
+                                    int(drag[2]-bounds[0]), int(drag[3]-bounds[1]),
+                                    drag[4])
+            mask = np.ones(data.shape)
+            mask[y1:y2, x1:x2] = np.zeros((y2-y1, x2-x1))
+            if kind == 'crop':
+                mask = 1-mask
+            mask_tot = mask_tot*mask
+        
+        # apply mask, calculate threshold, coerce data positive, and reapply mask
+        data = data * mask_tot
+        threshold = threshold_dist*np.std(data) + np.mean(data)
+        data = data - threshold
+        data = np.clip(data, 0, float('inf'))
+        data = data * mask_tot
+        
+        # now do a center-of mass calculation to find the size and centroid
+        yx = np.indices(data.shape)
+        x, y = yx[1], yx[0]
+        x_sum = float(np.sum(data*x))
+        y_sum = float(np.sum(data*y))
+        data_sum = float(np.sum(data))
+        area = float(np.sum(np.sign(data)))
+        
+        x_cen = x_sum/data_sum
+        y_cen = y_sum/data_sum
+        radius = math.sqrt(area/math.pi)
+        return (x0 + x_cen - 0.5, y0 + y_cen - 0.5, radius)
+        
 
 def tag(step, mod_1, mod_2=None):
     """
