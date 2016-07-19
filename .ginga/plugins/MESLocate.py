@@ -71,7 +71,7 @@ class MESLocate(MESPlugin):
         
         # creates the list of thumbnails that will go in the GUI
         self.thumbnails = self.create_viewer_list(self.obj_num, self.logger)
-        self.step2_viewer = self.create_viewer_list(1, self.logger, 9000, 9000)[0]    # TODO What size should this be?
+        self.step2_viewer = self.create_viewer_list(1, self.logger, 420, 420)[0]    # 738x738 is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
         
         # defines some attributes
         self.click_history = []     # places we've clicked
@@ -127,7 +127,201 @@ class MESLocate(MESPlugin):
                 canvas.add_callback('panset-up', self.end_select_mask_cb)
             canvas.add_callback('draw-up', self.next_obj_cb)
     
-    
+        
+    def build_specific_gui(self, stack, orientation='vertical'):
+        """
+        Combine the GUIs necessary for this particular plugin
+        Must be implemented for each MESPlugin
+        @param stack:
+            The stack in which each part of the GUI will be stored
+        @param orientation:
+            Either 'vertical' or 'horizontal', the orientation of this new GUI
+        """
+        stack.add_widget(self.make_gui_1(orientation))
+        stack.add_widget(self.make_gui_2(orientation))
+        
+        
+    def make_gui_1(self, orientation='vertical'):
+        """
+        Construct a GUI for the first step: finding the objects
+        @param orientation:
+            Either 'vertical' or 'horizontal', the orientation of this new GUI
+        @returns:
+            A Widgets.Box object containing all necessary buttons, labels, etc.
+        """
+        # start by creating the container
+        gui = Widgets.Box(orientation=orientation)
+        gui.set_spacing(4)
+        
+        # create a label to title this step
+        lbl = Widgets.Label("Pick First Hole")
+        lbl.set_font(self.title_font)
+        gui.add_widget(lbl)
+
+        # fill a text box with brief instructions and put in in an expander
+        exp = Widgets.Expander(title="Instructions")
+        gui.add_widget(exp)
+        txt = Widgets.TextArea(wrap=True, editable=False)
+        txt.set_font(self.body_font)
+        txt.set_text("Left click on the object labeled '1'. The other objects "+
+                     "should appear in the boxes below. Click again to select "+
+                     "another position. Click 'Next' below or right-click "+
+                     "when you are satisfied with your location.\n"+
+                     "Remember - bright areas are shown in white.")
+        exp.set_widget(txt)
+
+        # create a box to group the control buttons together
+        box = Widgets.HBox()
+        box.set_spacing(3)
+        gui.add_widget(box)
+
+        # the undo button goes back a click
+        btn = Widgets.Button("Undo")
+        btn.add_callback('activated', self.undo1_cb)
+        btn.set_tooltip("Undo a single click (if a click took place)")
+        box.add_widget(btn)
+
+        # the redo button goes forward
+        btn = Widgets.Button("Redo")
+        btn.add_callback('activated', self.redo1_cb)
+        btn.set_tooltip("Undo an undo action (if an undo action took place)")
+        box.add_widget(btn)
+
+        # the clear button erases the canvas
+        btn = Widgets.Button("Clear")
+        btn.add_callback('activated', lambda w: self.canvas.delete_all_objects())
+        btn.set_tooltip("Erase all marks on the canvas")
+        box.add_widget(btn)
+        
+        # the next button moves on to step 2
+        btn = Widgets.Button("Next")
+        btn.add_callback('activated', self.step2_cb)
+        btn.set_tooltip("Accept and proceed to step 2")
+        box.add_widget(btn)
+        
+        # lastly, we need the zoomed-in images. This is the grid we put them in
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
+        num_img = self.obj_num   # total number of alignment objects
+        columns = 2                       # pictures in each row
+        rows = int(math.ceil(float(num_img)/columns))
+        grd = Widgets.GridBox(rows=rows, columns=columns)
+        frm.set_widget(grd)
+        
+        # these are the images we put in the grid
+        for row in range(0, rows):
+            for col in range(0, columns):
+                i = row*columns + col
+                if i < num_img:
+                    pic = Viewers.GingaViewerWidget(viewer=self.thumbnails[i])
+                    grd.add_widget(pic, row, col)
+        
+        # space gui appropriately and return it
+        gui.add_widget(Widgets.Label(""), stretch=True)
+        return gui
+        
+        
+    def make_gui_2(self, orientation='vertical'):
+        """
+        Construct a GUI for the second step: cropping the stars
+        @param orientation:
+            Either 'vertical' or 'horizontal', the orientation of this new GUI
+        @returns:
+            A Widgets.Box object containing all necessary buttons, labels, etc.
+        """
+        # start by creating the container
+        gui = Widgets.Box(orientation=orientation)
+        gui.set_spacing(4)
+        
+        # create a label to title this step
+        lbl = Widgets.Label("Determine Centroids")
+        lbl.set_font(self.title_font)
+        gui.add_widget(lbl)
+
+        # fill a text box with brief instructions and put in in an expander
+        exp = Widgets.Expander(title="Instructions")
+        gui.add_widget(exp)
+        txt = Widgets.TextArea(wrap=True, editable=False)
+        txt.set_font(self.body_font)
+        txt.set_text("Help the computer find the centroid of this object. "+
+                     "Click and drag to include or exclude regions; "+
+                     "left-click will crop to selection and middle-click will "+
+                     "mask selection, or you can specify a selection option "+
+                     "below. Click 'Next' below or right-click when the "+
+                     "centroid has been found.")
+        exp.set_widget(txt)
+        
+        # now make an HBox to hold the main controls
+        box = Widgets.HBox()
+        box.set_spacing(3)
+        gui.add_widget(box)
+        
+        # the undo button goes back a crop
+        btn = Widgets.Button("Undo")
+        btn.add_callback('activated', self.undo2_cb)
+        btn.set_tooltip("Undo a single selection (if a selection took place)")
+        box.add_widget(btn)
+
+        # the redo button goes forward
+        btn = Widgets.Button("Redo")
+        btn.add_callback('activated', self.redo2_cb)
+        btn.set_tooltip("Undo an undo action (if an undo action took place)")
+        box.add_widget(btn)
+
+        # the clear button nullifies all crops
+        btn = Widgets.Button("Back")
+        btn.add_callback('activated', self.prev_obj_cb)
+        btn.set_tooltip("Go back to the previous object")
+        box.add_widget(btn)
+        
+        # the next button moves on to the next object
+        btn = Widgets.Button("Next")
+        btn.add_callback('activated', self.next_obj_cb)
+        btn.set_tooltip("Accept and proceed to the next object")
+        box.add_widget(btn)
+        
+        # make a box for a combobox+label combo
+        box = Widgets.VBox()
+        box.set_spacing(3)
+        gui.add_widget(box)
+        lbl = Widgets.Label("Selection Mode:")
+        box.add_widget(lbl)
+        
+        # this is the combobox of selection options
+        com = Widgets.ComboBox()
+        for text in selection_modes:
+            com.append_text(text)
+        com.add_callback('activated', self.choose_select_cb)
+        box.add_widget(com)
+        
+        # put a viewer in a frame
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
+        pic = Viewers.GingaViewerWidget(viewer=self.step2_viewer)
+        frm.set_widget(pic)
+        
+        # space gui appropriately and return it
+        gui.add_widget(Widgets.Label(""), stretch=True)
+        return gui
+
+
+    def start(self):
+        """
+        Called when the plugin is opened for the first time
+        """
+        super(MESLocate, self).start()
+        
+        # set the autocut to make things easier to see
+        method = 'stddev' if mode == 'star' else 'zscale'
+        self.fitsimage.get_settings().set(autocut_method=method)
+        
+        # set the initial status message
+        self.fv.showStatus("Locate the object labeled '1' by clicking.")
+        
+        # automatically select the first point and start
+        self.click1_cb(self.canvas, 1, *self.obj0)
+        
+        
     def step1_cb(self, *args):
         """
         Responds to back button by returning to step 1
@@ -330,8 +524,8 @@ class MESLocate(MESPlugin):
         # shade that puppy in and remark it
         self.draw_mask(*self.drag_history[self.current_obj][-1])
         self.mark_current_obj()
-            
-            
+        
+        
     def undo1_cb(self, *args):
         """
         Responds to the undo button in step 1
@@ -504,7 +698,7 @@ class MESLocate(MESPlugin):
             return self.stack.get_index()+1
         except AttributeError:
             return 1
-            
+        
     
     def get_current_box(self):
         """
@@ -519,201 +713,7 @@ class MESLocate(MESPlugin):
         return (xf+dx-sq_size, yf+dy-sq_size, xf+dx+sq_size, yf+dy+sq_size, r)
         
         
-    def make_gui_1(self, orientation='vertical'):
-        """
-        Construct a GUI for the first step: finding the objects
-        @param orientation:
-            Either 'vertical' or 'horizontal', the orientation of this new GUI
-        @returns:
-            A Widgets.Box object containing all necessary buttons, labels, etc.
-        """
-        # start by creating the container
-        gui = Widgets.Box(orientation=orientation)
-        gui.set_spacing(4)
-        
-        # create a label to title this step
-        lbl = Widgets.Label("Pick First Hole")
-        lbl.set_font(self.title_font)
-        gui.add_widget(lbl)
-
-        # fill a text box with brief instructions and put in in an expander
-        exp = Widgets.Expander(title="Instructions")
-        gui.add_widget(exp)
-        txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.body_font)
-        txt.set_text("Left click on the object labeled '1'. The other objects "+
-                     "should appear in the boxes below. Click again to select "+
-                     "another position. Click 'Next' below or right-click "+
-                     "when you are satisfied with your location.\n"+
-                     "Remember - bright areas are shown in white.")
-        exp.set_widget(txt)
-
-        # create a box to group the control buttons together
-        box = Widgets.HBox()
-        box.set_spacing(3)
-        gui.add_widget(box)
-
-        # the undo button goes back a click
-        btn = Widgets.Button("Undo")
-        btn.add_callback('activated', self.undo1_cb)
-        btn.set_tooltip("Undo a single click (if a click took place)")
-        box.add_widget(btn)
-
-        # the redo button goes forward
-        btn = Widgets.Button("Redo")
-        btn.add_callback('activated', self.redo1_cb)
-        btn.set_tooltip("Undo an undo action (if an undo action took place)")
-        box.add_widget(btn)
-
-        # the clear button erases the canvas
-        btn = Widgets.Button("Clear")
-        btn.add_callback('activated', lambda w: self.canvas.delete_all_objects())
-        btn.set_tooltip("Erase all marks on the canvas")
-        box.add_widget(btn)
-        
-        # the next button moves on to step 2
-        btn = Widgets.Button("Next")
-        btn.add_callback('activated', self.step2_cb)
-        btn.set_tooltip("Accept and proceed to step 2")
-        box.add_widget(btn)
-        
-        # lastly, we need the zoomed-in images. This is the grid we put them in
-        frm = Widgets.Frame()
-        gui.add_widget(frm)
-        num_img = self.obj_num   # total number of alignment objects
-        columns = 2                       # pictures in each row
-        rows = int(math.ceil(float(num_img)/columns))
-        grd = Widgets.GridBox(rows=rows, columns=columns)
-        frm.set_widget(grd)
-        
-        # these are the images we put in the grid
-        for row in range(0, rows):
-            for col in range(0, columns):
-                i = row*columns + col
-                if i < num_img:
-                    pic = Viewers.GingaViewerWidget(viewer=self.thumbnails[i])
-                    grd.add_widget(pic, row, col)
-        
-        # space gui appropriately and return it
-        gui.add_widget(Widgets.Label(""), stretch=True)
-        return gui
-        
-        
-    def make_gui_2(self, orientation='vertical'):
-        """
-        Construct a GUI for the second step: cropping the stars
-        @param orientation:
-            Either 'vertical' or 'horizontal', the orientation of this new GUI
-        @returns:
-            A Widgets.Box object containing all necessary buttons, labels, etc.
-        """
-        # start by creating the container
-        gui = Widgets.Box(orientation=orientation)
-        gui.set_spacing(4)
-        
-        # create a label to title this step
-        lbl = Widgets.Label("Determine Centroids")
-        lbl.set_font(self.title_font)
-        gui.add_widget(lbl)
-
-        # fill a text box with brief instructions and put in in an expander
-        exp = Widgets.Expander(title="Instructions")
-        gui.add_widget(exp)
-        txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.body_font)
-        txt.set_text("Help the computer find the centroid of this object. "+
-                     "Click and drag to include or exclude regions; "+
-                     "left-click will crop to selection and middle-click will "+
-                     "mask selection, or you can specify a selection option "+
-                     "below. Click 'Next' below or right-click when the "+
-                     "centroid has been found.")
-        exp.set_widget(txt)
-        
-        # now make an HBox to hold the main controls
-        box = Widgets.HBox()
-        box.set_spacing(3)
-        gui.add_widget(box)
-        
-        # the undo button goes back a crop
-        btn = Widgets.Button("Undo")
-        btn.add_callback('activated', self.undo2_cb)
-        btn.set_tooltip("Undo a single selection (if a selection took place)")
-        box.add_widget(btn)
-
-        # the redo button goes forward
-        btn = Widgets.Button("Redo")
-        btn.add_callback('activated', self.redo2_cb)
-        btn.set_tooltip("Undo an undo action (if an undo action took place)")
-        box.add_widget(btn)
-
-        # the clear button nullifies all crops
-        btn = Widgets.Button("Back")
-        btn.add_callback('activated', self.prev_obj_cb)
-        btn.set_tooltip("Go back to the previous object")
-        box.add_widget(btn)
-        
-        # the next button moves on to the next object
-        btn = Widgets.Button("Next")
-        btn.add_callback('activated', self.next_obj_cb)
-        btn.set_tooltip("Accept and proceed to the next object")
-        box.add_widget(btn)
-        
-        # make a box for a combobox+label combo
-        box = Widgets.VBox()
-        box.set_spacing(3)
-        gui.add_widget(box)
-        lbl = Widgets.Label("Selection Mode:")
-        box.add_widget(lbl)
-        
-        # this is the combobox of selection options
-        com = Widgets.ComboBox()
-        for text in selection_modes:
-            com.append_text(text)
-        com.add_callback('activated', self.choose_select_cb)
-        box.add_widget(com)
-        
-        # put a viewer in a frame
-        frm = Widgets.Frame()
-        gui.add_widget(frm)
-        pic = Viewers.GingaViewerWidget(viewer=self.step2_viewer)
-        frm.set_widget(pic)
-        
-        # space gui appropriately and return it
-        gui.add_widget(Widgets.Label(""), stretch=True)
-        return gui
-        
-        
-    def build_specific_gui(self, stack, orientation='vertical'):
-        """
-        Combine the GUIs necessary for this particular plugin
-        Must be implemented for each MESPlugin
-        @param stack:
-            The stack in which each part of the GUI will be stored
-        @param orientation:
-            Either 'vertical' or 'horizontal', the orientation of this new GUI
-        """
-        stack.add_widget(self.make_gui_1(orientation))
-        stack.add_widget(self.make_gui_2(orientation))
-
-
-    def start(self):
-        """
-        Called when the plugin is opened for the first time
-        """
-        super(MESLocate, self).start()
-        
-        # set the autocut to make things easier to see
-        method = 'stddev' if mode == 'star' else 'zscale'
-        self.fitsimage.get_settings().set(autocut_method=method)
-        
-        # set the initial status message
-        self.fv.showStatus("Locate the object labeled '1' by clicking.")
-        
-        # automatically select the first point and start
-        self.click1_cb(self.canvas, 1, *self.obj0)
-        
-        
-
+    
     @staticmethod
     def create_viewer_list(n, logger=None, width=194, height=141):    # 194x141 is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
         """

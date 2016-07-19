@@ -8,6 +8,7 @@
 
 
 # standard imports
+import math
 import sys
 
 # local imports
@@ -26,6 +27,8 @@ import numpy as np
 argv = sys.argv
 fits_image = argv[1]
 input_res = argv[2]
+# vector length
+scale = 400
 
 
 
@@ -54,13 +57,18 @@ class MESResults(MESPlugin):
         self.data = self.read_input_file()
     
     
-    def exit_cb(self, *args, **kwargs):
-        """
-        Responds to the 'Exit' button by closing Ginga\
-        """
-        self.close()
-        self.fv.quit()
     
+    def build_specific_gui(self, stack, orientation='vertical'):
+        """
+        Combine the GUIs necessary for this particular plugin
+        Must be implemented for each MESPlugin
+        @param stack:
+            The stack in which each part of the GUI will be stored
+        @param orientation:
+            Either 'vertical' or 'horizontal', the orientation of this new GUI
+        """
+        stack.add_widget(self.make_gui_5(orientation))
+        
     
     def make_gui_5(self, orientation='vertical'):
         """
@@ -87,7 +95,7 @@ class MESResults(MESPlugin):
         txt.set_text("Look at the results. The vectors represent the "+
                      "displacement of the stars from their corresponding "+
                      "holes. Star/hole pairs with displacements of less than "+
-                     "0.5 pixels are shown in blue. Press 'Exit' below when "+
+                     "0.5 pixels are transparent. Press 'Exit' below when "+
                      "you are done.")
         exp.set_widget(txt)
         
@@ -100,31 +108,7 @@ class MESResults(MESPlugin):
         gui.add_widget(Widgets.Label(""), stretch=True)
         return gui
         
-
-    def build_specific_gui(self, stack, orientation='vertical'):
-        """
-        Combine the GUIs necessary for this particular plugin
-        Must be implemented for each MESPlugin
-        @param stack:
-            The stack in which each part of the GUI will be stored
-        @param orientation:
-            Either 'vertical' or 'horizontal', the orientation of this new GUI
-        """
-        stack.add_widget(self.make_gui_5(orientation))
         
-    
-    def close(self):
-        """
-        Called when the plugin is closed
-        One of the required LocalPlugin methods
-        @returns:
-            True. I'm not sure why.
-        """
-        chname = self.fv.get_channelName(self.fitsimage)
-        self.fv.stop_local_plugin(chname, str(self))
-        return True
-
-
     def start(self):
         """
         Called when the plugin is invoked, right after build_gui()
@@ -132,23 +116,53 @@ class MESResults(MESPlugin):
         """
         super(MESResults, self).start()
         
-        # TODO: set the cuts to -20, 200 or something
+        # adjust the cut levels to make the arrows easier to see
+        self.fitsimage.cut_levels(-20, 200)
         
         # set the initial status message
         self.fv.showStatus("Inspect the results.")
+        
+        # draw the vectors
+        self.draw_results()
+        
     
-
-
+    def draw_results(self):
+        """
+        Draws the results from self.data onto the canvas in the form of vectors
+        """
+        for row in self.data:
+            startX = row[0]
+            startY = row[1]
+            endX = row[0] + scale*row[2]
+            endY = row[1] + scale*row[3]
+            magnitude = math.hypot(row[2], row[3])
+            alpha = 1.0 if magnitude >= 0.5 else 0.5
+            self.canvas.add(self.dc.Line(startX, startY, endX, endY,
+                                         alpha=alpha, arrow='end', showcap=1,
+                                         color='cyan'))
+            self.canvas.add(self.dc.Text(startX, startY,
+                                         "{:,.1f}p".format(magnitude),
+                                         alpha=alpha, color='yellow'))
+        
+        
+    def exit_cb(self, *args, **kwargs):
+        """
+        Responds to the 'Exit' button by closing Ginga\
+        """
+        self.close()
+        self.fv.quit()
+    
+    
+    
     @staticmethod
     def read_input_file():
         """
         Read the RES file and return the data within as a numpy array
         @returns:
-            A list of tuples of floats representing (x_in, y_in, x_out, y_out)
+            A numpy array with four columns: x0, y0, dx, dy representing...
+            I'm honestly not sure what the data represents at this point. It
+            came from geomap, and who knows what goes on in there.
         """
-        # define variables
-        val_list = []
-        
         # try to open the file
         try:
             res = open(input_res, 'r')
@@ -158,13 +172,18 @@ class MESResults(MESPlugin):
             except IOError:
                 return np.array([[0., 0., 0., 0.]])
         
+        val_array = []
+        
         # now parse it!
         line = res.readline()
         while line != "":
-            # for each line, get the important values and save them in val_list
+            # for each line, get the important values and save them in val_array
+            if line[0] != '#' and line[0] != '\n':
+                values = [float(word) for word in line.split()]
+                val_array.append([values[0], values[1], values[6], values[7]])
             line = res.readline()
             
-        return np.array(val_list)
+        return np.array(val_array)
     
 #END
 

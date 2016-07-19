@@ -97,20 +97,9 @@ class MESPlugin(GingaPlugin.LocalPlugin):
                                   "for every subclass of mosplugin.MESPlugin")
         
     
-    def close(self):
-        """
-        Called when the plugin is closed
-        One of the required LocalPlugin methods
-        @returns:
-            True. I'm not sure why.
-        """
-        self.fv.stop_local_plugin(self.chname, str(self))
-        return True
-
-
     def start(self):
         """
-        Called when the plugin is invoked, right after build_gui()
+        Called when the plugin is first invoked, right after build_gui()
         One of the required LocalPlugin methods
         """
         # stick our own canvas on top of the fitsimage canvas
@@ -120,8 +109,19 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         
         # clear the canvas
         self.canvas.delete_all_objects()
-
-
+    
+    
+    def close(self):
+        """
+        Called when the plugin is closed
+        One of the required LocalPlugin methods
+        @returns:
+            True. I'm not sure why.
+        """
+        self.fv.stop_local_plugin(self.chname, str(self))
+        return True
+    
+    
     def pause(self):
         """
         Called when the plugin is unfocused
