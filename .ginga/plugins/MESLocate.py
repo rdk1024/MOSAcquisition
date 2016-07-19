@@ -72,7 +72,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         self.obj_num = len(self.obj_list)
         # creates the list of thumbnails that will go in the GUI
         self.thumbnails = self.create_viewer_list(self.obj_num, self.logger)
-        self.step2_viewer = self.create_viewer_list(1, self.logger, 500, 500)[0]
+        self.step2_viewer = self.create_viewer_list(1, self.logger, 500, 500)[0]    # TODO What size should this be?
         # and creates some other attributes:
         self.click_history = []     # places we've clicked
         self.click_index = -1       # index of the last click
@@ -526,7 +526,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         return (xf+dx-sq_size, yf+dy-sq_size, xf+dx+sq_size, yf+dy+sq_size, r)
         
         
-    def make_gui1(self, orientation='vertical'):
+    def make_gui_1(self, orientation='vertical'):
         """
         Construct a GUI for the first step: finding the objects
         @param orientation:
@@ -539,7 +539,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         gui.set_spacing(4)
         
         # create a label to title this step
-        lbl = Widgets.Label("Step 1")
+        lbl = Widgets.Label("Pick First Hole")
         lbl.set_font(self.title_font)
         gui.add_widget(lbl)
 
@@ -602,11 +602,11 @@ class MESLocate(GingaPlugin.LocalPlugin):
                     grd.add_widget(pic, row, col)
         
         # space gui appropriately and return it
-        gui.add_widget(Widgets.Label(""), stretch=1)
+        gui.add_widget(Widgets.Label(""), stretch=True)
         return gui
         
         
-    def make_gui2(self, orientation='vertical'):
+    def make_gui_2(self, orientation='vertical'):
         """
         Construct a GUI for the second step: cropping the stars
         @param orientation:
@@ -619,7 +619,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         gui.set_spacing(4)
         
         # create a label to title this step
-        lbl = Widgets.Label("Step 2")
+        lbl = Widgets.Label("Determine Centroids")
         lbl.set_font(self.title_font)
         gui.add_widget(lbl)
 
@@ -686,7 +686,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         frm.set_widget(pic)
         
         # space gui appropriately and return it
-        gui.add_widget(Widgets.Label(""), stretch=1)
+        gui.add_widget(Widgets.Label(""), stretch=True)
         return gui
         
         
@@ -697,22 +697,27 @@ class MESLocate(GingaPlugin.LocalPlugin):
         @param container:
             The widget.VBox this GUI will be added into
         """
-        # create the outer Box that will hold the stack of GUIs and close button
-        out, out_wrapper, orientation = Widgets.get_oriented_box(container)
+        # create the outer Box that will hold the GUI and the close button
+        out = Widgets.VBox()
         out.set_border_width(4)
-        out.set_spacing(3)
-        container.add_widget(out_wrapper)
+        container.add_widget(out, stretch=True)
         
-        # the rest depends on which step we are on
+        # create the inner box that will contain the stack of GUIs
+        box, box_wrapper, orientation = Widgets.get_oriented_box(container)
+        box.set_border_width(4)
+        box.set_spacing(3)
+        out.add_widget(box_wrapper, stretch=True)
+        
+        # the rest depends on what step we are on
         stk = Widgets.StackWidget()
-        stk.add_widget(self.make_gui1(orientation))
-        stk.add_widget(self.make_gui2(orientation))
-        out.add_widget(stk)
+        stk.add_widget(self.make_gui_1(orientation))
+        stk.add_widget(self.make_gui_2(orientation))
+        box.add_widget(stk)
         self.stack = stk    # this stack is important, so save it for later
 
-        # end is an HBox that comes at the very end, after the rest of the gui
+        # end is an HBox that comes at the very end, after the rest of the GUIs
         end = Widgets.HBox()
-        end.set_spacing(3)
+        end.set_spacing(2)
         out.add_widget(end)
             
         # throw in a close button at the very end, just in case

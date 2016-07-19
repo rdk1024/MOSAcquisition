@@ -256,10 +256,11 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         """
         log = open(log_file, 'a')
         log.write("=======================================================\n")
-        log.write("mesoffset1 :\n")
+        log.write("mesoffset :\n")  # TODO: how does it know which mesoffset this is?
         log.write(time.strftime("%a %b %d %H:%M:%S %Z %Y\n"))
-        log.write("dx = {:6,.1f} (pix) dy = {:6,.1f} (pix) "+
-                  "rotate = {:7,.3f} (degree) \n".format(*args))
+        log.write(("dx = {:6,.1f} (pix) dy = {:6,.1f} (pix) "+
+                  "rotate = {:7,.3f} (degree) \n").format(*args))
+        log.close()
 
         
     def delete_outliers(self):
@@ -293,7 +294,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
             return 3
         
         
-    def make_gui3(self, orientation='vertical'):
+    def make_gui_3(self, orientation='vertical'):
         """
         Construct a GUI for the third step: viewing the graph
         @param orientation:
@@ -306,7 +307,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         gui.set_spacing(4)
         
         # create a label to title this step
-        lbl = Widgets.Label("Step 3")
+        lbl = Widgets.Label("Manage Residuals")
         lbl.set_font(self.title_font)
         gui.add_widget(lbl)
 
@@ -318,7 +319,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         txt.set_text("Look at the graphs. Remove any data with residuals "+
                      "greater than 1.0 or less than -1.0. Delete points by "+
                      "right clicking, and restore them by left-clicking. "+
-                     "Press 'Next' below when the data is satisfactory.")
+                     "Click 'Next' below when the data is satisfactory.")
         exp.set_widget(txt)
         
         # now make an HBox to hold the main controls
@@ -346,11 +347,11 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
             box.add_widget(plt)
         
         # space gui appropriately and return it
-        gui.add_widget(Widgets.Label(""), stretch=1)
+        gui.add_widget(Widgets.Label(""), stretch=True)
         return gui
     
     
-    def make_gui4(self, orientation='vertical'):
+    def make_gui_4(self, orientation='vertical'):
         """
         Construct a GUI for the fourth step: getting the offset
         @param orientation:
@@ -363,7 +364,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         gui.set_spacing(4)
         
         # create a label to title this step
-        lbl = Widgets.Label("Step 4")
+        lbl = Widgets.Label("Get Offset Values")
         lbl.set_font(self.title_font)
         gui.add_widget(lbl)
 
@@ -372,7 +373,11 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
         txt.set_font(self.body_font)
-        txt.set_text("Enter the numbers you see below into the ANA window.")
+        txt.set_text("Enter the numbers you see below into the ANA window. dx "+
+                     "and dy values are in pixels, and rotation value is in "+
+                     "degrees. Values of less than 0.5 pixels and 0.01 "+
+                     "degrees have been ignored. Click 'Exit' below when you "+
+                     "are done.")
         exp.set_widget(txt)
         
         # make a frame for the results
@@ -397,7 +402,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         gui.add_widget(btn)
         
         # space gui appropriately and return it
-        gui.add_widget(Widgets.Label(""), stretch=1)
+        gui.add_widget(Widgets.Label(""), stretch=True)
         return gui
         
 
@@ -408,22 +413,27 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         @param container:
             The widget.VBox this GUI will be added into
         """
-        # create the outer Box that will hold the stack of GUIs and close button
-        out, out_wrapper, orientation = Widgets.get_oriented_box(container)
+        # create the outer Box that will hold the GUI and the close button
+        out = Widgets.VBox()
         out.set_border_width(4)
-        out.set_spacing(3)
-        container.add_widget(out_wrapper)
+        container.add_widget(out, stretch=True)
         
-        # the rest depends on which step we are on
+        # create the inner box that will contain the stack of GUIs
+        box, box_wrapper, orientation = Widgets.get_oriented_box(container)
+        box.set_border_width(4)
+        box.set_spacing(3)
+        out.add_widget(box_wrapper, stretch=True)
+        
+        # the rest depends on what step we are on
         stk = Widgets.StackWidget()
-        stk.add_widget(self.make_gui3(orientation))
-        stk.add_widget(self.make_gui4(orientation))
-        out.add_widget(stk)
+        stk.add_widget(self.make_gui_3(orientation))
+        stk.add_widget(self.make_gui_4(orientation))
+        box.add_widget(stk)
         self.stack = stk    # this stack is important, so save it for later
 
-        # end is an HBox that comes at the very end, after the rest of the gui
+        # end is an HBox that comes at the very end, after the rest of the GUIs
         end = Widgets.HBox()
-        end.set_spacing(3)
+        end.set_spacing(2)
         out.add_widget(end)
             
         # throw in a close button at the very end, just in case
@@ -538,7 +548,8 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
             vals = [float(word) for word in line.split()]
             val_list.append(vals)
             line = coo.readline()
-            
+        
+        coo.close()
         return np.array(val_list)
 
     
@@ -560,6 +571,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
                 coo.write(str(datum))
                 coo.write(' ')
             coo.write('\n')
+        coo.close()
         
     
     @staticmethod
@@ -581,6 +593,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         
         # now skip to and read the important bits
         lines = dbs.readlines()
+        dbs.close()
         x_shift = float(lines[-21].split()[1])
         y_shift = float(lines[-20].split()[1])
         x_rot = float(lines[-17].split()[1])

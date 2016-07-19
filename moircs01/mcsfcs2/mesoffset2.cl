@@ -100,7 +100,7 @@ begin
 #    task $messtar = "$../../MOS/mes_star"
 #    task $meshole = "$../../MOS/mes_hole"
     task $messtarhole_b = "$../../MOS2/mes_starhole_b.py"
-    task $resviewer = "$../../MOS/res_viewer"
+    task $resviewer = "$../../MOS2/res_viewer.py"
     task $geomap = "$../../MOS2/geo_map.py"
 
 # Check header info.
@@ -184,7 +184,7 @@ print("test",list_starhole)
     geomap( frame_starhole, list_starmask, list_geotran, log_mesoffset, results=list_geores )
 
 # Plot the results
-    resviewer( list_geores )
+    resviewer( frame_starhole, list_geores )
 
     print("This procedure ended ......")
     print("Log file written in ",log_mesoffset)

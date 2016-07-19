@@ -9,20 +9,10 @@
 
 
 # standard imports
-import math
 import sys
 
 # local imports
 from MESLocate import MESLocate
-
-# ginga imports
-from ginga import GingaPlugin
-from ginga.gw import Widgets, Viewers, Plot
-from ginga.util import iqcalc
-
-# third-party imports
-import numpy as np
-from numpy import ma
 
 
 
@@ -31,7 +21,7 @@ from numpy import ma
 argv = sys.argv
 fits_image = argv[1]
 input_coo = argv[2]
-output_coo = argv[3]    #TODO: What do I have to output?
+output_coo = argv[3]
 interact = argv[4]
 
 # the object we are looking for
