@@ -11,9 +11,11 @@
 import math
 import sys
 
+# local imports
+from util.mosplugin import MESPlugin
+
 # ginga imports
-from ginga import GingaPlugin
-from ginga.gw import Widgets, Viewers, Plot
+from ginga.gw import Widgets, Viewers
 
 # third-party imports
 import numpy as np
@@ -42,7 +44,7 @@ selection_modes = ("Automatic", "Crop", "Mask")
 
 
 
-class MESLocate(GingaPlugin.LocalPlugin):
+class MESLocate(MESPlugin):
     """
     A custom LocalPlugin for ginga that locates a set of calibration objects,
     asks for users to help locate anomolies and artifacts on its images
@@ -59,21 +61,19 @@ class MESLocate(GingaPlugin.LocalPlugin):
             A reference to the specific ginga.qtw.ImageViewCanvas object
             associated with the channel on which the plugin is being invoked
         """
-        # superclass constructor defines self.fv, self.fitsimage, and self.logger:
+        # LocalPlugin constructor defines self.fv, self.fitsimage, self.logger;
+        # MESPlugin constructor defines self.dc, self.canvas, and some fonts
         super(MESLocate, self).__init__(fv, fitsimage)
-        fv.set_titlebar("MOIRCS Acquisition")
-
-        # initializes some class constants:
-        self.title_font = self.fv.getFont('sansFont', 18)
-        self.body_font = self.fv.getFont('sansFont', 10)
 
         # reads the given SBR file to get the object positions
-        self.obj_list, self.obj0 = self.readInputFile()
+        self.obj_list, self.obj0 = self.read_input_file()
         self.obj_num = len(self.obj_list)
+        
         # creates the list of thumbnails that will go in the GUI
         self.thumbnails = self.create_viewer_list(self.obj_num, self.logger)
-        self.step2_viewer = self.create_viewer_list(1, self.logger, 500, 500)[0]    # TODO What size should this be?
-        # and creates some other attributes:
+        self.step2_viewer = self.create_viewer_list(1, self.logger, 9000, 9000)[0]    # TODO What size should this be?
+        
+        # defines some attributes
         self.click_history = []     # places we've clicked
         self.click_index = -1       # index of the last click
         self.current_obj = 0        # index of the current object
@@ -82,15 +82,8 @@ class MESLocate(GingaPlugin.LocalPlugin):
         self.drag_start = None      # the place where we most recently began to drag
         self.obj_centroids = [None]*self.obj_num     # the new obj_list based on user input and calculations
         
-        # now sets up the ginga.canvas.types.layer.DrawingCanvas self.canvas,
-        # which is necessary to draw on the image:
-        self.dc = fv.get_draw_classes()
-        self.canvas = self.dc.DrawingCanvas()
-        self.canvas.enable_draw(False)
+        # sets the mouse controls
         self.set_callbacks()
-        self.canvas.set_surface(self.fitsimage)
-        self.canvas.register_for_cursor_drawing(self.fitsimage)
-        self.canvas.name = 'MOSA-canvas'
         
         # * NOTE: self.drag_history is a list of lists, with one list for each
         #       object; each inner list contains tuples of the form
@@ -690,59 +683,25 @@ class MESLocate(GingaPlugin.LocalPlugin):
         return gui
         
         
-    def build_gui(self, container):
+    def build_specific_gui(self, stack, orientation='vertical'):
         """
-        Called when the plugin is invoked; sets up all the components of the GUI
-        One of the required LocalPlugin methods
-        @param container:
-            The widget.VBox this GUI will be added into
+        Combine the GUIs necessary for this particular plugin
+        Must be implemented for each MESPlugin
+        @param stack:
+            The stack in which each part of the GUI will be stored
+        @param orientation:
+            Either 'vertical' or 'horizontal', the orientation of this new GUI
         """
-        # create the outer Box that will hold the GUI and the close button
-        out = Widgets.VBox()
-        out.set_border_width(4)
-        container.add_widget(out, stretch=True)
-        
-        # create the inner box that will contain the stack of GUIs
-        box, box_wrapper, orientation = Widgets.get_oriented_box(container)
-        box.set_border_width(4)
-        box.set_spacing(3)
-        out.add_widget(box_wrapper, stretch=True)
-        
-        # the rest depends on what step we are on
-        stk = Widgets.StackWidget()
-        stk.add_widget(self.make_gui_1(orientation))
-        stk.add_widget(self.make_gui_2(orientation))
-        box.add_widget(stk)
-        self.stack = stk    # this stack is important, so save it for later
-
-        # end is an HBox that comes at the very end, after the rest of the GUIs
-        end = Widgets.HBox()
-        end.set_spacing(2)
-        out.add_widget(end)
-            
-        # throw in a close button at the very end, just in case
-        btn = Widgets.Button("Close")
-        btn.add_callback('activated', lambda w: self.close())
-        end.add_widget(btn)
-        end.add_widget(Widgets.Label(''), stretch=True)
-        
-    
-    def close(self):
-        """
-        Called when the plugin is closed
-        One of the required LocalPlugin methods
-        @returns:
-            True. I'm not sure why.
-        """
-        self.fv.stop_local_plugin(self.chname, str(self))
-        return True
+        stack.add_widget(self.make_gui_1(orientation))
+        stack.add_widget(self.make_gui_2(orientation))
 
 
     def start(self):
         """
-        Called when the plugin is invoked, right after build_gui()
-        One of the required LocalPlugin methods
+        Called when the plugin is opened for the first time
         """
+        super(MESLocate, self).start()
+        
         # set the autocut to make things easier to see
         method = 'stddev' if mode == 'star' else 'zscale'
         self.fitsimage.get_settings().set(autocut_method=method)
@@ -750,58 +709,8 @@ class MESLocate(GingaPlugin.LocalPlugin):
         # set the initial status message
         self.fv.showStatus("Locate the object labeled '1' by clicking.")
         
-        # stick our own canvas on top of the fitsimage canvas
-        p_canvas = self.fitsimage.get_canvas()
-        if not p_canvas.has_object(self.canvas):
-            p_canvas.add(self.canvas, tag='main-canvas')
-        
-        # clear the canvas
-        self.canvas.delete_all_objects()
-        
         # automatically select the first point and start
         self.click1_cb(self.canvas, 1, *self.obj0)
-
-
-    def pause(self):
-        """
-        Called when the plugin is unfocused
-        One of the required LocalPlugin methods
-        """
-        self.canvas.ui_setActive(False)
-
-
-    def resume(self):
-        """
-        Called when the plugin is refocused
-        One of the required LocalPlugin methods
-        """
-        # activate the GUI
-        self.canvas.ui_setActive(True)
-
-
-    def stop(self):
-        """
-        Called when the plugin is stopped
-        One of the required LocalPlugin methods
-        """
-        p_canvas = self.fitsimage.get_canvas()
-        try:
-            p_canvas.delete_object_by_tag('main-canvas')
-        except:
-            pass
-        self.canvas.ui_setActive(False)
-
-
-    def redo(self):
-        """
-        Called whenever a new image is loaded
-        One of the required LocalPlugin methods
-        """
-        pass
-
-
-    def __str__(self):
-        return "MESLocate"
         
         
 
@@ -831,7 +740,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
 
     
     @staticmethod
-    def readInputFile():
+    def read_input_file():
         """
         Reads the COO file and returns the position of the first active
         object as well as the relative positions of all the other objects in a list

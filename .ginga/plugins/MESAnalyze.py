@@ -15,9 +15,9 @@ import time
 
 # local imports
 from util import mosplots
+from util.mosplugin import MESPlugin
 
 # ginga imports
-from ginga import GingaPlugin
 from ginga.gw import Widgets, Viewers, Plot
 
 # third-party imports
@@ -40,7 +40,7 @@ else:
 
 
 
-class MESAnalyze(GingaPlugin.LocalPlugin):
+class MESAnalyze(MESPlugin):
     """
     A custom LocalPlugin for ginga that takes some data about some objects'
     positions, graphs them, and asks the user to modify the data if necessary.
@@ -57,17 +57,12 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
             A reference to the specific ginga.qtw.ImageViewCanvas object
             associated with the channel on which the plugin is being invoked
         """
-        # superclass constructor defines self.fv, self.fitsimage, and self.logger:
+        # LocalPlugin constructor defines self.fv, self.fitsimage, self.logger;
+        # MESPlugin constructor defines self.dc, self.canvas, and some fonts
         super(MESAnalyze, self).__init__(fv, fitsimage)
-        fv.set_titlebar("MOIRCS Acquisition")
-        
-        # initializes some class constants:
-        self.title_font = self.fv.getFont('sansFont', 18)
-        self.header_font = self.fv.getFont('sansFont', 14)
-        self.body_font = self.fv.getFont('sansFont', 10)
         
         # and some attributes
-        self.data = self.readInputFile()
+        self.data = self.read_input_file()
         self.active = np.ones(self.data.shape[0], dtype=np.bool)
         self.offset = (0, 0, 0)
         self.final_displays = {}
@@ -76,15 +71,8 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         self.plots = [mosplots.MOSPlot(logger=self.logger),
                       mosplots.MOSPlot(logger=self.logger)]
         
-        # now sets up the ginga.canvas.types.layer.DrawingCanvas self.canvas,
-        # which is necessary to draw on the image:
-        self.dc = fv.get_draw_classes()
-        self.canvas = self.dc.DrawingCanvas()
-        self.canvas.enable_draw(False)
+        # sets the mouse controls
         self.set_callbacks()
-        self.canvas.set_surface(self.fitsimage)
-        self.canvas.register_for_cursor_drawing(self.fitsimage)
-        self.canvas.name = 'MOSA-canvas'
         
         
         
@@ -160,16 +148,17 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         self.overwrite_data(input_coo, self.data, self.active)
         
         # delete some files and call iraf.geomap
-        os.remove(output_dbs)
-        os.remove(output_res)
+        try:
+            os.remove(output_res)
+        except OSError:
+            pass
         try:
             geomap(input_coo, output_dbs, INDEF, INDEF, INDEF, INDEF,
                    fitgeom="rotate", results=output_res)
-        except:
+        except IOError:
             geomap("sbr_elaisn1rev_starmask.coo", "sbr_elaisn1rev_starmask.dbs",
                    xmin=INDEF, xmax=INDEF, ymin=INDEF, ymax=INDEF,
                    fitgeom="rotate", results="sbr_elaisn1rev_starholemask.res")
-        print "RES:",output_res
         
         # use its results to calculate some stuff
         xref = self.data[:, 0]
@@ -230,6 +219,8 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         # calculate dx and dy (no idea what all this math is)
         dx = -yshift + xcenter*math.sin(thetaR) + ycenter*(1-math.cos(thetaR))
         dy = xshift + xcenter*(math.cos(thetaR)-1) + ycenter*math.sin(thetaR)
+        # normalize thetaD to the range [-180, 180)
+        thetaD = (thetaD+180)%360 - 180
         
         # ignore values with small absolute values
         if abs(dx) < 0.5:
@@ -406,53 +397,17 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         return gui
         
 
-    def build_gui(self, container):
+    def build_specific_gui(self, stack, orientation='vertical'):
         """
-        Called when the plugin is invoked; sets up all the components of the GUI
-        One of the required LocalPlugin methods
-        @param container:
-            The widget.VBox this GUI will be added into
+        Combine the GUIs necessary for this particular plugin
+        Must be implemented for each MESPlugin
+        @param stack:
+            The stack in which each part of the GUI will be stored
+        @param orientation:
+            Either 'vertical' or 'horizontal', the orientation of this new GUI
         """
-        # create the outer Box that will hold the GUI and the close button
-        out = Widgets.VBox()
-        out.set_border_width(4)
-        container.add_widget(out, stretch=True)
-        
-        # create the inner box that will contain the stack of GUIs
-        box, box_wrapper, orientation = Widgets.get_oriented_box(container)
-        box.set_border_width(4)
-        box.set_spacing(3)
-        out.add_widget(box_wrapper, stretch=True)
-        
-        # the rest depends on what step we are on
-        stk = Widgets.StackWidget()
-        stk.add_widget(self.make_gui_3(orientation))
-        stk.add_widget(self.make_gui_4(orientation))
-        box.add_widget(stk)
-        self.stack = stk    # this stack is important, so save it for later
-
-        # end is an HBox that comes at the very end, after the rest of the GUIs
-        end = Widgets.HBox()
-        end.set_spacing(2)
-        out.add_widget(end)
-            
-        # throw in a close button at the very end, just in case
-        btn = Widgets.Button("Close")
-        btn.add_callback('activated', lambda w: self.close())
-        end.add_widget(btn)
-        end.add_widget(Widgets.Label(''), stretch=True)
-        
-    
-    def close(self):
-        """
-        Called when the plugin is closed
-        One of the required LocalPlugin methods
-        @returns:
-            True. I'm not sure why.
-        """
-        chname = self.fv.get_channelName(self.fitsimage)
-        self.fv.stop_local_plugin(chname, str(self))
-        return True
+        stack.add_widget(self.make_gui_3(orientation))
+        stack.add_widget(self.make_gui_4(orientation))
 
 
     def start(self):
@@ -460,70 +415,22 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         Called when the plugin is invoked, right after build_gui()
         One of the required LocalPlugin methods
         """
+        super(MESAnalyze, self).start()
+        
         # set the autocut to make things easier to see
         self.fitsimage.get_settings().set(autocut_method='zscale')
         
         # set the initial status message
         self.fv.showStatus("Analyze and trim the data.")
         
-        # stick our own canvas on top of the fitsimage canvas
-        p_canvas = self.fitsimage.get_canvas()
-        if not p_canvas.has_object(self.canvas):
-            p_canvas.add(self.canvas, tag='main-canvas')
-        
-        # clear the canvas
-        self.canvas.delete_all_objects()
-        
         # initialize the plots
         self.delete_outliers()
         self.update_plots()
-
-
-    def pause(self):
-        """
-        Called when the plugin is unfocused
-        One of the required LocalPlugin methods
-        """
-        self.canvas.ui_setActive(False)
-
-
-    def resume(self):
-        """
-        Called when the plugin is refocused
-        One of the required LocalPlugin methods
-        """
-        # activate the GUI
-        self.canvas.ui_setActive(True)
-
-
-    def stop(self):
-        """
-        Called when the plugin is stopped
-        One of the required LocalPlugin methods
-        """
-        p_canvas = self.fitsimage.get_canvas()
-        try:
-            p_canvas.delete_object_by_tag('main-canvas')
-        except:
-            pass
-        self.canvas.ui_setActive(False)
-
-
-    def redo(self):
-        """
-        Called whenever a new image is loaded
-        One of the required LocalPlugin methods
-        """
-        pass
-
-
-    def __str__(self):
-        return "MESAnalyze"
     
 
 
     @staticmethod
-    def readInputFile():
+    def read_input_file():
         """
         Read the COO file and return the data within as a numpy array
         @returns:

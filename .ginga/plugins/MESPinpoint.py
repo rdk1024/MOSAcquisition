@@ -45,7 +45,7 @@ class MESPinpoint(MESLocate):
     for use as part of the MOS Acquisition software for aligning MOIRCS.
     """
     
-    def start(self):    # TODO: output
+    def start(self):
         """
         Called when the plugin is invoked, right after build_gui()
         One of the required LocalPlugin methods
@@ -82,7 +82,7 @@ class MESPinpoint(MESLocate):
     
     
     @staticmethod
-    def readInputFile():
+    def read_input_file():
         """
         Reads the COO file and returns the position of the first active
         object as well as the relative positions of all the other objects in a list
