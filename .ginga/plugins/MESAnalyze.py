@@ -442,7 +442,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         One of the required LocalPlugin methods
         """
         # set the autocut to make things easier to see
-        self.fitsimage.get_settings().set(autocut_method='stddev')
+        self.fitsimage.get_settings().set(autocut_method='zscale')
         
         # set the initial status message
         self.fv.showStatus("Analyze and trim the data.")
@@ -504,7 +504,7 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
 
 
     @staticmethod
-    def readReadInputFile():
+    def readInputFile():
         """
         Read the COO file and return the data within as a numpy array
         @returns:

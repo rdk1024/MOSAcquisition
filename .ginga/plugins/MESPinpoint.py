@@ -18,9 +18,11 @@ from MESLocate import MESLocate
 # ginga imports
 from ginga import GingaPlugin
 from ginga.gw import Widgets, Viewers, Plot
+from ginga.util import iqcalc
 
 # third-party imports
 import numpy as np
+from numpy import ma
 
 
 
@@ -53,7 +55,7 @@ class MESPinpoint(MESLocate):
     for use as part of the MOS Acquisition software for aligning MOIRCS.
     """
     
-    def start(self):
+    def start(self):    # TODO: output
         """
         Called when the plugin is invoked, right after build_gui()
         One of the required LocalPlugin methods
@@ -95,7 +97,7 @@ class MESPinpoint(MESLocate):
         line = coo.readline()
         while line != "":
             # for each line, get the important values and save them in obj_list
-            vals = [float(word) for word in line.split(",")]
+            vals = [float(word) for word in line.split()]
             if obj0 == None:
                 obj_list.append((0, 0, vals[2]))
                 obj0 = (vals[0], vals[1])
@@ -110,68 +112,7 @@ class MESPinpoint(MESLocate):
     
     @staticmethod
     def locate_obj(bounds, masks, image, viewer=None):
-        """
-        Finds the center of an object using center of mass calculation
-        @param bounds:
-            A tuple of floats x1, y1, x2, y2, r. The object should be within
-            this box
-        @param masks:
-            A list of tuples of the form (x1, y1, x2, y2, kind) where kind is either
-            'mask' or 'crop' and everything else is floats. Each tuple in masks
-            is one drag of the mouse that ommitted either its interior or its
-            exterior
-        @param image:
-            The AstroImage containing the data necessary for this calculation
-        @param viewer:
-            The viewer object that will display the new data, if desired
-        @returns:
-            A tuple of two floats representing the actual location of the object
-        @raises ZeroDivisionError:
-            If no object is visible in the frame
-        """
-        # start by cropping the image to get the data matrix
-        data, x0,y0 = image.cutout_adjust(*bounds[:4])[0:3]
-        
-        # omit data outside of the hole
-        yx = np.indices(data.shape)
-        x, y = yx[1], yx[0]
-        mask_tot = np.hypot(x-data.shape[1]/2, y-data.shape[0]/2) < bounds[4]
-        
-        # omit data based on masks
-        for drag in masks:
-            x1, y1, x2, y2, kind = (int(drag[0]-bounds[0]), int(drag[1]-bounds[1]),
-                                    int(drag[2]-bounds[0]), int(drag[3]-bounds[1]),
-                                    drag[4])
-            mask = np.ones(data.shape)
-            mask[y1:y2, x1:x2] = np.zeros((y2-y1, x2-x1))
-            if kind == 'crop':
-                mask = 1-mask
-            mask_tot = mask_tot*mask
-        
-        # apply mask, calculate threshold, coerce data positive, and reapply mask
-        data = data * mask_tot
-        threshold = 3*np.std(data) + np.mean(data)
-        data = data - threshold
-        data = np.clip(data, 0, float('inf'))
-        data = data * mask_tot
-        
-        # display the new data on the viewer, if necessary
-        if viewer != None:
-            viewer.set_data(data)
-        
-        # now do a center-of mass calculation to find the size and centroid
-        yx = np.indices(data.shape)
-        x, y = yx[1], yx[0]
-        x_sum = float(np.sum(data*x))
-        y_sum = float(np.sum(data*y))
-        data_sum = float(np.sum(data))
-        area = float(np.sum(np.sign(data)))
-        
-        x_cen = x_sum/data_sum
-        y_cen = y_sum/data_sum
-        radius = math.sqrt(area/math.pi)
-        print "I'm different..."
-        return (x0 + x_cen - 0.5, y0 + y_cen - 0.5, radius)
+        return MESLocate.locate_obj(bounds, masks, image, viewer, True, 1)
 
 #END
 

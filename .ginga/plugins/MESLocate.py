@@ -17,6 +17,7 @@ from ginga.gw import Widgets, Viewers, Plot
 
 # third-party imports
 import numpy as np
+from numpy import ma
 
 
 
@@ -29,11 +30,11 @@ output_coo = argv[3]
 interact = argv[4]
 
 # the object we are looking for
-mode = 'star' if 'star' in fits_image else 'hole'
+mode = 'hole' if 'mask' in fits_image else 'star'
 # the size of the object-finding squares (dependent on whether we look for holes or stars)
 sq_size = 25 if mode == 'star' else 60
 # the difference between the threshold and the mean, in standard deviations
-threshold_dist = 3 if mode == 'star' else -.2
+threshold_dist = 3 if mode == 'star' else 0
 # the colors of said squares
 colors = ('green','red','blue','yellow','magenta','cyan','orange')
 # the different ways we can select things
@@ -171,6 +172,7 @@ class MESLocate(GingaPlugin.LocalPlugin):
         if self.current_obj > 0:
             self.current_obj -= 1
             self.zoom_in_on_current_obj()
+            self.mark_current_obj()
         else:
             self.step1_cb()
         
@@ -201,10 +203,10 @@ class MESLocate(GingaPlugin.LocalPlugin):
         f = open(output_coo, 'w')
         if mode == 'star':
             for x, y, r in self.obj_centroids:
-                f.write("%7.1f, %7.1f \n" % (x, y))
+                f.write("%7.1f %7.1f \n" % (x, y))
         else:
             for x, y, r in self.obj_centroids:
-                f.write("%7.1f, %7.1f, %7.1f \n" % (x, y, r))
+                f.write("%7.1f %7.1f %7.1f \n" % (x, y, r))
         f.close()
         self.close()
         self.fv.quit()
@@ -884,7 +886,8 @@ class MESLocate(GingaPlugin.LocalPlugin):
         
     
     @staticmethod
-    def locate_obj(bounds, masks, image, viewer=None):
+    def locate_obj(bounds, masks, image, viewer=None,
+                   remove_outside=False, thresh=threshold_dist):
         """
         Finds the center of an object using center of mass calculation
         @param bounds:
@@ -899,45 +902,62 @@ class MESLocate(GingaPlugin.LocalPlugin):
             The AstroImage containing the data necessary for this calculation
         @param viewer:
             The viewer object that will display the new data, if desired
+        @param remove_outside:
+            A boolean for whether we should crop the array to a circle of radius
+            bounds[4].
+        @param thresh:
+            The number of standard deviations above the mean a data point must
+            be to be considered valid
         @returns:
             A tuple of two floats representing the actual location of the object
         @raises ZeroDivisionError:
             If no object is visible in the frame
         """
-        # start by cropping the image to get the data matrix
-        data, x0,y0 = image.cutout_adjust(*bounds[:4])[0:3]
+        # start by cropping the image to get the raw data matrix
+        raw, x0,y0 = image.cutout_adjust(*bounds[:4])[0:3]
         
-        # omit data based on masks
-        mask_tot = np.ones(data.shape)
+        # crop to a circle, if necessary
+        if remove_outside:
+            yx = np.indices(raw.shape)
+            x, y = yx[1]-raw.shape[1]/2, yx[0]-raw.shape[0]/2
+            mask_tot = np.hypot(x, y) >= bounds[4]
+        else:
+            mask_tot = np.zeros(raw.shape, dtype=bool)
+        
+        # mask data based on masks
         for drag in masks:
             x1, y1, x2, y2, kind = (int(drag[0]-bounds[0]), int(drag[1]-bounds[1]),
                                     int(drag[2]-bounds[0]), int(drag[3]-bounds[1]),
                                     drag[4])
-            mask = np.ones(data.shape)
-            mask[y1:y2, x1:x2] = np.zeros((y2-y1, x2-x1))
+            mask = np.zeros(raw.shape, dtype=bool)
+            mask[y1:y2, x1:x2] = np.ones((y2-y1, x2-x1), dtype=bool)
             if kind == 'crop':
-                mask = 1-mask
-            mask_tot = mask_tot*mask
+                mask = np.logical_not(mask)
+            mask_tot = np.logical_or(mask_tot, mask)
         
-        # apply mask, calculate threshold, coerce data positive, and reapply mask
-        data = data * mask_tot
-        threshold = threshold_dist*np.std(data) + np.mean(data)
+        # apply mask, calculate threshold, normalize, and coerce data positive
+        data = ma.masked_array(raw, mask=mask_tot, fill_value=0)
+        threshold = thresh*ma.std(data) + ma.mean(data)
         data = data - threshold
-        data = np.clip(data, 0, float('inf'))
-        data = data * mask_tot
+        data = ma.clip(data, 0, float('inf'))
         
         # display the new data on the viewer, if necessary
         if viewer != None:
+            viewer.get_settings().set(autocut_method='minmax')
             viewer.set_data(data)
         
-        # now do a center-of mass calculation to find the size and centroid
+        # calculate some stuff
         yx = np.indices(data.shape)
         x, y = yx[1], yx[0]
-        x_sum = float(np.sum(data*x))
-        y_sum = float(np.sum(data*y))
-        data_sum = float(np.sum(data))
-        area = float(np.sum(np.sign(data)))
+        x_sum = float(ma.sum(data*x))
+        y_sum = float(ma.sum(data*y))
+        data_sum = float(ma.sum(data))
+        area = float(ma.sum(np.sign(data)))
+        # raise an exception, if necessary
+        if math.isnan(data_sum):
+            raise ZeroDivisionError("No valid data")
         
+        # now do a center-of-mass calculation to find the size and centroid
         x_cen = x_sum/data_sum
         y_cen = y_sum/data_sum
         radius = math.sqrt(area/math.pi)
