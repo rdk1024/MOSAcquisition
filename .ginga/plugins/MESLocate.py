@@ -198,7 +198,8 @@ class MESLocate(GingaPlugin.LocalPlugin):
         
     def finish_cb(self, *args):
         """
-        Responds to the Next button at the last object by ending the program
+        Responds to the Next button at the last object by ending the program and
+        writing the object centroids (and possibly radii) to the output file
         """
         f = open(output_coo, 'w')
         if mode == 'star':

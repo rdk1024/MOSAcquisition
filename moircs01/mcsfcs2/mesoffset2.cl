@@ -181,9 +181,7 @@ print("test",list_starhole)
     log_mesoffset = rootname//"_log"
     list_geotran = rootname//"_starholemask.dbs"
     list_geores = rootname//"_starholemask.res"
-    delete( list_geotran, >&"dev$null" )
-    delete( list_geores, >&"dev$null" )
-    geomap( frame_starhole, list_starmask, list_geotran, log_mesoffset, results=list_geores )   # TODO: ???
+    geomap( frame_starhole, list_starmask, list_geotran, log_mesoffset, results=list_geores )
 
 # Plot the results
     resviewer( list_geores )

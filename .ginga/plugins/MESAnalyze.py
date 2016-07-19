@@ -33,6 +33,10 @@ fits_image = argv[1]
 input_coo = argv[2]
 output_dbs = argv[3]
 log_file = argv[4]
+if len(argv) > 5:
+    output_res = argv[5][argv[5].rfind('=')+1:]
+else:
+    output_res = ""
 
 
 
@@ -155,12 +159,17 @@ class MESAnalyze(GingaPlugin.LocalPlugin):
         # then record the new data
         self.overwrite_data(input_coo, self.data, self.active)
         
-        # call iraf.geomap
+        # delete some files and call iraf.geomap
+        os.remove(output_dbs)
+        os.remove(output_res)
         try:
-            geomap(input_coo, output_dbs, INDEF, INDEF, INDEF, INDEF)
+            geomap(input_coo, output_dbs, INDEF, INDEF, INDEF, INDEF,
+                   fitgeom="rotate", results=output_res)
         except:
             geomap("sbr_elaisn1rev_starmask.coo", "sbr_elaisn1rev_starmask.dbs",
-                   INDEF, INDEF, INDEF, INDEF)
+                   xmin=INDEF, xmax=INDEF, ymin=INDEF, ymax=INDEF,
+                   fitgeom="rotate", results="sbr_elaisn1rev_starholemask.res")
+        print "RES:",output_res
         
         # use its results to calculate some stuff
         xref = self.data[:, 0]

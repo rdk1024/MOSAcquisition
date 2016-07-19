@@ -65,6 +65,27 @@ class MESPinpoint(MESLocate):
         self.step2_cb()
     
     
+    def finish_cb(self, *args):
+        """
+        Responds to the Next button at the last object by ending the program and
+        writing the old and new object centroids to the output file
+        """
+        try:
+            x0, y0 = self.obj0
+            f = open(output_coo, 'w')
+            for i in range(0, self.obj_num):
+                f.write("%8.3f %8.3f %8.3f %8.3f \n" %
+                        (self.obj_list[i][0] + x0, self.obj_list[i][1] + y0,
+                         self.obj_centroids[i][0], self.obj_centroids[i][1]))
+            f.close()
+            self.close()
+            self.fv.quit()
+        except:
+            import traceback
+            traceback.print_exc()
+            return
+    
+    
     def __str__(self):
         return "MESPinpoint"
     
