@@ -33,8 +33,10 @@ interact = argv[4]
 
 # the object we are looking for
 mode = 'hole' if 'mask' in fits_image else 'star'
-# the size of the object-finding squares (dependent on whether we look for holes or stars)
+# the apothem of the object-finding squares (dependent on whether we look for holes or stars)
 sq_size = 25 if mode == 'star' else 60
+# the maximum radius of the objects we search for
+exp_obj_size = 12 if mode == 'star' else 30
 # the difference between the threshold and the mean, in standard deviations
 threshold_dist = 3 if mode == 'star' else 0
 # the colors of said squares
@@ -667,24 +669,26 @@ class MESLocate(MESPlugin):
         self.canvas.delete_object_by_tag(t)
         
         # then locate and draw the point (if it exists)
-        obj = (float('NaN'), float('NaN'), float('NaN'))
-        try:
-            co = self.current_obj
-            obj = self.locate_obj(self.get_current_box(),
-                                  self.drag_history[co][:self.drag_index[co]+1],
-                                  self.fitsimage.get_image(),
-                                  viewer=self.step2_viewer)
+        co = self.current_obj
+        obj = self.locate_obj(self.get_current_box(),
+                              self.drag_history[co][:self.drag_index[co]+1],
+                              self.fitsimage.get_image(),
+                              viewer=self.step2_viewer)
+        
+        # if any of the coordinates are NaN, then a red x will be drawn in the middle
+        if True in [math.isnan(x) for x in obj]:
+            x1, y1, x2, y2, r = self.get_current_box()
+            self.canvas.add(self.dc.Point((x1+x2)/2, (y1+y2)/2, sq_size/4,
+                                          color='red', linewidth=2,
+                                          linestyle='dash'),
+                            tag=t)
+        else:
             self.canvas.add(self.dc.CompoundObject(
                                     self.dc.Circle(obj[0], obj[1], obj[2],
                                                    color='green', linewidth=2),
                                     self.dc.Point(obj[0], obj[1], sq_size/4,
                                                   color='green', linewidth=2)),
                             tag=t)
-        except ZeroDivisionError:
-            x1, y1, x2, y2, r = self.get_current_box()
-            self.canvas.add(self.dc.Point((x1+x2)/2, (y1+y2)/2, sq_size/4,
-                                          color='red', linewidth=2,
-                                          linestyle='dash'), tag=t)
         
         self.obj_centroids[self.current_obj] = obj
         
@@ -771,12 +775,12 @@ class MESLocate(MESPlugin):
             if vals[0] == "C":
                 newX, newY = MESLocate.imgXY_from_sbrXY((vals[1], vals[2]))
                 if obj0 == None:
-                    obj_list.append((0, 0, sq_size))
+                    obj_list.append((0, 0, 2*sq_size))
                     obj0 = (newX, newY)
                 else:
                     obj_list.append((newX-obj0[0],   # don't forget to shift it so object #0 is at the origin
                                      newY-obj0[1],
-                                     sq_size))
+                                     2*sq_size))
             line = sbr.readline()
             
         return obj_list, obj0
@@ -803,7 +807,7 @@ class MESLocate(MESPlugin):
     
     @staticmethod
     def locate_obj(bounds, masks, image, viewer=None,
-                   remove_outside=False, thresh=threshold_dist):
+                   min_search_radius=exp_obj_size, thresh=threshold_dist):
         """
         Finds the center of an object using center of mass calculation
         @param bounds:
@@ -818,27 +822,24 @@ class MESLocate(MESPlugin):
             The AstroImage containing the data necessary for this calculation
         @param viewer:
             The viewer object that will display the new data, if desired
-        @param remove_outside:
-            A boolean for whether we should crop the array to a circle of radius
-            bounds[4].
+        @param min_search_radius=exp_obj_size:
+            The smallest radius that this will search
         @param thresh:
             The number of standard deviations above the mean a data point must
             be to be considered valid
         @returns:
             A tuple of two floats representing the actual location of the object
-        @raises ZeroDivisionError:
-            If no object is visible in the frame
+            or a tuple of NaNs if no star could be found
         """
-        # start by cropping the image to get the raw data matrix
-        raw, x0,y0 = image.cutout_adjust(*bounds[:4])[0:3]
+        # start by getting the raw data from the image matrix
+        raw, x0,y0,x1,y1 = image.cutout_adjust(*bounds[:4])
+        search_radius = bounds[4]
+        x_cen, y_cen = raw.shape[0]/2.0, raw.shape[1]/2.0
+        yx = np.indices(raw.shape)
+        x_arr, y_arr = yx[1], yx[0]
         
-        # crop to a circle, if necessary
-        if remove_outside:
-            yx = np.indices(raw.shape)
-            x, y = yx[1]-raw.shape[1]/2, yx[0]-raw.shape[0]/2
-            mask_tot = np.hypot(x, y) >= bounds[4]
-        else:
-            mask_tot = np.zeros(raw.shape, dtype=bool)
+        # crop data to circle
+        mask_tot = np.hypot(x_arr - x_cen, y_arr - y_cen) > search_radius
         
         # mask data based on masks
         for drag in masks:
@@ -851,8 +852,12 @@ class MESLocate(MESPlugin):
                 mask = np.logical_not(mask)
             mask_tot = np.logical_or(mask_tot, mask)
         
+        # raise an exception if necessary
+        if np.all(mask_tot):
+            return (float('NaN'), float('NaN'), float('NaN'))
+        
         # apply mask, calculate threshold, normalize, and coerce data positive
-        data = ma.masked_array(raw, mask=mask_tot, fill_value=0)
+        data = ma.masked_array(raw, mask=mask_tot)
         threshold = thresh*ma.std(data) + ma.mean(data)
         data = data - threshold
         data = ma.clip(data, 0, float('inf'))
@@ -862,21 +867,30 @@ class MESLocate(MESPlugin):
             viewer.get_settings().set(autocut_method='minmax')
             viewer.set_data(data)
         
-        # calculate some stuff
-        yx = np.indices(data.shape)
-        x, y = yx[1], yx[0]
-        x_sum = float(ma.sum(data*x))
-        y_sum = float(ma.sum(data*y))
-        data_sum = float(ma.sum(data))
-        area = float(ma.sum(np.sign(data)))
-        # raise an exception, if necessary
-        if math.isnan(data_sum):
-            raise ZeroDivisionError("No valid data")
+        # iterate over progressively smaller search radii
+        while search_radius >= min_search_radius:
+            old_x_cen, old_y_cen = float('-inf'), float('-inf')
+            # repeat the following until you hit an assymptote:
+            while np.hypot(x_cen-old_x_cen, y_cen-old_y_cen) > 0.5:
+                # define an array for data constrained to its search radius
+                circle_mask = np.hypot(x_arr-x_cen, y_arr-y_cen) > search_radius
+                local_data = ma.masked_array(data, mask=circle_mask)
+                
+                # calculate some moments and stuff
+                mom1x = ma.sum(local_data*(x_arr))
+                mom1y = ma.sum(local_data*(y_arr))
+                mom0 = ma.sum(local_data)
+                area = ma.sum(np.sign(local_data))
+                
+                # now do a center-of-mass calculation to find the size and centroid
+                old_x_cen = x_cen
+                old_y_cen = y_cen
+                x_cen = mom1x/mom0
+                y_cen = mom1y/mom0
+                radius = math.sqrt(area/math.pi)
+            
+            search_radius = search_radius/2
         
-        # now do a center-of-mass calculation to find the size and centroid
-        x_cen = x_sum/data_sum
-        y_cen = y_sum/data_sum
-        radius = math.sqrt(area/math.pi)
         return (x0 + x_cen - 0.5, y0 + y_cen - 0.5, radius)
         
 

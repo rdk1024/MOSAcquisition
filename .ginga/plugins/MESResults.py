@@ -117,7 +117,7 @@ class MESResults(MESPlugin):
         super(MESResults, self).start()
         
         # adjust the cut levels to make the arrows easier to see
-        self.fitsimage.cut_levels(-20, 200)
+        self.fitsimage.get_settings().set(autocut_method='zscale')
         
         # set the initial status message
         self.fv.showStatus("Inspect the results.")
@@ -131,7 +131,7 @@ class MESResults(MESPlugin):
         Draws the results from self.data onto the canvas in the form of vectors
         """
         for row in self.data:
-            startX = row[0] #TODO: tooltips
+            startX = row[0]
             startY = row[1]
             endX = row[0] + scale*row[2]
             endY = row[1] + scale*row[3]

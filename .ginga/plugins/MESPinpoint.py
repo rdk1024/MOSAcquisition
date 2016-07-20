@@ -123,7 +123,7 @@ class MESPinpoint(MESLocate):
     
     @staticmethod
     def locate_obj(bounds, masks, image, viewer=None):
-        return MESLocate.locate_obj(bounds, masks, image, viewer, True, 1)
+        return MESLocate.locate_obj(bounds, masks, image, viewer, 4, 1)
 
 #END
 

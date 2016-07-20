@@ -209,7 +209,7 @@ class MESAnalyze(MESPlugin):
         """
         super(MESAnalyze, self).start()
         
-        # set the autocut to make things easier to see
+        # adjust the cut levels to make the points easier to see
         self.fitsimage.get_settings().set(autocut_method='zscale')
         
         # set the initial status message
@@ -403,16 +403,16 @@ class MESAnalyze(MESPlugin):
         active = self.active
         
         xres, yres = self.update_plots()
-        abs_residual = np.absolute(np.vstack((xres*active, yres*active)))
+        residual_mag = np.hypot(xres, yres)*active
         
         # as long as some residuals are out of bounds,
-        while np.any(abs_residual > 1):
+        while np.any(residual_mag > 1):
             # delete the point with the worst residual
-            idx = np.argmax(abs_residual)
-            active[idx%len(active)] = False
+            idx = np.argmax(residual_mag)
+            active[idx] = False
             
             xres, yres = self.update_plots()
-            abs_residual = np.absolute(np.vstack((xres*active, yres*active)))
+            residual_mag = np.hypot(xres, yres)*active
     
     
     def get_step(self):
