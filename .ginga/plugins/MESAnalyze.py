@@ -194,6 +194,7 @@ class MESAnalyze(MESPlugin):
         
         btn = Widgets.Button("Exit")
         btn.add_callback('activated', self.exit_cb)
+        btn.set_tooltip("Close Ginga")
         gui.add_widget(btn)
         
         # space gui appropriately and return it
@@ -389,8 +390,6 @@ class MESAnalyze(MESPlugin):
             The values to be written to log - must be (dx, dy, rotate)
         """
         log = open(log_file, 'a')
-        log.write("=======================================================\n")
-        log.write("mesoffset :\n")  # TODO: how does it know which mesoffset this is?
         log.write(time.strftime("%a %b %d %H:%M:%S %Z %Y\n"))
         log.write(("dx = {:6,.1f} (pix) dy = {:6,.1f} (pix) "+
                    "rotate = {:7,.3f} (degree) \n").format(*args))

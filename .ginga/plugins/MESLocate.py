@@ -163,11 +163,12 @@ class MESLocate(MESPlugin):
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
         txt.set_font(self.body_font)
-        txt.set_text("Left click on the object labeled '1'. The other objects "+
-                     "should appear in the boxes below. Click again to select "+
-                     "another position. Click 'Next' below or right-click "+
-                     "when you are satisfied with your location.\n"+
-                     "Remember - bright areas are shown in white.")
+        txt.set_text("Left click on the object closest to the box labeled "+
+                     "'1'. The other objects should appear in the boxes "+
+                     "below. Click again to select another position. Click "+
+                     "'Next' below or right-click when you are satisfied with "+
+                     "your location.\nRemember - bright areas are shown in "+
+                     "white.")
         exp.set_widget(txt)
 
         # create a box to group the control buttons together

@@ -179,6 +179,8 @@ print("test",list_starhole)
 
 # Geotran
     log_mesoffset = rootname//"_log"
+    print("=======================================================", >> log_mesoffset)
+    print("mesoffset2b :", >> log_mesoffset)
     list_geotran = rootname//"_starholemask.dbs"
     list_geores = rootname//"_starholemask.res"
     geomap( frame_starhole, list_starmask, list_geotran, log_mesoffset, results=list_geores )

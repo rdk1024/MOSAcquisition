@@ -116,8 +116,9 @@ begin
 #    task makemosaic = "../../MOS/makemosaic.cl"
 #    task $messtar = "$../../MOS/mes_star"
     task $meshole = "$../../MOS2/mes_hole.py"
-    task $messtarhole = "$../../MOS/mes_starhole"
-    task $resviewer = "$../../MOS/res_viewer"
+    task $messtarhole = "$../../MOS2/mes_starhole.py"
+    task $resviewer = "$../../MOS2/res_viewer.py"
+    task $geomap = "$../../MOS2/geo_map.py"
 
 # Check header info.
     imgets( instar_chip1, "DET-ID")
@@ -228,33 +229,12 @@ begin
     log_mesoffset = rootname//"_log"
 
 # Geotran
-    list_geotran = rootname//"_starmask.dbs"
-    list_geores  = rootname//"_starmask.res"
-    delete( list_geotran, >&"dev$null" )
-    delete( list_geores, >&"dev$null" )
-   print( list_geotran )
-   print( list_geores )
-    geomap.fitgeom = "rotate"
-    geomap( list_starmask, list_geotran, results=list_geores, xmin=INDEF, xmax=INDEF, ymin=INDEF, ymax=INDEF )
-
-# Calculate offset value
     log_mesoffset = rootname//"_log"
     print("=======================================================", >> log_mesoffset)
     print("mesoffset3b :", >> log_mesoffset)
-    print("=======================================================")
-    print("")
-    print("===========================================")
-    print("==        Ues TELOFFSET MODE ANA         ==")
-    print("== Put dx dy rotate to the ANA window    ==")
-    print("== Ignore dx less than 0.5 (pix)         ==")
-    print("== Ignore dy less than 0.5 (pix)         ==")
-    print("== Ignore rotate less than 0.01 (degree) ==")
-    print("===========================================")
-    date( >> log_mesoffset )
-    awk ("-f ../../MOS/results.awk", list_geotran  ) 
-    awk ("-f ../../MOS/results.awk", list_geotran, >> log_mesoffset  ) 
-    print("")
-    print("=======================================================")
+    list_geotran = rootname//"_starmask.dbs"
+    list_geores  = rootname//"_starmask.res"
+    geomap( frame_starg_10, list_starmask, list_geotran, log_mesoffset, results=list_geores )
 
 # Plot measure results
     resviewer( list_geores )

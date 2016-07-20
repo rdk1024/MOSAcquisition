@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 #
-# mes_starhole.py -- a script that starts Ginga with the MESLocate plugin running
+# mes_starhole.py -- a script that starts Ginga with the MESPinpoint plugin running
 # Works in conjunction with mesoffset scripts for MOS Acquisition
 #
 # Justin Kunimune
@@ -18,7 +18,7 @@ if len(argv) != 5:
 
 ginga.main.reference_viewer(['$HOME/Install/bin/ginga',
                              argv[1],
-                             '--plugins=MESLocate'])
+                             '--plugins=MESPinpoint'])
 
 #END
 

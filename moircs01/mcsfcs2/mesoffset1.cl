@@ -266,6 +266,8 @@ begin
 
 # Geotran
     log_mesoffset = rootname//"_log"
+    print("=======================================================", >> log_mesoffset)
+    print("mesoffset1 :", >> log_mesoffset)
     list_geotran = rootname//"_starmask.dbs"
     geomap( frame_starg10, list_starmask, list_geotran, log_mesoffset )
 

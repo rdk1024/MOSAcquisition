@@ -93,15 +93,15 @@ class MESResults(MESPlugin):
         txt = Widgets.TextArea(wrap=True, editable=False)
         txt.set_font(self.body_font)
         txt.set_text("Look at the results. The vectors represent the "+
-                     "displacement of the stars from their corresponding "+
-                     "holes. Star/hole pairs with displacements of less than "+
-                     "0.5 pixels are transparent. Press 'Exit' below when "+
-                     "you are done.")
+                     "residuals of the geomap model. Residuals less than 0.5 "+
+                     "are shown in green, and residuals greater than 1.0 are "+
+                     "in red. Press 'Exit' below when you are done.")
         exp.set_widget(txt)
         
         # put in the Exit button, which is reall just a close button
         btn = Widgets.Button("Exit")
         btn.add_callback('activated', self.exit_cb)
+        btn.set_tooltip("Close Ginga")
         gui.add_widget(btn)
         
         # space gui appropriately and return it
@@ -131,23 +131,28 @@ class MESResults(MESPlugin):
         Draws the results from self.data onto the canvas in the form of vectors
         """
         for row in self.data:
-            startX = row[0]
+            startX = row[0] #TODO: tooltips
             startY = row[1]
             endX = row[0] + scale*row[2]
             endY = row[1] + scale*row[3]
             magnitude = math.hypot(row[2], row[3])
-            alpha = 1.0 if magnitude >= 0.5 else 0.5
+            if magnitude <= 0.5:
+                color = 'green'
+            elif magnitude <= 1.0:
+                color = 'yellow'
+            else:
+                color = 'red'
             self.canvas.add(self.dc.Line(startX, startY, endX, endY,
-                                         alpha=alpha, arrow='end', showcap=1,
-                                         color='cyan'))
-            self.canvas.add(self.dc.Text(startX, startY,
+                                         color=color, arrow='end', showcap=1,
+                                         alpha = 0.7))
+            self.canvas.add(self.dc.Text((startX+endX)/2, (startY+endY)/2,
                                          "{:,.1f}p".format(magnitude),
-                                         alpha=alpha, color='yellow'))
+                                         color=color))
         
         
     def exit_cb(self, *args, **kwargs):
         """
-        Responds to the 'Exit' button by closing Ginga\
+        Responds to the 'Exit' button by closing Ginga
         """
         self.close()
         self.fv.quit()
@@ -159,9 +164,8 @@ class MESResults(MESPlugin):
         """
         Read the RES file and return the data within as a numpy array
         @returns:
-            A numpy array with four columns: x0, y0, dx, dy representing...
-            I'm honestly not sure what the data represents at this point. It
-            came from geomap, and who knows what goes on in there.
+            A numpy array with four columns: x0, y0, dx, dy representing the
+            hole positions, and the residuals from the geomap model
         """
         # try to open the file
         try:
