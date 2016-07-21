@@ -128,6 +128,9 @@ class MESAnalyze(MESPlugin):
         btn.set_tooltip("Get the MES Offset values!")
         box.add_widget(btn)
         
+        # put in a spacer
+        box.add_widget(Widgets.Label(""), stretch=True)
+        
         # now a framed vbox to put the plots in
         frm = Widgets.Frame()
         gui.add_widget(frm)
@@ -433,7 +436,7 @@ class MESAnalyze(MESPlugin):
         """
         Read the COO file and return the data within as a numpy array
         @returns:
-            A list of tuples of floats representing (x_in, y_in, x_out, y_out)
+            A numpy array of four columns: x_in, y_in, x_out, y_out
         """
         # define variables
         val_list = []
@@ -451,8 +454,9 @@ class MESAnalyze(MESPlugin):
         line = coo.readline()
         while line != "":
             # for each line, get the important values and save them in val_list
-            vals = [float(word) for word in line.split()]
-            val_list.append(vals)
+            vals = np.array([float(word) for word in line.split()])
+            if not np.any(np.isnan(vals)):
+                val_list.append(vals)
             line = coo.readline()
         
         coo.close()

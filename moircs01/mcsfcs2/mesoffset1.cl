@@ -51,8 +51,8 @@ begin
     int       detid1, detid2
     string    configfile
     string    sbrfile
-    real      data1, data2, data3
-    real      data4, data5, data6
+    string    data1, data2, data3
+    string    data4, data5, data6
     string    rootname
     bool      retry1, retry2
     bool      interac1, interac2
@@ -257,11 +257,9 @@ begin
     list2 = list_mask
     delete( list_starmask, >&"dev$null" )
     print("Input data to geomap :")
-    while( fscan( list1, data1, data2 ) == 2 && fscan( list2, data4, data5, data6 ) == 3 ){
-       if( data1>0 && data2>0 && data4>0 && data5>0 ){ 
-          print( data4, data5, data1, data2, >> list_starmask )
-          print( data4, data5, data1, data2 )
-       }
+    while( fscan( list1, data1, data2 ) == 2 && fscan( list2, data4, data5, data6 ) == 3 ){ 
+        printf( "%s %s %s %s \n", data4, data5, data1, data2, >> list_starmask )
+        printf( "%s %s %s %s \n", data4, data5, data1, data2 )
     }
 
 # Geotran

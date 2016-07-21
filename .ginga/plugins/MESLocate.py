@@ -38,7 +38,7 @@ sq_size = 25 if mode == 'star' else 60
 # the maximum radius of the objects we search for
 exp_obj_size = 12 if mode == 'star' else 30
 # the difference between the threshold and the mean, in standard deviations
-threshold_dist = 3 if mode == 'star' else 0
+threshold_dist = 3 if mode == 'star' else 3
 # the colors of said squares
 colors = ('green','red','blue','yellow','magenta','cyan','orange')
 # the different ways we can select things
@@ -173,11 +173,11 @@ class MESLocate(MESPlugin):
                      "white.")
         exp.set_widget(txt)
 
-        # create a box to group the control buttons together
+        # create a box to group the primary control buttons together
         box = Widgets.HBox()
         box.set_spacing(3)
         gui.add_widget(box)
-
+        
         # the undo button goes back a click
         btn = Widgets.Button("Undo")
         btn.add_callback('activated', self.undo1_cb)
@@ -201,6 +201,9 @@ class MESLocate(MESPlugin):
         btn.add_callback('activated', self.step2_cb)
         btn.set_tooltip("Accept and proceed to step 2")
         box.add_widget(btn)
+        
+        # put in a spacer
+        box.add_widget(Widgets.Label(""), stretch=True)
         
         # lastly, we need the zoomed-in images. This is the grid we put them in
         frm = Widgets.Frame()
@@ -254,7 +257,7 @@ class MESLocate(MESPlugin):
                      "centroid has been found.")
         exp.set_widget(txt)
         
-        # now make an HBox to hold the main controls
+        # now make an HBox to hold the primary controls
         box = Widgets.HBox()
         box.set_spacing(3)
         gui.add_widget(box)
@@ -283,7 +286,24 @@ class MESLocate(MESPlugin):
         btn.set_tooltip("Accept and proceed to the next object")
         box.add_widget(btn)
         
-        # make a box for a combobox+label combo
+        # put in a spacer
+        box.add_widget(Widgets.Label(""), stretch=True)
+        
+        # another HBox holds the skip button, because it doesn't fit on the first line
+        box = Widgets.HBox()
+        box.set_spacing(3)
+        gui.add_widget(box)
+        
+        # the skip button sets this object to NaN and moves on
+        btn = Widgets.Button("Skip")
+        btn.add_callback('activated', self.skip_obj_cb)
+        btn.set_tooltip("Remove this object from the data set")
+        box.add_widget(btn)
+        
+        # put in a spacer
+        box.add_widget(Widgets.Label(""), stretch=True)
+        
+        # make a new box for a combobox+label combo
         box = Widgets.VBox()
         box.set_spacing(3)
         gui.add_widget(box)
@@ -384,6 +404,14 @@ class MESLocate(MESPlugin):
         # if interaction is turned off, immediately go to the next object
         if interact[0].lower() == 'n':
             self.next_obj_cb()
+    
+    
+    def skip_obj_cb(self, *args):
+        """
+        Responds to the skip button by ignoring this star completely
+        """
+        self.mark_current_obj([float('NaN')]*3)
+        self.next_obj_cb()
         
         
     def finish_cb(self, *args):
@@ -394,10 +422,10 @@ class MESLocate(MESPlugin):
         f = open(output_coo, 'w')
         if mode == 'star':
             for x, y, r in self.obj_centroids:
-                f.write("%7.1f %7.1f \n" % (x, y))
+                f.write("%8.2f %8.2f \n" % (x, y))
         else:
             for x, y, r in self.obj_centroids:
-                f.write("%7.1f %7.1f %7.1f \n" % (x, y, r))
+                f.write("%8.2f %8.2f %8.2f \n" % (x, y, r))
         f.close()
         self.close()
         self.fv.quit()
@@ -660,34 +688,38 @@ class MESLocate(MESPlugin):
         self.fitsimage.zoom_to(360.0/sq_size)
     
     
-    def mark_current_obj(self):
+    def mark_current_obj(self, obj=None):
         """
         Puts a point and/or circle on the current object
+        @param obj:
+            The exact coordinates (x, y, r) of this object. If none are
+            provided, they will be calculated using locate_obj
         """
         # if there is already a point for this object, delete it
         t = tag(2, self.current_obj, 'pt')
         self.canvas.delete_object_by_tag(t)
         
         # then locate and draw the point (if it exists)
-        co = self.current_obj
-        obj = self.locate_obj(self.get_current_box(),
-                              self.drag_history[co][:self.drag_index[co]+1],
-                              self.fitsimage.get_image(),
-                              viewer=self.step2_viewer)
+        if obj == None:
+            co = self.current_obj
+            obj = self.locate_obj(self.get_current_box(),
+                                  self.drag_history[co][:self.drag_index[co]+1],
+                                  self.fitsimage.get_image(),
+                                  viewer=self.step2_viewer)
         
         # if any of the coordinates are NaN, then a red x will be drawn in the middle
         if True in [math.isnan(x) for x in obj]:
             x1, y1, x2, y2, r = self.get_current_box()
-            self.canvas.add(self.dc.Point((x1+x2)/2, (y1+y2)/2, sq_size/4,
-                                          color='red', linewidth=2,
+            self.canvas.add(self.dc.Point((x1+x2)/2, (y1+y2)/2, sq_size/3,
+                                          color='red', linewidth=1,
                                           linestyle='dash'),
                             tag=t)
         else:
             self.canvas.add(self.dc.CompoundObject(
                                     self.dc.Circle(obj[0], obj[1], obj[2],
-                                                   color='green', linewidth=2),
-                                    self.dc.Point(obj[0], obj[1], sq_size/4,
-                                                  color='green', linewidth=2)),
+                                                   color='green', linewidth=1),
+                                    self.dc.Point(obj[0], obj[1], sq_size/3,
+                                                  color='green', linewidth=1)),
                             tag=t)
         
         self.obj_centroids[self.current_obj] = obj
@@ -720,7 +752,7 @@ class MESLocate(MESPlugin):
         
     
     @staticmethod
-    def create_viewer_list(n, logger=None, width=194, height=141):    # 194x141 is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
+    def create_viewer_list(n, logger=None, width=141, height=141):    # 194x141 is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
         """
         Create a list of n viewers with certain properties
         @param n:
@@ -822,7 +854,7 @@ class MESLocate(MESPlugin):
             The AstroImage containing the data necessary for this calculation
         @param viewer:
             The viewer object that will display the new data, if desired
-        @param min_search_radius=exp_obj_size:
+        @param min_search_radius:
             The smallest radius that this will search
         @param thresh:
             The number of standard deviations above the mean a data point must
@@ -852,10 +884,6 @@ class MESLocate(MESPlugin):
                 mask = np.logical_not(mask)
             mask_tot = np.logical_or(mask_tot, mask)
         
-        # raise an exception if necessary
-        if np.all(mask_tot):
-            return (float('NaN'), float('NaN'), float('NaN'))
-        
         # apply mask, calculate threshold, normalize, and coerce data positive
         data = ma.masked_array(raw, mask=mask_tot)
         threshold = thresh*ma.std(data) + ma.mean(data)
@@ -867,11 +895,15 @@ class MESLocate(MESPlugin):
             viewer.get_settings().set(autocut_method='minmax')
             viewer.set_data(data)
         
+        # exit if the entire screen is masked
+        if np.all(mask_tot):
+            return (float('NaN'), float('NaN'), float('NaN'))
+        
         # iterate over progressively smaller search radii
         while search_radius >= min_search_radius:
             old_x_cen, old_y_cen = float('-inf'), float('-inf')
             # repeat the following until you hit an assymptote:
-            while np.hypot(x_cen-old_x_cen, y_cen-old_y_cen) > 0.5:
+            while np.hypot(x_cen-old_x_cen, y_cen-old_y_cen) >= 0.5:
                 # define an array for data constrained to its search radius
                 circle_mask = np.hypot(x_arr-x_cen, y_arr-y_cen) > search_radius
                 local_data = ma.masked_array(data, mask=circle_mask)
