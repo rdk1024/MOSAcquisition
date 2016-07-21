@@ -101,7 +101,6 @@ begin
 #    task $meshole = "$../../MOS/mes_hole"
     task $messtarhole_b = "$../../MOS2/mes_starhole_b.py"
     task $resviewer = "$../../MOS2/res_viewer.py"
-    task $geomap = "$../../MOS2/geo_map.py"
 
 # Check header info.
     imgets( instarhole_chip1, "DET-ID")
@@ -172,19 +171,16 @@ begin
 print("test",list_starhole)
     list1 = list_starhole
     while( fscan( list1, data1, data2, data3, data4 ) == 4 ){
-        printf( "%s %s %s %s ", data1, data2, data3, data4, >> list_starmask )
+        printf( "%s %s %s %s \n", data1, data2, data3, data4, >> list_starmask )
     }
 
-# Geotran
+# Geotran and Plot the results
     log_mesoffset = rootname//"_log"
     print("=======================================================", >> log_mesoffset)
     print("mesoffset2b :", >> log_mesoffset)
     list_geotran = rootname//"_starholemask.dbs"
     list_geores = rootname//"_starholemask.res"
-    geomap( frame_starhole, list_starmask, list_geotran, log_mesoffset, results=list_geores )
-
-# Plot the results
-    resviewer( frame_starhole, list_geores )
+    resviewer( frame_starhole, list_starmask, list_geotran, log_mesoffset, results=list_geores )
 
     print("This procedure ended ......")
     print("Log file written in ",log_mesoffset)

@@ -126,7 +126,7 @@ begin
 #    task makemosaic = "$../../MOS/makemosaic.cl"
     task $messtar = "$../../MOS2/mes_star.py"
     task $meshole = "$../../MOS2/mes_hole.py"
-    task $geomap = "$../../MOS2/geo_map.py"
+    task $resviewer = "$../../MOS2/res_viewer.py"
 
 # Check header info.
     imgets( instar_chip1, "DET-ID")
@@ -267,7 +267,7 @@ begin
     print("=======================================================", >> log_mesoffset)
     print("mesoffset1 :", >> log_mesoffset)
     list_geotran = rootname//"_starmask.dbs"
-    geomap( frame_starg10, list_starmask, list_geotran, log_mesoffset )
+    resviewer( frame_starg10, list_starmask, list_geotran, log_mesoffset )
 
     print("This procedure ended ......")
     print("Log file written in ",log_mesoffset)

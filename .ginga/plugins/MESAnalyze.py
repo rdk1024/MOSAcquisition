@@ -213,7 +213,7 @@ class MESAnalyze(MESPlugin):
         super(MESAnalyze, self).start()
         
         # adjust the cut levels to make the points easier to see
-        self.fitsimage.get_settings().set(autocut_method='zscale')
+        self.fitsimage.get_settings().set(autocut_method='stddev')
         
         # set the initial status message
         self.fv.showStatus("Analyze and trim the data.")
@@ -272,25 +272,15 @@ class MESAnalyze(MESPlugin):
         distance_from_click = np.hypot(self.data[:,0] - x, self.data[:,1] - y)
         idx = np.argmin(distance_from_click)
         self.active[idx] = val
-        self.update_plots(idx)
+        self.update_plots()
     
     
-    def update_plots(self, updated_index=None):
+    def update_plots(self):
         """
         Graphs data on all plots and displays it
-        @param updated_index:
-            The index of the datum that changed. If none is provided, then all
-            points will be updated
         @returns:
             The x and y residuals in numpy array form
         """
-        # first, update the objects on the canvas
-        if updated_index == None:
-            for i in range(0, self.data.shape[0]):
-                self.draw_obj_on_canvas(i)
-        else:
-            self.draw_obj_on_canvas(updated_index)
-        
         # then record the new data
         self.overwrite_data(input_coo, self.data, self.active)
         
@@ -321,36 +311,57 @@ class MESAnalyze(MESPlugin):
         self.plots[0].residual(xref, xres, self.active, var_name="X")
         self.plots[1].residual(yref, yres, self.active, var_name="Y")
         
+        # update the vectors on the canvas, as well
+        for i in range(0, self.data.shape[0]):
+            self.draw_vector_on_canvas(xref[i], yref[i], xres[i], yres[i], i)
+        
         return xres, yres
         
         
                 
-    def draw_obj_on_canvas(self, idx):
+    def draw_vector_on_canvas(self, xref, yref, xres, yres, idx):
         """
-        Draws the point at the given index on the canvas
+        Draws the residual vector at the given point on the canvas
+        @param xref:
+            The float observed x coordinate of this object
+        @param yref:
+            The float observed y coordinate of this object
+        @param xres:
+            The float residual x coordinate of this object
+        @param yres:
+            The float residual y coordinate of this object
         @param idx:
-            The index of the datum to be drawn
+            The index of this object
         """
-        # delete the corresponding points
-        self.canvas.delete_objects_by_tag([str(idx)+'ref', str(idx)+'in'])
+        # first calculate the endpoints of the vector
+        startX = xref
+        startY = yref
+        endX = startX + 300*xres
+        endY = startY + 300*yres
+        magnitude = math.hypot(xres, yres)
         
-        # then draw the new one
-        xref, yref, xin, yin = self.data[idx, :]
-        # color depends on whether this object is active or not
-        if self.active[idx]:
-            self.canvas.add(self.dc.Point(xref, yref, radius=30,
-                                          color='blue', style='plus'),
-                            tag=str(idx)+'ref')
-            self.canvas.add(self.dc.Point(xin,  yin,  radius=30,
-                                          color='green', style='plus'),
-                            tag=str(idx)+'in')
+        # determine the color based on activity and magnitude
+        if not self.active[idx]:
+            color = 'grey'
+        elif magnitude <= 0.5:
+            color = 'green'
+        elif magnitude <= 1.0:
+            color = 'yellow'
         else:
-            self.canvas.add(self.dc.Point(xref, yref, radius=30,
-                                          color='grey', style='cross'),
-                            tag=str(idx)+'ref')
-            self.canvas.add(self.dc.Point(xin,  yin,  radius=30,
-                                          color='grey', style='cross'),
-                            tag=str(idx)+'in')
+            color = 'red'
+        
+        # delete the old vector
+        self.canvas.delete_object_by_tag(str(idx))
+        
+        # and draw in the new one
+        self.canvas.add(self.dc.CompoundObject(
+                                self.dc.Line(startX, startY, endX, endY,
+                                             color=color, arrow='end',
+                                             showcap=True, alpha = 0.7),
+                                self.dc.Text((startX+endX)/2, (startY+endY)/2,
+                                             "{:.1f}p".format(magnitude),
+                                             color=color)),
+                        tag=str(idx))
                             
                             
     def display_values(self):

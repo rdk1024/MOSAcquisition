@@ -219,23 +219,20 @@ begin
     delete( list_starmask, >&"dev$null" )
     list1 = list_starhole
     while( fscan( list1, data1, data2, data3, data4 ) == 4 ){
-        printf( "%s %s %s %s ", data1, data2, data3, data4, >> list_starmask )
+        printf( "%s %s %s %s \n", data1, data2, data3, data4, >> list_starmask )
     }
    print( list_starhole )
 
 # Calculate offset value
     log_mesoffset = rootname//"_log"
 
-# Geotran
+# Geotran and plot measure results
     log_mesoffset = rootname//"_log"
     print("=======================================================", >> log_mesoffset)
     print("mesoffset3b :", >> log_mesoffset)
     list_geotran = rootname//"_starmask.dbs"
     list_geores  = rootname//"_starmask.res"
-    geomap( frame_starg_10, list_starmask, list_geotran, log_mesoffset, results=list_geores )
-
-# Plot measure results
-    resviewer( list_geores )
+    resviewer( frame_starg_10, list_starmask, list_geotran, log_mesoffset, results=list_geores )
 
     print("This procedure ended ......")
     print("Log file written in ",log_mesoffset)
