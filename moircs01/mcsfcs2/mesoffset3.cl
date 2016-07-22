@@ -232,7 +232,7 @@ begin
     print("mesoffset3b :", >> log_mesoffset)
     list_geotran = rootname//"_starmask.dbs"
     list_geores  = rootname//"_starmask.res"
-    resviewer( frame_starg_10, list_starmask, list_geotran, log_mesoffset, results=list_geores )
+    resviewer( frame_starg10, list_starmask, list_geotran, log_mesoffset, results=list_geores )
 
     print("This procedure ended ......")
     print("Log file written in ",log_mesoffset)
