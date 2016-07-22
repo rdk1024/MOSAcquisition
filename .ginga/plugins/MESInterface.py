@@ -161,18 +161,15 @@ class MESInterface(MESPlugin):
             and a dictionary whose keys are parameter names and whose values
             are functions to return those parameter values
         """
-        grd = Widgets.GridBox(rows=len(controls), columns=2)
+        grd = Widgets.GridBox(rows=len(controls), columns=4)
         getters = {}
         
         # put each of the controls in a row on the grid
         for i, param in enumerate(controls):
+            # start by labelling the parameter
             lbl = Widgets.Label(param['name']+":", halign='right')
             lbl.set_tooltip(param['desc'])
-            grd.add_widget(lbl, i, 0, stretch=True)
-            
-            box = Widgets.HBox()
-            box.set_spacing(1)
-            grd.add_widget(box, i, 1)
+            grd.add_widget(lbl, i, 0)
             
             # create a widget based on type
             if param['type'] == 'string':
@@ -181,6 +178,7 @@ class MESInterface(MESPlugin):
                 getters[param['name']] = wdg.get_text
             elif param['type'] == 'number':
                 wdg = Widgets.SpinBox()
+                wdg.set_limits(0, 99999999)
                 wdg.set_value(param['default'])
                 getters[param['name']] = wdg.get_value
             elif param['type'] == 'choice':
@@ -201,13 +199,12 @@ class MESInterface(MESPlugin):
                 prefix = format_str[:idx]
                 suffix = format_str[idx+2:]
                 if prefix:
-                    box.add_widget(Widgets.Label(prefix, 'right'))
-                box.add_widget(wdg)
+                    grd.add_widget(Widgets.Label(prefix, 'right'), i, 1)
+                grd.add_widget(wdg, i, 2)
                 if suffix:
-                    box.add_widget(Widgets.Label(suffix, 'left'))
+                    grd.add_widget(Widgets.Label(suffix, 'left'), i, 3)
             else:
-                box.add_widget(wdg)
-            #box.add_widget(Widgets.Label(""), stretch=True)
+                grd.add_widget(wdg, i, 2)
                 
         return grd, getters
     
