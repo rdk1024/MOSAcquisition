@@ -144,8 +144,6 @@ class MESAnalyze(MESPlugin):
             graph.set_callback('cursor-down', lambda w: self.close())
             box.add_widget(plt)
         
-        # space gui appropriately and return it
-        gui.add_widget(Widgets.Label(""), stretch=True)
         return gui
     
     
@@ -200,8 +198,6 @@ class MESAnalyze(MESPlugin):
         btn.set_tooltip("Close Ginga")
         gui.add_widget(btn)
         
-        # space gui appropriately and return it
-        gui.add_widget(Widgets.Label(""), stretch=True)
         return gui
     
     

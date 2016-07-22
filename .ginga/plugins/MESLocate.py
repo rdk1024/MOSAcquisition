@@ -222,8 +222,6 @@ class MESLocate(MESPlugin):
                     pic = Viewers.GingaViewerWidget(viewer=self.thumbnails[i])
                     grd.add_widget(pic, row, col)
         
-        # space gui appropriately and return it
-        gui.add_widget(Widgets.Label(""), stretch=True)
         return gui
         
         
@@ -323,8 +321,6 @@ class MESLocate(MESPlugin):
         pic = Viewers.GingaViewerWidget(viewer=self.step2_viewer)
         frm.set_widget(pic)
         
-        # space gui appropriately and return it
-        gui.add_widget(Widgets.Label(""), stretch=True)
         return gui
 
 

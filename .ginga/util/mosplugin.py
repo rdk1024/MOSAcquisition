@@ -71,6 +71,9 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         self.build_specific_gui(stk, orientation=orientation)
         box.add_widget(stk)
         self.stack = stk
+        
+        # space the GUI appropriately
+        box.add_widget(Widgets.Label(""), stretch=True)
 
         # end is an HBox that comes at the very end, after the rest of the GUIs
         end = Widgets.HBox()

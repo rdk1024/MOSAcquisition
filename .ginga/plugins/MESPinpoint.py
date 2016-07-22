@@ -39,10 +39,8 @@ selection_modes = ("Automatic", "Crop", "Mask")
 
 class MESPinpoint(MESLocate):
     """
-    A custom LocalPlugin for ginga that locates a set of calibration objects,
-    asks for users to help locate anomolies and artifacts on its images
-    of those objects, and then calculates their centers of masses. Intended
-    for use as part of the MOS Acquisition software for aligning MOIRCS.
+    A custom LocalPlugin for ginga similar to MESLocate, but which skips step 1.
+    Intended for use as part of the MOS Acquisition software for aligning MOIRCS.
     """
     
     def start(self):
