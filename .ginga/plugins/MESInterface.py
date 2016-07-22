@@ -12,7 +12,7 @@ import math
 import sys
 
 # local imports
-from util.mosplugin import MESPlugin
+from util import fitsutils, mosplugin
 
 # ginga imports
 from ginga.gw import Widgets, Viewers
@@ -206,7 +206,7 @@ params_3 = [
 
 
 
-class MESInterface(MESPlugin):
+class MESInterface(mosplugin.MESPlugin):
     """
     A custom LocalPlugin for ginga that takes input from the user, opens and
     handles the other three MES plugins, and replaces the xgterminal from the
@@ -327,6 +327,7 @@ class MESInterface(MESPlugin):
         # the only thing here is a gigantic text box
         txt = Widgets.TextArea(wrap=False, editable=False)
         txt.set_font(self.body_font)
+        txt.set_text("\n"*100)
         gui.add_widget(txt, stretch=True)
         self.log_textarea = txt
         
@@ -345,80 +346,102 @@ class MESInterface(MESPlugin):
     
     def mesoffset0(self, *args):
         """
-        Runs all three procedures of MOS Acquisition
+        Run all three procedures of MOS Acquisition
         """
         self.update_parameters(self.get_value[0].items())
+        self.log("Going to MES Offset 1...")
         self.autorun = True
         self.go_to_page(1)
     
     
     def mesoffset1(self, *args):
         """
-        Runs the first procedure of MOS Acquisition:
+        Run the first procedure of MOS Acquisition:
         star and mask measurements
         """
-        # first, open the log
+        # start by reading the input and opening the log
         self.stack.set_index(4)
-        
+        self.fv.process_events()
         self.update_parameters(self.get_value[1].items())
-        self.log("Checking header data...")
-        self.log("Processing star frames")
+        
+        # now run the process:
+        self.log("Processing star frames...")
+        fitsutils.process_star_frames()
         self.log("Measuring star positions...")
-        self.log("Waiting for mask images")
+        self.run_meslocate()
+        self.log("Waiting for mask images...")
+        pass
         self.log("Processing mask frames...")
+        fitsutils.process_mask_frames()
         self.log("Measuring hole positions...")
+        self.run_meslocate()
         self.log("Analyzing results...")
+        self.run_mesanalyze()
+        
+        # finish by going to the MES Offset 2 menu
+        self.log("Done!\n")
         if self.autorun:
-            self.log("Going to MES Offset 1...")
-        else:
-            self.log("Done!")
+            self.log("Going to MES Offset 2...")
         self.go_to_page(2)
     
     
     def mesoffset2(self, *args):
         """
-        Runs the second procedure of MOS Acquisition:
+        Run the second procedure of MOS Acquisition:
         starhole measurements
         """
+        # start by reading the input and opening the log
+        self.stack.set_index(4)
+        self.fv.process_events()
         self.update_parameters(self.get_value[2].items())
-        self.log("Checking header data...")
-        self.log("Processing star frames")
+        
+        # run the process
+        self.log("Processing star-hole frames...")
+        fitsutils.process_starhole_frames()
         self.log("Measuring star positions...")
-        self.log("Waiting for mask images")
-        self.log("Processing mask frames...")
-        self.log("Measuring hole positions...")
+        self.run_meslocate()
         self.log("Analyzing results...")
+        self.run_mesanalyze()
+        
+        # finish by going to the MESOffset3 menu
+        self.log("Done!\n")
         if self.autorun:
-            self.log("Going to MES Offset 2...")
-        else:
-            self.log("Done!")
+            self.log("Going to MES Offset 3...")
         self.go_to_page(3)
     
     
     def mesoffset3(self, *args):
         """
-        Runs the third procedure of MOS Acquisition:
+        Run the third procedure of MOS Acquisition:
         mask and starhole measurements
         """
+        # start by reading the input and opening the log
+        self.stack.set_index(4)
+        self.fv.process_events()
         self.update_parameters(self.get_value[3].items())
-        self.log("Checking header data...")
-        self.log("Processing star frames")
-        self.log("Measuring star positions...")
-        self.log("Waiting for mask images")
+        
+        # run the process
         self.log("Processing mask frames...")
+        fitsutils.process_mask_frames()
         self.log("Measuring hole positions...")
+        self.run_meslocate()
+        self.log("Waiting for star-hole images...")
+        pass
+        self.log("Processing star-hole frames...")
+        fitsutils.process_starhole_frames()
+        self.log("Measuring star positions...")
+        self.run_meslocate()
         self.log("Analyzing results...")
-        if self.autorun:
-            self.log("Going to MES Offset 3...")
-        else:
-            self.log("Done!")
+        self.run_mesanalyze()
+        
+        # finish by going to the MESOffset0 menu
+        self.log("Done!\n")
         self.go_to_page(0)
     
     
     def update_parameters(self, getters):
         """
-        Updates the parameters instance variable with the values found from
-        getters
+        Reads parameter values from getters and saves them in self.parameters
         @param getters:
             The dictionary of getter methods for parameter values
         """
@@ -427,7 +450,7 @@ class MESInterface(MESPlugin):
     
     def go_to_page(self, page_num):
         """
-        Takes the user to the interface for mesoffset{page_num}, and fills in
+        Take the user to the interface for mesoffset{page_num}, and fills in
         default values
         @param page_num:
             The index of this mesoffset
@@ -441,12 +464,28 @@ class MESInterface(MESPlugin):
         
     def log(self, text, *args, **kwargs):
         """
-        Prints text to the logger TextArea
+        Print text to the logger TextArea
         @param text:
             The string to be logged
         """
-        self.logger.info(text, *args, **kwargs)
-        self.log_textarea.append_text(text, autoscroll=True)
+        self.logger.info(text.strip(), *args, **kwargs)
+        self.log_textarea.append_text(text+"\n", autoscroll=True)
+        self.fv.process_events()
+    
+    
+    def run_meslocate(self):
+        import time
+        time.sleep(1)
+    
+    
+    def run_mesanalyze(self):
+        import time
+        time.sleep(1)
+    
+    
+    def run_mespinpoint(self):
+        import time
+        time.sleep(1)
         
     
     

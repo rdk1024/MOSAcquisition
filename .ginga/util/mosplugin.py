@@ -61,7 +61,8 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         container.add_widget(out, stretch=True)
         
         # create the inner box that will contain the stack of GUIs
-        box, box_wrapper, orientation = Widgets.get_oriented_box(container)
+        box, box_wrapper, orientation = Widgets.get_oriented_box(container,
+                                                                 fill=True)
         box.set_border_width(4)
         box.set_spacing(3)
         out.add_widget(box_wrapper, stretch=True)
@@ -71,6 +72,9 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         self.build_specific_gui(stk, orientation=orientation)
         box.add_widget(stk)
         self.stack = stk
+        
+        # space the GUI appropriately
+        box.add_widget(Widgets.Label(""), stretch=True)
 
         # end is an HBox that comes at the very end, after the rest of the GUIs
         end = Widgets.HBox()

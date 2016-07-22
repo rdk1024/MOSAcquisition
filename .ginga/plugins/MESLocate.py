@@ -93,43 +93,6 @@ class MESLocate(MESPlugin):
         
         
         
-    def set_callbacks(self, selection_mode="Automatic"):
-        """
-        Assigns all necessary callbacks to the canvas for the current step
-        @param selection_mode:
-            Either 'Automatic', 'Crop', or 'Mask'. It decides what happens
-            when we click and drag
-        """
-        canvas = self.canvas
-        step = self.get_step()
-        
-        # clear all existing callbacks first
-        for cb in ('cursor-down', 'cursor-up',
-                    'panset-down', 'panset-up', 'draw-up'):
-            canvas.clear_callback(cb)
-        
-        # for step one, the only callbacks are for right-click and left-click
-        if step == 1:
-            canvas.add_callback('cursor-up', self.click1_cb)
-            canvas.add_callback('draw-up', self.step2_cb)
-        
-        # for step two, you need callbacks for left-drag and middle-drag, too
-        elif step == 2:
-            if selection_mode == "Mask":
-                canvas.add_callback('cursor-down', self.start_select_mask_cb)
-                canvas.add_callback('cursor-up', self.end_select_mask_cb)
-            else:
-                canvas.add_callback('cursor-down', self.start_select_crop_cb)
-                canvas.add_callback('cursor-up', self.end_select_crop_cb)
-            if selection_mode == "Crop":
-                canvas.add_callback('panset-down', self.start_select_crop_cb)
-                canvas.add_callback('panset-up', self.end_select_crop_cb)
-            else:
-                canvas.add_callback('panset-down', self.start_select_mask_cb)
-                canvas.add_callback('panset-up', self.end_select_mask_cb)
-            canvas.add_callback('draw-up', self.next_obj_cb)
-    
-        
     def build_specific_gui(self, stack, orientation='vertical'):
         """
         Combine the GUIs necessary for this particular plugin
@@ -344,6 +307,43 @@ class MESLocate(MESPlugin):
         # automatically select the first point and start
         self.click1_cb(self.canvas, 1, *self.obj0)
         
+        
+    def set_callbacks(self, selection_mode="Automatic"):
+        """
+        Assigns all necessary callbacks to the canvas for the current step
+        @param selection_mode:
+            Either 'Automatic', 'Crop', or 'Mask'. It decides what happens
+            when we click and drag
+        """
+        canvas = self.canvas
+        step = self.get_step()
+        
+        # clear all existing callbacks first
+        for cb in ('cursor-down', 'cursor-up',
+                    'panset-down', 'panset-up', 'draw-up'):
+            canvas.clear_callback(cb)
+        
+        # for step one, the only callbacks are for right-click and left-click
+        if step == 1:
+            canvas.add_callback('cursor-up', self.click1_cb)
+            canvas.add_callback('draw-up', self.step2_cb)
+        
+        # for step two, you need callbacks for left-drag and middle-drag, too
+        elif step == 2:
+            if selection_mode == "Mask":
+                canvas.add_callback('cursor-down', self.start_select_mask_cb)
+                canvas.add_callback('cursor-up', self.end_select_mask_cb)
+            else:
+                canvas.add_callback('cursor-down', self.start_select_crop_cb)
+                canvas.add_callback('cursor-up', self.end_select_crop_cb)
+            if selection_mode == "Crop":
+                canvas.add_callback('panset-down', self.start_select_crop_cb)
+                canvas.add_callback('panset-up', self.end_select_crop_cb)
+            else:
+                canvas.add_callback('panset-down', self.start_select_mask_cb)
+                canvas.add_callback('panset-up', self.end_select_mask_cb)
+            canvas.add_callback('draw-up', self.next_obj_cb)
+    
         
     def step1_cb(self, *args):
         """
