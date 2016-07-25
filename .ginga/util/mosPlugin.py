@@ -9,7 +9,7 @@
 
 # ginga imports
 from ginga import GingaPlugin
-from ginga.gw import Widgets
+from ginga.gw import GwHelp, Widgets
 
 
 
@@ -18,6 +18,12 @@ class MESPlugin(GingaPlugin.LocalPlugin):
     Any custom LocalPlugin for ginga that is intended for use as part of the
     MOS Acquisition software for aligning MOIRCS.
     """
+    
+    title_font  = GwHelp.get_font('Monospace', 18)
+    header_font = GwHelp.get_font('Monospace', 14)
+    body_font   = GwHelp.get_font('Monospace', 10)
+    
+    
     
     def __init__(self, fv, fitsimage):
         """
@@ -31,11 +37,6 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         # superclass constructor defines self.fv, self.fitsimage, and self.logger:
         super(MESPlugin, self).__init__(fv, fitsimage)
         fv.set_titlebar("MOIRCS Acquisition")
-        
-        # initializes some class constants:
-        self.title_font = self.fv.getFont('sansFont', 18)
-        self.header_font = self.fv.getFont('sansFont', 14)
-        self.body_font = self.fv.getFont('sansFont', 10)
         
         # now sets up the ginga.canvas.types.layer.DrawingCanvas self.canvas,
         # which is necessary to draw on the image:
@@ -69,7 +70,7 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         
         # the rest is a stack of GUIs for each step, as decided by the subclass
         stk = Widgets.StackWidget()
-        self.build_specific_gui(stk, orientation=orientation)
+        self.stack_guis(stk, orientation)
         box.add_widget(stk)
         self.stack = stk
         

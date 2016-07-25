@@ -11,11 +11,10 @@
 import math
 import os
 import sys
-import time
+from time import strftime
 
 # local imports
-from util import mosplots
-from util.mosplugin import MESPlugin
+from util import mosPlots
 
 # ginga imports
 from ginga.gw import Widgets, Viewers, Plot
@@ -26,196 +25,40 @@ from pyraf.iraf import geomap, INDEF
 
 
 
-# constants
-# the arguments passed in to the outer script
-argv = sys.argv
-fits_image = argv[1]
-input_coo = argv[2]
-output_dbs = argv[3]
-log_file = argv[4]
-if len(argv) > 5:
-    output_res = argv[5][argv[5].rfind('=')+1:]
-else:
-    output_res = ""
-
-
-
-class MESAnalyze(MESPlugin):
+class MESAnalyze:
     """
-    A custom LocalPlugin for ginga that takes some data about some objects'
-    positions, graphs them, and asks the user to modify the data if necessary.
-    Intended for use as part of the MOS Acquisition software for aligning
-    MOIRCS.
+    A class that graphs some data about some objects' positions and
+    asks the user to modify the data if necessary. Intended for use as part of
+    the MOS Acquisition software for aligning MOIRCS.
     """
     
-    def __init__(self, fv, fitsimage):
+    def __init__(self, manager):
         """
         Class constructor
-        @param fv:
-            A reference to the ginga.main.GingaShell object (reference viewer)
-        @param fitsimage:
-            A reference to the specific ginga.qtw.ImageViewCanvas object
-            associated with the channel on which the plugin is being invoked
+        @param manager:
+            The MESOffset plugin that this class communicates with
         """
-        # LocalPlugin constructor defines self.fv, self.fitsimage, self.logger;
-        # MESPlugin constructor defines self.dc, self.canvas, and some fonts
-        super(MESAnalyze, self).__init__(fv, fitsimage)
-        
-        # and some attributes
-        self.data = self.read_input_file()
+        manager.initialise(self)
+    
+    
+    
+    def start(self, input_coo, output_dbs, output_log, output_res=None):
+        """
+        Interpret the data from MESLocate
+        """
+        # assign all the attributes
         self.active = np.ones(self.data.shape[0], dtype=np.bool)
         self.offset = (0, 0, 0)
-        self.final_displays = {}
         
         # creates the list of plots that will go in the GUI
-        self.plots = [mosplots.MOSPlot(logger=self.logger),
-                      mosplots.MOSPlot(logger=self.logger)]
+        self.plots = [mosPlots.MOSPlot(logger=self.logger),
+                      mosPlots.MOSPlot(logger=self.logger)]
         
         # sets the mouse controls
         self.set_callbacks()
         
-        
-        
-    def build_specific_gui(self, stack, orientation='vertical'):
-        """
-        Combine the GUIs necessary for this particular plugin
-        Must be implemented for each MESPlugin
-        @param stack:
-            The stack in which each part of the GUI will be stored
-        @param orientation:
-            Either 'vertical' or 'horizontal', the orientation of this new GUI
-        """
-        stack.add_widget(self.make_gui_3(orientation))
-        stack.add_widget(self.make_gui_4(orientation))
-    
-    
-    def make_gui_3(self, orientation='vertical'):
-        """
-        Construct a GUI for the third step: viewing the graph
-        @param orientation:
-            Either 'vertical' or 'horizontal', the orientation of this new GUI
-        @returns:
-            A Widgets.Box object containing all necessary buttons, labels, etc.
-        """
-        # start by creating the container
-        gui = Widgets.Box(orientation=orientation)
-        gui.set_spacing(4)
-        
-        # create a label to title this step
-        lbl = Widgets.Label("Manage Residuals")
-        lbl.set_font(self.title_font)
-        gui.add_widget(lbl)
-
-        # fill a text box with brief instructions and put in in an expander
-        exp = Widgets.Expander(title="Instructions")
-        gui.add_widget(exp)
-        txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.body_font)
-        txt.set_text("Look at the graphs. Remove any data with residuals "+
-                     "greater than 1.0 or less than -1.0. Delete points by "+
-                     "right clicking, and restore them by left-clicking. "+
-                     "Click 'Next' below when the data is satisfactory.")
-        exp.set_widget(txt)
-        
-        # now make an HBox to hold the main controls
-        box = Widgets.HBox()
-        box.set_spacing(3)
-        gui.add_widget(box)
-        
-        # the next button shows the values
-        btn = Widgets.Button("Next")
-        btn.add_callback('activated', self.step4_cb)
-        btn.set_tooltip("Get the MES Offset values!")
-        box.add_widget(btn)
-        
-        # put in a spacer
-        box.add_widget(Widgets.Label(""), stretch=True)
-        
-        # now a framed vbox to put the plots in
-        frm = Widgets.Frame()
-        gui.add_widget(frm)
-        box = Widgets.VBox()
-        box.set_spacing(3)
-        frm.set_widget(box)
-        
-        # finally, add all three plots in frames
-        for graph in self.plots:
-            plt = Plot.PlotWidget(graph)
-            graph.set_callback('cursor-down', lambda w: self.close())
-            box.add_widget(plt)
-        
-        # space appropriately and return
-        gui.add_widget(Widgets.Label(''), stretch=True)
-        return gui
-    
-    
-    def make_gui_4(self, orientation='vertical'):
-        """
-        Construct a GUI for the fourth step: getting the offset
-        @param orientation:
-            Either 'vertical' or 'horizontal', the orientation of this new GUI
-        @returns:
-            A Widgets.Box object containing all necessary buttons, labels, etc.
-        """
-        # start by creating the container
-        gui = Widgets.Box(orientation=orientation)
-        gui.set_spacing(4)
-        
-        # create a label to title this step
-        lbl = Widgets.Label("Get Offset Values")
-        lbl.set_font(self.title_font)
-        gui.add_widget(lbl)
-
-        # fill a text box with brief instructions and put in in an expander
-        exp = Widgets.Expander(title="Instructions")
-        gui.add_widget(exp)
-        txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.body_font)
-        txt.set_text("Enter the numbers you see below into the ANA window. dx "+
-                     "and dy values are in pixels, and rotation value is in "+
-                     "degrees. Values of less than 0.5 pixels and 0.01 "+
-                     "degrees have been ignored. Click 'Exit' below when you "+
-                     "are done.")
-        exp.set_widget(txt)
-        
-        # make a frame for the results
-        frm = Widgets.Frame()
-        gui.add_widget(frm)
-        box = Widgets.VBox()
-        box.set_spacing(3)
-        frm.set_widget(box)
-        
-        # make the three TextAreas to hold the final values
-        for val in ("dx", "dy", "Rotate"):
-            lbl = Widgets.Label(val+" =")
-            lbl.set_font(self.header_font)
-            box.add_widget(lbl)
-            txt = Widgets.TextArea(editable=False)
-            txt.set_font(self.title_font)
-            box.add_widget(txt)
-            self.final_displays[val] = txt
-        
-        btn = Widgets.Button("Exit")
-        btn.add_callback('activated', self.exit_cb)
-        btn.set_tooltip("Close Ginga")
-        gui.add_widget(btn)
-        
-        # space appropriately and return
-        gui.add_widget(Widgets.Label(''), stretch=True)
-        return gui
-    
-    
-    def start(self):
-        """
-        Called when the plugin is invoked, right after build_gui()
-        One of the required LocalPlugin methods
-        """
-        super(MESAnalyze, self).start()
-        
         # adjust the cut levels to make the points easier to see
         self.fitsimage.get_settings().set(autocut_method='stddev')
-        
-        # set the initial status message
         self.fv.showStatus("Analyze and trim the data.")
         
         # initialize the plots
@@ -225,7 +68,7 @@ class MESAnalyze(MESPlugin):
     
     def set_callbacks(self):
         """
-        Assigns all necessary callbacks to the canvas for the current step
+        Assign all necessary callbacks to the canvas for the current step
         """
         canvas = self.canvas
         step = self.get_step()
@@ -282,18 +125,18 @@ class MESAnalyze(MESPlugin):
             The x and y residuals in numpy array form
         """
         # then record the new data
-        self.overwrite_data(input_coo, self.data, self.active)
+        self.overwrite_data(self.input_coo, self.data, self.active)
         
         # delete some files and call iraf.geomap
         try:
-            os.remove(output_res)
+            os.remove(self.output_res)
         except OSError:
             pass
         try:
-            geomap(input_coo, output_dbs, INDEF, INDEF, INDEF, INDEF,
-                   fitgeom="rotate", results=output_res)
+            geomap(self.input_coo, self.output_dbs, INDEF, INDEF, INDEF, INDEF,
+                   fitgeom="rotate", results=self.output_res)
         except IOError:
-            geomap("sbr_elaisn1rev_starmask.coo", "sbr_elaisn1rev_starmask.dbs",
+            geomap("sbr_elaisn1rev_starmask.coo", "sbr_elaisn1rev_starmask.dbs",    # TODO: maybe remove these defaults later
                    xmin=INDEF, xmax=INDEF, ymin=INDEF, ymax=INDEF,
                    fitgeom="rotate", results="sbr_elaisn1rev_starholemask.res")
         
@@ -302,7 +145,7 @@ class MESAnalyze(MESPlugin):
         yref = self.data[:, 1]
         xin  = self.data[:, 2]
         yin  = self.data[:, 3]
-        self.offset = self.get_transformation(output_dbs)
+        self.offset = self.get_transformation(self.output_dbs)
         xcalc, ycalc = self.transform(xin, yin, self.offset)
         xres = xcalc - xref
         yres = ycalc - yref
@@ -394,17 +237,17 @@ class MESAnalyze(MESPlugin):
         self.final_displays["Rotate"].set_text(u"{:,.3f}\u00B0".format(thetaD))
         
         # now log it!
-        self.write_to_log(dx, dy, thetaD)
+        self.write_to_log(dx, dy, thetaD)   # TODO: move this to MESOffset or MESInterface
         
     
     def write_to_log(self, *args):
         """
-        Writes important information to log_file
+        Writes important information to the log_file
         @param args:
             The values to be written to log - must be (dx, dy, rotate)
         """
-        log = open(log_file, 'a')
-        log.write(time.strftime("%a %b %d %H:%M:%S %Z %Y\n"))
+        log = open(self.output_log, 'a')
+        log.write(strftime("%a %b %d %H:%M:%S %Z %Y\n"))
         log.write(("dx = {:6,.1f} (pix) dy = {:6,.1f} (pix) "+
                    "rotate = {:7,.3f} (degree) \n").format(*args))
         log.close()
@@ -439,11 +282,141 @@ class MESAnalyze(MESPlugin):
             return self.stack.get_index()+3
         except AttributeError:
             return 3
+        
+        
+    def gui_list(self, orientation='vertical'):
+        """
+        Combine the GUIs necessary for the MESAnalyze part of the plugin
+        Must be implemented for each MESPlugin
+        @param orientation:
+            Either 'vertical' or 'horizontal', the orientation of this new GUI
+        @returns:
+            A list of Widgets that will be placed in a stack
+        """
+        return [('plots',  self.make_gui_plot(orientation)),
+                ('values', self.make_gui_vals(orientation))]
+    
+    
+    def make_gui_plot(self, orientation='vertical'):
+        """
+        Construct a GUI for the third step: viewing the plots
+        @param orientation:
+            Either 'vertical' or 'horizontal', the orientation of this new GUI
+        @returns:
+            A Widgets.Box object containing all necessary buttons, labels, etc.
+        """
+        # start by creating the container
+        gui = Widgets.Box(orientation=orientation)
+        gui.set_spacing(4)
+        
+        # create a label to title this step
+        lbl = Widgets.Label("Manage Residuals")
+        lbl.set_font(self.manager.title_font)
+        gui.add_widget(lbl)
+
+        # fill a text box with brief instructions and put in in an expander
+        exp = Widgets.Expander(title="Instructions")
+        gui.add_widget(exp)
+        txt = Widgets.TextArea(wrap=True, editable=False)
+        txt.set_font(self.manager.body_font)
+        txt.set_text("Look at the graphs. Remove any data with residuals "+
+                     "greater than 1.0 or less than -1.0. Delete points by "+
+                     "right clicking, and restore them by left-clicking. "+
+                     "Click 'Next' below when the data is satisfactory.")
+        exp.set_widget(txt)
+        
+        # now make an HBox to hold the main controls
+        box = Widgets.HBox()
+        box.set_spacing(3)
+        gui.add_widget(box)
+        
+        # the next button shows the values
+        btn = Widgets.Button("Next")
+        btn.add_callback('activated', self.step4_cb)
+        btn.set_tooltip("Get the MES Offset values!")
+        box.add_widget(btn)
+        
+        # put in a spacer
+        box.add_widget(Widgets.Label(""), stretch=True)
+        
+        # now a framed vbox to put the plots in
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
+        box = Widgets.VBox()
+        box.set_spacing(3)
+        frm.set_widget(box)
+        
+        # finally, add both plots in frames
+        for i in range(2):
+            fig = mosPlots.MOSPlot(logger=self.logger)
+            plt = Plot.PlotWidget(fig)
+            box.add_widget(fig)
+        
+        # space appropriately and return
+        gui.add_widget(Widgets.Label(''), stretch=True)
+        return gui
+    
+    
+    def make_gui_vals(self, orientation='vertical'):
+        """
+        Construct a GUI for the fourth step: getting the offset values
+        @param orientation:
+            Either 'vertical' or 'horizontal', the orientation of this new GUI
+        @returns:
+            A Widgets.Box object containing all necessary buttons, labels, etc.
+        """
+        # start by creating the container
+        gui = Widgets.Box(orientation=orientation)
+        gui.set_spacing(4)
+        
+        # create a label to title this step
+        lbl = Widgets.Label("Get Offset Values")
+        lbl.set_font(self.manager.title_font)
+        gui.add_widget(lbl)
+
+        # fill a text box with brief instructions and put in in an expander
+        exp = Widgets.Expander(title="Instructions")
+        gui.add_widget(exp)
+        txt = Widgets.TextArea(wrap=True, editable=False)
+        txt.set_font(self.manager.body_font)
+        txt.set_text("Enter the numbers you see below into the ANA window. dx "+
+                     "and dy values are in pixels, and rotation value is in "+
+                     "degrees. Values of less than 0.5 pixels and 0.01 "+
+                     "degrees have been ignored. Click 'Exit' below when you "+
+                     "are done.")
+        exp.set_widget(txt)
+        
+        # make a frame for the results
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
+        box = Widgets.VBox()
+        box.set_spacing(3)
+        frm.set_widget(box)
+        
+        # make the three TextAreas to hold the final values
+        self.final_displays = {}
+        for val in ("dx", "dy", "Rotate"):
+            lbl = Widgets.Label(val+" =")
+            lbl.set_font(self.manager.header_font)
+            box.add_widget(lbl)
+            txt = Widgets.TextArea(editable=False)
+            txt.set_font(self.manager.title_font)
+            box.add_widget(txt)
+            self.final_displays[val] = txt
+        
+        btn = Widgets.Button("Exit")
+        btn.add_callback('activated', self.exit_cb)
+        btn.set_tooltip("Close Ginga")
+        gui.add_widget(btn)
+        
+        # space appropriately and return
+        gui.add_widget(Widgets.Label(''), stretch=True)
+        return gui
     
     
     
     @staticmethod
-    def read_input_file():
+    def read_input_file(filename):
         """
         Read the COO file and return the data within as a numpy array
         @returns:
@@ -454,7 +427,7 @@ class MESAnalyze(MESPlugin):
         
         # try to open the file
         try:
-            coo = open(input_coo, 'r')
+            coo = open(filename, 'r')
         except IOError:
             try:
                 coo = open("sbr_elaisn1rev_starmask.coo")

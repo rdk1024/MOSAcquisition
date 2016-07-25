@@ -1,5 +1,5 @@
 #
-# MESInterface.py -- a ginga plugin that manages the other MES plugins.
+# MESOffset.py -- a ginga plugin that aligns the MOIRCS for Subaru Telescope
 # Works in conjunction with mesoffset scripts for MOS Acquisition
 #
 # Justin Kunimune
@@ -12,7 +12,6 @@ import math
 import sys
 
 # local imports
-from util import fitsutils, mosplugin
 
 # ginga imports
 from ginga.gw import Widgets, Viewers
@@ -26,8 +25,8 @@ from numpy import ma
 # constants
 # main menu parameters
 params_0 = [    # TODO: get rid of these defaults; they're just for my convinience
-        {'name':'frame_star',
-         'label':"Star Frame", 'type':'number', 'default':227463,
+        {'name':'star_chip1',
+         'label':"Star Frame", 'type':'number', 'default':227463,   #TODO odd constraint
          'desc':"The frame number for the chip1 star FITS image",
          'format':"MCSA{}.fits"},
         
@@ -45,7 +44,7 @@ params_0 = [    # TODO: get rid of these defaults; they're just for my convinien
          'desc':"The directory in which the input FITS images can be found"},
         
         {'name':'exec_mode',
-         'label':"Execution Mode", 'type':'choice', 'default':0,
+         'label':"Execution Mode", 'type':'choice', 'default':0,    #TODO
          'desc':"The desired level of precision of alignment",
          'options':["Normal", "Fine"]},
         
@@ -206,49 +205,161 @@ params_3 = [
 
 
 
-class MESInterface(mosplugin.MESPlugin):
+class MESInterface:
     """
-    A custom LocalPlugin for ginga that takes input from the user, opens and
-    handles the other three MES plugins, and replaces the xgterminal from the
-    old mesoffset IRAF scripts. Intended for use as part of the MOS Acquisition
-    software for aligning MOIRCS.
+    A class that takes parameters from the user in a user-friendly menu.
+    Intended for use as part of the MOS Acquisition software for aligning
+    MOIRCS.
     """
     
-    def __init__(self, fv, fitsimage):
+    def __init__(self, manager):
         """
         Class constructor
-        @param fv:
-            A reference to the ginga.main.GingaShell object (reference viewer)
-        @param fitsimage:
-            A reference to the specific ginga.qtw.ImageViewCanvas object
-            associated with the channel on which the plugin is being invoked
+        @param manager:
+            The MESOffset plugin that this class communicates with
         """
-        # LocalPlugin constructor defines self.fv, self.fitsimage, self.logger;
-        # MESPlugin constructor defines self.dc, self.canvas, and some fonts
-        super(MESInterface, self).__init__(fv, fitsimage)
+        manager.initialise(self)
         
         # attributes
-        self.autorun = False    # whether it should progress automatically
         self.get_value = []     # getter methods for all parameters
         self.set_value = []     # setter methods for all parameters
-        self.parameters = {}    # dictionary of parameter values
         
-        
-        
-    def build_specific_gui(self, stack, orientation='vertical'):
+    
+    
+    def start(self):
         """
-        Combine the GUIs necessary for this particular plugin
+        Get user input so that we can start MES Locate/Analyze
+        """
+        # set the initial status message
+        self.fv.showStatus("Waiting to start the MESOffset process.")
+    
+    
+    def start_0_cb(self, *args):
+        """
+        Take the parameters from the mesoffset0 gui and go to page 1
+        """
+        # adjust parameters
+        self.update_parameters(self.get_value[0])
+        self.set_param('sky_chip1', self.get_param('star_chip1') + 2)
+        if self.get_param('img_dir')[-1] != "/":
+            self.set_param('img_dir', self.get_param('img_dir') + "/")
+        self.set_defaults(1)
+        
+        # go to the MESOffset1 page
+        self.log("Going to MES Offset 1...")
+        self.manager.go_to_gui('epar 1')
+    
+    
+    def start_1_cb(self, *args):
+        """
+        Begin mesoffset1 with the current parameters
+        """
+        self.update_parameters(self.get_value[1])
+        self.manager.begin_mesoffset1()
+    
+    
+    def start_2_cb(self, *args):
+        """
+        Begin mesoffset2 with the current parameters
+        """
+        self.update_parameters(self.get_value[2])
+        self.manager.begin_mesoffset2()
+    
+    
+    def start_3_cb(self, *args):
+        """
+        Begin mesoffset3 with the current parameters
+        """
+        self.update_parameters(self.get_value[3])
+        self.manager.begin_mesoffset3()
+    
+    
+    def get_param(self, name):
+        """
+        Returns the global parameter of the given name
+        @param name:
+            The name of the variable
+        @returns:
+            The current value of the variable
+        """
+        return self.manager.globals[name]
+    
+    
+    def set_param(self, name, val): 
+        """
+        Assigns a value of val to the global parameter of the given name
+        @param name:
+            The name of the variable
+        @param val:
+            The new value of the variable
+        """
+        self.manager.globals[name] = val
+    
+    
+    def update_parameters(self, getters):
+        """
+        Reads parameter values from getters and saves them in self.manager
+        @param getters:
+            The dictionary of getter methods for parameter values
+        """
+        new_params = {key:get_val() for key, get_val in getters.items()}
+        self.manager.globals.update(new_params)
+        
+        
+    def set_defaults(self, page_num):
+        """
+        Sets the default values for the gui on page page_num
+        @param page_num:
+            The number for the GUI whose defaults we must set
+        """
+        setters = self.set_value[page_num]
+        for key in setters:
+            if self.manager.globals.has_key(key):
+                setters[key](self.manager.globals[key])
+    
+    
+    def go_to_page(self, page_num):
+        """
+        Take the user to the interface for mesoffset{page_num}, and fills in
+        default values
+        @param page_num:
+            The index of this mesoffset
+        """
+        print("GO TO PAGE")
+        raise Exception("Test")
+        setters = self.set_value[page_num]
+        for key in setters:
+            if self.manager.globals.has_key(key):
+                setters[key](self.manager.globals[key])
+            setters[key](17)
+        self.stack.set_index(page_num)
+        
+        
+    def log(self, text, *args, **kwargs):
+        """
+        Print text to the logger TextArea
+        @param text:
+            The string to be logged
+        """
+        self.logger.info(text.strip(), *args, **kwargs)
+        self.log_textarea.append_text(text+"\n", autoscroll=True)
+        self.fv.process_events()
+        
+        
+    def gui_list(self, orientation='vertical'):
+        """
+        Combine the GUIs necessary for the interface part of this plugin
         Must be implemented for each MESPlugin
-        @param stack:
-            The stack in which each part of the GUI will be stored
         @param orientation:
             Either 'vertical' or 'horizontal', the orientation of this new GUI
+        @returns:
+            A list of tuples with strings (names) and Widgets (guis)
         """
-        stack.add_widget(self.make_gui_epar(0, self.mesoffset0, orientation))
-        stack.add_widget(self.make_gui_epar(1, self.mesoffset1, orientation))
-        stack.add_widget(self.make_gui_epar(2, self.mesoffset2, orientation))
-        stack.add_widget(self.make_gui_epar(3, self.mesoffset3, orientation))
-        stack.add_widget(self.make_gui_log(orientation))
+        return [('epar 0', self.make_gui_epar(0, self.start_0_cb, orientation)),
+                ('epar 1', self.make_gui_epar(1, self.start_1_cb, orientation)),
+                ('epar 2', self.make_gui_epar(2, self.start_2_cb, orientation)),
+                ('epar 3', self.make_gui_epar(3, self.start_3_cb, orientation)),
+                ('log',    self.make_gui_log(orientation))]
         
         
     def make_gui_epar(self, idx, process, orientation='vertical'):
@@ -272,7 +383,7 @@ class MESInterface(mosplugin.MESPlugin):
         exp = Widgets.Expander(title="Instructions")
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.body_font)
+        txt.set_font(self.manager.body_font)
         txt.set_text("Use the widgets below to specify the parameters for "+
                      name+". Hover over each one to get a description of "+
                      "what it means. When you are finished, press the 'Go!' "+
@@ -321,172 +432,18 @@ class MESInterface(mosplugin.MESPlugin):
         
         # label the log
         lbl = Widgets.Label("Please wait...")
-        lbl.set_font(self.header_font)
+        lbl.set_font(self.manager.header_font)
         gui.add_widget(lbl)
 
         # the only thing here is a gigantic text box
         txt = Widgets.TextArea(wrap=False, editable=False)
-        txt.set_font(self.body_font)
+        txt.set_font(self.manager.body_font)
         txt.set_text("\n"*100)
         gui.add_widget(txt, stretch=True)
         self.log_textarea = txt
         
         return gui
     
-    
-    def start(self):
-        """
-        Called when the plugin is opened for the first time
-        """
-        super(MESInterface, self).start()
-        
-        # set the initial status message
-        self.fv.showStatus("Waiting to start the MESOffset process.")
-    
-    
-    def mesoffset0(self, *args):
-        """
-        Run all three procedures of MOS Acquisition
-        """
-        self.update_parameters(self.get_value[0].items())
-        self.log("Going to MES Offset 1...")
-        self.autorun = True
-        self.go_to_page(1)
-    
-    
-    def mesoffset1(self, *args):
-        """
-        Run the first procedure of MOS Acquisition:
-        star and mask measurements
-        """
-        # start by reading the input and opening the log
-        self.stack.set_index(4)
-        self.fv.process_events()
-        self.update_parameters(self.get_value[1].items())
-        
-        # now run the process:
-        self.log("Processing star frames...")
-        fitsutils.process_star_frames()
-        self.log("Measuring star positions...")
-        self.run_meslocate()
-        self.log("Waiting for mask images...")
-        pass
-        self.log("Processing mask frames...")
-        fitsutils.process_mask_frames()
-        self.log("Measuring hole positions...")
-        self.run_meslocate()
-        self.log("Analyzing results...")
-        self.run_mesanalyze()
-        
-        # finish by going to the MES Offset 2 menu
-        self.log("Done!\n")
-        if self.autorun:
-            self.log("Going to MES Offset 2...")
-        self.go_to_page(2)
-    
-    
-    def mesoffset2(self, *args):
-        """
-        Run the second procedure of MOS Acquisition:
-        starhole measurements
-        """
-        # start by reading the input and opening the log
-        self.stack.set_index(4)
-        self.fv.process_events()
-        self.update_parameters(self.get_value[2].items())
-        
-        # run the process
-        self.log("Processing star-hole frames...")
-        fitsutils.process_starhole_frames()
-        self.log("Measuring star positions...")
-        self.run_meslocate()
-        self.log("Analyzing results...")
-        self.run_mesanalyze()
-        
-        # finish by going to the MESOffset3 menu
-        self.log("Done!\n")
-        if self.autorun:
-            self.log("Going to MES Offset 3...")
-        self.go_to_page(3)
-    
-    
-    def mesoffset3(self, *args):
-        """
-        Run the third procedure of MOS Acquisition:
-        mask and starhole measurements
-        """
-        # start by reading the input and opening the log
-        self.stack.set_index(4)
-        self.fv.process_events()
-        self.update_parameters(self.get_value[3].items())
-        
-        # run the process
-        self.log("Processing mask frames...")
-        fitsutils.process_mask_frames()
-        self.log("Measuring hole positions...")
-        self.run_meslocate()
-        self.log("Waiting for star-hole images...")
-        pass
-        self.log("Processing star-hole frames...")
-        fitsutils.process_starhole_frames()
-        self.log("Measuring star positions...")
-        self.run_meslocate()
-        self.log("Analyzing results...")
-        self.run_mesanalyze()
-        
-        # finish by going to the MESOffset0 menu
-        self.log("Done!\n")
-        self.go_to_page(0)
-    
-    
-    def update_parameters(self, getters):
-        """
-        Reads parameter values from getters and saves them in self.parameters
-        @param getters:
-            The dictionary of getter methods for parameter values
-        """
-        self.parameters.update({key:get_val() for key, get_val in getters})
-    
-    
-    def go_to_page(self, page_num):
-        """
-        Take the user to the interface for mesoffset{page_num}, and fills in
-        default values
-        @param page_num:
-            The index of this mesoffset
-        """
-        setters = self.set_value[page_num]
-        for key in setters:
-            if self.parameters.has_key(key):
-                setters[key](self.parameters[key])
-        self.stack.set_index(page_num)
-        
-        
-    def log(self, text, *args, **kwargs):
-        """
-        Print text to the logger TextArea
-        @param text:
-            The string to be logged
-        """
-        self.logger.info(text.strip(), *args, **kwargs)
-        self.log_textarea.append_text(text+"\n", autoscroll=True)
-        self.fv.process_events()
-    
-    
-    def run_meslocate(self):
-        import time
-        time.sleep(1)
-    
-    
-    def run_mesanalyze(self):
-        import time
-        time.sleep(1)
-    
-    
-    def run_mespinpoint(self):
-        import time
-        time.sleep(1)
-        
     
     
     @staticmethod

@@ -9,10 +9,6 @@
 
 # standard imports
 import math
-import sys
-
-# local imports
-from util.mosplugin import MESPlugin
 
 # ginga imports
 from ginga.gw import Widgets, Viewers
@@ -24,58 +20,47 @@ from numpy import ma
 
 
 # constants
-# the arguments passed in to the outer script
-argv = sys.argv
-fits_image = argv[1]
-input_sbr = argv[2]
-output_coo = argv[3]
-interact = argv[4]
-
-# the object we are looking for
-mode = 'hole' if 'mask' in fits_image else 'star'
-# the apothem of the object-finding squares (dependent on whether we look for holes or stars)
-sq_size = 25 if mode == 'star' else 60
-# the maximum radius of the objects we search for
-exp_obj_size = 12 if mode == 'star' else 30
-# the difference between the threshold and the mean, in standard deviations
-threshold_dist = 3 if mode == 'star' else 3
-# the colors of said squares
+selection_modes = ("Automatic", "Star", "Mask")
 colors = ('green','red','blue','yellow','magenta','cyan','orange')
-# the different ways we can select things
-selection_modes = ("Automatic", "Crop", "Mask")
 
 
 
-class MESLocate(MESPlugin):
+class MESLocate:
     """
-    A custom LocalPlugin for ginga that locates a set of calibration objects,
-    asks for users to help locate anomolies and artifacts on its images
-    of those objects, and then calculates their centers of masses. Intended
-    for use as part of the MOS Acquisition software for aligning MOIRCS.
+    A class that locates a set of calibration objects, asks for users to help
+    locate anomolies and artifacts on its images of those objects, and then
+    calculates their centers of masses. Intended for use as part of the MOS
+    Acquisition software for aligning MOIRCS.
     """
     
-    def __init__(self, fv, fitsimage):
+    def __init__(self, manager):
         """
         Class constructor
-        @param fv:
-            A reference to the ginga.main.GingaShell object (reference viewer)
-        @param fitsimage:
-            A reference to the specific ginga.qtw.ImageViewCanvas object
-            associated with the channel on which the plugin is being invoked
+        @param manager:
+            The MESOffset plugin that this class communicates with
         """
-        # LocalPlugin constructor defines self.fv, self.fitsimage, self.logger;
-        # MESPlugin constructor defines self.dc, self.canvas, and some fonts
-        super(MESLocate, self).__init__(fv, fitsimage)
-
-        # reads the given SBR file to get the object positions
-        self.obj_list, self.obj0 = self.read_input_file()
+        manager.initialise(self)
+    
+    
+    
+    def start(self, input_data, mode, interact=True, next_step=None):
+        """
+        Get the positions of a series of objects
+        @param input_data:
+            The numpy array containing the object positions we search for
+        @param mode:
+            Either 'star' or 'mask' or 'starhole'; alters the sizes of squares
+            and the autocut method
+        @param interact:
+            Whether we should give the use a chance to crop/mask the objects
+        @param next_step:
+            A function to call when MESLocate is finished
+        """
+        # read the data
+        self.obj_list, self.obj0 = self.parse_data(input_data)
         self.obj_num = len(self.obj_list)
         
-        # creates the list of thumbnails that will go in the GUI
-        self.thumbnails = self.create_viewer_list(self.obj_num, self.logger)
-        self.step2_viewer = self.create_viewer_list(1, self.logger, 420, 420)[0]    # 738x738 is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
-        
-        # defines some attributes
+        # define some attributes
         self.click_history = []     # places we've clicked
         self.click_index = -1       # index of the last click
         self.current_obj = 0        # index of the current object
@@ -83,240 +68,45 @@ class MESLocate(MESPlugin):
         self.drag_index = [-1]*self.obj_num     # index of the current drag for each object
         self.drag_start = None      # the place where we most recently began to drag
         self.obj_centroids = [None]*self.obj_num     # the new obj_list based on user input and calculations
+        self.square_size = {'star':25, 'mask':60, 'starhole':50}[mode]
+        self.interact = interact
+        self.finish_cb = next_step
         
-        # sets the mouse controls
-        self.set_callbacks()
-        
-        # * NOTE: self.drag_history is a list of lists, with one list for each
-        #       object; each inner list contains tuples of the form
-        #       (float x1, float y1, float x2, float y2, string ['mask'/'crop'])
-        
-        
-        
-    def build_specific_gui(self, stack, orientation='vertical'):
-        """
-        Combine the GUIs necessary for this particular plugin
-        Must be implemented for each MESPlugin
-        @param stack:
-            The stack in which each part of the GUI will be stored
-        @param orientation:
-            Either 'vertical' or 'horizontal', the orientation of this new GUI
-        """
-        stack.add_widget(self.make_gui_1(orientation))
-        stack.add_widget(self.make_gui_2(orientation))
-        
-        
-    def make_gui_1(self, orientation='vertical'):
-        """
-        Construct a GUI for the first step: finding the objects
-        @param orientation:
-            Either 'vertical' or 'horizontal', the orientation of this new GUI
-        @returns:
-            A Widgets.Box object containing all necessary buttons, labels, etc.
-        """
-        # start by creating the container
-        gui = Widgets.Box(orientation=orientation)
-        gui.set_spacing(4)
-        
-        # create a label to title this step
-        lbl = Widgets.Label("Pick First Hole")
-        lbl.set_font(self.title_font)
-        gui.add_widget(lbl)
-
-        # fill a text box with brief instructions and put in in an expander
-        exp = Widgets.Expander(title="Instructions")
-        gui.add_widget(exp)
-        txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.body_font)
-        txt.set_text("Left click on the object closest to the box labeled "+
-                     "'1'. The other objects should appear in the boxes "+
-                     "below. Click again to select another position. Click "+
-                     "'Next' below or right-click when you are satisfied with "+
-                     "your location.\nRemember - bright areas are shown in "+
-                     "white.")
-        exp.set_widget(txt)
-
-        # create a box to group the primary control buttons together
-        box = Widgets.HBox()
-        box.set_spacing(3)
-        gui.add_widget(box)
-        
-        # the undo button goes back a click
-        btn = Widgets.Button("Undo")
-        btn.add_callback('activated', self.undo1_cb)
-        btn.set_tooltip("Undo a single click (if a click took place)")
-        box.add_widget(btn)
-
-        # the redo button goes forward
-        btn = Widgets.Button("Redo")
-        btn.add_callback('activated', self.redo1_cb)
-        btn.set_tooltip("Undo an undo action (if an undo action took place)")
-        box.add_widget(btn)
-
-        # the clear button erases the canvas
-        btn = Widgets.Button("Clear")
-        btn.add_callback('activated', lambda w: self.canvas.delete_all_objects())
-        btn.set_tooltip("Erase all marks on the canvas")
-        box.add_widget(btn)
-        
-        # the next button moves on to step 2
-        btn = Widgets.Button("Next")
-        btn.add_callback('activated', self.step2_cb)
-        btn.set_tooltip("Accept and proceed to step 2")
-        box.add_widget(btn)
-        
-        # put in a spacer
-        box.add_widget(Widgets.Label(""), stretch=True)
-        
-        # lastly, we need the zoomed-in images. This is the grid we put them in
-        frm = Widgets.Frame()
-        gui.add_widget(frm)
-        num_img = self.obj_num   # total number of alignment objects
-        columns = 2                       # pictures in each row
-        rows = int(math.ceil(float(num_img)/columns))
-        grd = Widgets.GridBox(rows=rows, columns=columns)
-        frm.set_widget(grd)
-        
-        # these are the images we put in the grid
-        for row in range(0, rows):
-            for col in range(0, columns):
-                i = row*columns + col
-                if i < num_img:
+        # creates the list of thumbnails that will go in the GUI
+        self.thumbnails = self.create_viewer_list(self.obj_num, self.logger)
+        for row in range(int(math.ceil(self.obj_num/2.0))):
+            for col in range(2):
+                try:
+                    i = 2*row + col
                     pic = Viewers.GingaViewerWidget(viewer=self.thumbnails[i])
-                    grd.add_widget(pic, row, col)
+                    self.viewer_grid.add_widget(pic, row, col)
+                except IndexError:
+                    pass
         
-        # space appropriately and return
-        gui.add_widget(Widgets.Label(''), stretch=True)
-        return gui
-        
-        
-    def make_gui_2(self, orientation='vertical'):
-        """
-        Construct a GUI for the second step: cropping the stars
-        @param orientation:
-            Either 'vertical' or 'horizontal', the orientation of this new GUI
-        @returns:
-            A Widgets.Box object containing all necessary buttons, labels, etc.
-        """
-        # start by creating the container
-        gui = Widgets.Box(orientation=orientation)
-        gui.set_spacing(4)
-        
-        # create a label to title this step
-        lbl = Widgets.Label("Determine Centroids")
-        lbl.set_font(self.title_font)
-        gui.add_widget(lbl)
-
-        # fill a text box with brief instructions and put in in an expander
-        exp = Widgets.Expander(title="Instructions")
-        gui.add_widget(exp)
-        txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.body_font)
-        txt.set_text("Help the computer find the centroid of this object. "+
-                     "Click and drag to include or exclude regions; "+
-                     "left-click will crop to selection and middle-click will "+
-                     "mask selection, or you can specify a selection option "+
-                     "below. Click 'Next' below or right-click when the "+
-                     "centroid has been found.")
-        exp.set_widget(txt)
-        
-        # now make an HBox to hold the primary controls
-        box = Widgets.HBox()
-        box.set_spacing(3)
-        gui.add_widget(box)
-        
-        # the undo button goes back a crop
-        btn = Widgets.Button("Undo")
-        btn.add_callback('activated', self.undo2_cb)
-        btn.set_tooltip("Undo a single selection (if a selection took place)")
-        box.add_widget(btn)
-
-        # the redo button goes forward
-        btn = Widgets.Button("Redo")
-        btn.add_callback('activated', self.redo2_cb)
-        btn.set_tooltip("Undo an undo action (if an undo action took place)")
-        box.add_widget(btn)
-
-        # the clear button nullifies all crops
-        btn = Widgets.Button("Back")
-        btn.add_callback('activated', self.prev_obj_cb)
-        btn.set_tooltip("Go back to the previous object")
-        box.add_widget(btn)
-        
-        # the next button moves on to the next object
-        btn = Widgets.Button("Next")
-        btn.add_callback('activated', self.next_obj_cb)
-        btn.set_tooltip("Accept and proceed to the next object")
-        box.add_widget(btn)
-        
-        # put in a spacer
-        box.add_widget(Widgets.Label(""), stretch=True)
-        
-        # another HBox holds the skip button, because it doesn't fit on the first line
-        box = Widgets.HBox()
-        box.set_spacing(3)
-        gui.add_widget(box)
-        
-        # the skip button sets this object to NaN and moves on
-        btn = Widgets.Button("Skip")
-        btn.add_callback('activated', self.skip_obj_cb)
-        btn.set_tooltip("Remove this object from the data set")
-        box.add_widget(btn)
-        
-        # put in a spacer
-        box.add_widget(Widgets.Label(""), stretch=True)
-        
-        # make a new box for a combobox+label combo
-        box = Widgets.VBox()
-        box.set_spacing(3)
-        gui.add_widget(box)
-        lbl = Widgets.Label("Selection Mode:")
-        box.add_widget(lbl)
-        
-        # this is the combobox of selection options
-        com = Widgets.ComboBox()
-        for text in selection_modes:
-            com.append_text(text)
-        com.add_callback('activated', self.choose_select_cb)
-        box.add_widget(com)
-        
-        # put a viewer in a frame
-        frm = Widgets.Frame()
-        gui.add_widget(frm)
-        pic = Viewers.GingaViewerWidget(viewer=self.step2_viewer)
-        frm.set_widget(pic)
-        
-        # space appropriately and return
-        gui.add_widget(Widgets.Label(''), stretch=True)
-        return gui
-
-
-    def start(self):
-        """
-        Called when the plugin is opened for the first time
-        """
-        super(MESLocate, self).start()
+        # set the mouse controls and automatically select the first point
+        self.set_callbacks()
+        self.click1_cb(self.canvas, 1, *self.obj0)
         
         # set the autocut to make things easier to see
         method = 'stddev' if mode == 'star' else 'zscale'
         self.fitsimage.get_settings().set(autocut_method=method)
-        
-        # set the initial status message
         self.fv.showStatus("Locate the object labeled '1' by clicking.")
         
-        # automatically select the first point and start
-        self.click1_cb(self.canvas, 1, *self.obj0)
+        # show the GUI
+        self.manager.go_to_gui('find')
         
         
-    def set_callbacks(self, selection_mode="Automatic"):
+        
+    def set_callbacks(self, step=1, selection_mode="Automatic"):
         """
-        Assigns all necessary callbacks to the canvas for the current step
+        Assign all necessary callbacks to the canvas for the current step
+        @param step:
+            The number of this step - 1 for finding and 2 for centroid-getting
         @param selection_mode:
-            Either 'Automatic', 'Crop', or 'Mask'. It decides what happens
+            Either 'Automatic', 'Star', or 'Mask'. It decides what happens
             when we click and drag
         """
         canvas = self.canvas
-        step = self.get_step()
         
         # clear all existing callbacks first
         for cb in ('cursor-down', 'cursor-up',
@@ -336,7 +126,7 @@ class MESLocate(MESPlugin):
             else:
                 canvas.add_callback('cursor-down', self.start_select_crop_cb)
                 canvas.add_callback('cursor-up', self.end_select_crop_cb)
-            if selection_mode == "Crop":
+            if selection_mode == "Star":
                 canvas.add_callback('panset-down', self.start_select_crop_cb)
                 canvas.add_callback('panset-up', self.end_select_crop_cb)
             else:
@@ -349,9 +139,9 @@ class MESLocate(MESPlugin):
         """
         Responds to back button by returning to step 1
         """
-        self.stack.set_index(0)
+        self.manager.go_to_gui('find')
         self.fv.showStatus("Locate the object labeled '1' by clicking.")
-        self.set_callbacks()
+        self.set_callbacks(step=1)
         self.fitsimage.center_image()
         self.fitsimage.zoom_fit()
     
@@ -361,16 +151,16 @@ class MESLocate(MESPlugin):
         Responds to next button or right click by proceeding to the next step
         """
         # set everything up for the first object of step 2
-        self.stack.set_index(1)
+        self.manager.go_to_gui('centroid')
         self.fv.showStatus("Crop each object image by clicking and dragging")
-        self.set_callbacks()
+        self.set_callbacks(step=2)
         self.canvas.delete_all_objects()
         self.select_point(self.click_history[self.click_index])
         self.zoom_in_on_current_obj()
         self.mark_current_obj()
         
         # if interaction is turned off, immediately go to the next object
-        if interact[0].lower() == 'n':
+        if not self.interact:
             self.next_obj_cb()
         
         
@@ -394,7 +184,8 @@ class MESLocate(MESPlugin):
         # if there is no next object, finish up
         self.current_obj += 1
         if self.current_obj >= self.obj_num:
-            self.finish_cb()
+            if self.finish_cb != None:
+                self.finish_cb()
             return
             
         # if there is one, focus in on it
@@ -402,7 +193,7 @@ class MESLocate(MESPlugin):
         self.mark_current_obj()
         
         # if interaction is turned off, immediately go to the next object
-        if interact[0].lower() == 'n':
+        if not self.interact:
             self.next_obj_cb()
     
     
@@ -412,23 +203,6 @@ class MESLocate(MESPlugin):
         """
         self.mark_current_obj([float('NaN')]*3)
         self.next_obj_cb()
-        
-        
-    def finish_cb(self, *args):
-        """
-        Responds to the Next button at the last object by ending the program and
-        writing the object centroids (and possibly radii) to the output file
-        """
-        f = open(output_coo, 'w')
-        if mode == 'star':
-            for x, y, r in self.obj_centroids:
-                f.write("%8.2f %8.2f \n" % (x, y))
-        else:
-            for x, y, r in self.obj_centroids:
-                f.write("%8.2f %8.2f %8.2f \n" % (x, y, r))
-        f.close()
-        self.close()
-        self.fv.quit()
     
     
     def click1_cb(self, _, __, x, y):
@@ -607,7 +381,7 @@ class MESLocate(MESPlugin):
         Keeps track of our selection mode as determined by the combobox
         """
         # update the callbacks to account for this new mode
-        self.set_callbacks(selection_mode=selection_modes[mode_idx])
+        self.set_callbacks(step=2, selection_mode=selection_modes[mode_idx])
     
     
     def select_point(self, point):
@@ -625,6 +399,7 @@ class MESLocate(MESPlugin):
         shapes = []
         for i, viewer in enumerate(self.thumbnails):
             dx, dy, r = self.obj_list[i]
+            sq_size = self.square_size
         
             # first, draw squares and numbers
             shapes.append(self.dc.SquareBox(x+dx, y+dy, sq_size, color=color))
@@ -685,7 +460,7 @@ class MESLocate(MESPlugin):
         
         # then move and zoom
         self.fitsimage.set_pan((x1+x2)/2, (y1+y2)/2)
-        self.fitsimage.zoom_to(360.0/sq_size)
+        self.fitsimage.zoom_to(360.0/self.square_size)
     
     
     def mark_current_obj(self, obj=None):
@@ -700,6 +475,7 @@ class MESLocate(MESPlugin):
         self.canvas.delete_object_by_tag(t)
         
         # then locate and draw the point (if it exists)
+        sq_size = self.square_size
         if obj == None:
             co = self.current_obj
             obj = self.locate_obj(self.get_current_box(),
@@ -747,7 +523,205 @@ class MESLocate(MESPlugin):
         """
         xf, yf = self.click_history[self.click_index]
         dx, dy, r = self.obj_list[self.current_obj]
-        return (xf+dx-sq_size, yf+dy-sq_size, xf+dx+sq_size, yf+dy+sq_size, r)
+        s = self.square_size
+        if math.isnan(r):
+            r = 1.42*s
+        return (xf+dx-s, yf+dy-s, xf+dx+s, yf+dy+s, r)
+        
+            
+    def gui_list(self, orientation='vertical'):
+        """
+        Combine the GUIs necessary for the MESLocate part of the plugin
+        Must be implemented for each MESPlugin
+        @param orientation:
+            Either 'vertical' or 'horizontal', the orientation of this new GUI
+        @returns:
+            A list of tuples with strings (names) and Widgets (guis)
+        """
+        return [('find',     self.make_gui_find(orientation)),
+                ('centroid', self.make_gui_cent(orientation))]
+        
+        
+    def make_gui_find(self, orientation='vertical'):
+        """
+        Construct a GUI for the first step: finding the objects
+        @param orientation:
+            Either 'vertical' or 'horizontal', the orientation of this new GUI
+        @returns:
+            A Widgets.Box object containing all necessary buttons, labels, etc.
+        """
+        # start by creating the container
+        gui = Widgets.Box(orientation=orientation)
+        gui.set_spacing(4)
+        
+        # create a label to title this step
+        lbl = Widgets.Label("Pick First Hole")
+        lbl.set_font(self.manager.title_font)
+        gui.add_widget(lbl)
+
+        # fill a text box with brief instructions and put in in an expander
+        exp = Widgets.Expander(title="Instructions")
+        gui.add_widget(exp)
+        txt = Widgets.TextArea(wrap=True, editable=False)
+        txt.set_font(self.manager.body_font)
+        txt.set_text("Left click on the object closest to the box labeled "+
+                     "'1'. The other objects should appear in the boxes "+
+                     "below. Click again to select another position. Click "+
+                     "'Next' below or right-click when you are satisfied with "+
+                     "your location.\nRemember - bright areas are shown in "+
+                     "white.")
+        exp.set_widget(txt)
+
+        # create a box to group the primary control buttons together
+        box = Widgets.HBox()
+        box.set_spacing(3)
+        gui.add_widget(box)
+        
+        # the undo button goes back a click
+        btn = Widgets.Button("Undo")
+        btn.add_callback('activated', self.undo1_cb)
+        btn.set_tooltip("Undo a single click (if a click took place)")
+        box.add_widget(btn)
+
+        # the redo button goes forward
+        btn = Widgets.Button("Redo")
+        btn.add_callback('activated', self.redo1_cb)
+        btn.set_tooltip("Undo an undo action (if an undo action took place)")
+        box.add_widget(btn)
+
+        # the clear button erases the canvas
+        btn = Widgets.Button("Clear")
+        btn.add_callback('activated', lambda w: self.canvas.delete_all_objects())
+        btn.set_tooltip("Erase all marks on the canvas")
+        box.add_widget(btn)
+        
+        # the next button moves on to step 2
+        btn = Widgets.Button("Next")
+        btn.add_callback('activated', self.step2_cb)
+        btn.set_tooltip("Accept and proceed to step 2")
+        box.add_widget(btn)
+        
+        # put in a spacer
+        box.add_widget(Widgets.Label(""), stretch=True)
+        
+        # lastly, we need the zoomed-in images. This is the grid we put them in
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
+        grd = Widgets.GridBox()
+        frm.set_widget(grd)
+        self.viewer_grid = grd
+        
+        # space appropriately and return
+        gui.add_widget(Widgets.Label(''), stretch=True)
+        return gui
+        
+        
+    def make_gui_cent(self, orientation='vertical'):
+        """
+        Construct a GUI for the second step: calculating the centroids
+        @param orientation:
+            Either 'vertical' or 'horizontal', the orientation of this new GUI
+        @returns:
+            A Widgets.Box object containing all necessary buttons, labels, etc.
+        """
+        # start by creating the container
+        gui = Widgets.Box(orientation=orientation)
+        gui.set_spacing(4)
+        
+        # create a label to title this step
+        lbl = Widgets.Label("Determine Centroids")
+        lbl.set_font(self.manager.title_font)
+        gui.add_widget(lbl)
+
+        # fill a text box with brief instructions and put in in an expander
+        exp = Widgets.Expander(title="Instructions")
+        gui.add_widget(exp)
+        txt = Widgets.TextArea(wrap=True, editable=False)
+        txt.set_font(self.manager.body_font)
+        txt.set_text("Help the computer find the centroid of this object. "+
+                     "Click and drag to include or exclude regions; "+
+                     "left-click will crop to selection and middle-click will "+
+                     "mask selection, or you can specify a selection option "+
+                     "below. Click 'Next' below or right-click when the "+
+                     "centroid has been found.")
+        exp.set_widget(txt)
+        
+        # now make an HBox to hold the primary controls
+        box = Widgets.HBox()
+        box.set_spacing(3)
+        gui.add_widget(box)
+        
+        # the undo button goes back a crop
+        btn = Widgets.Button("Undo")
+        btn.add_callback('activated', self.undo2_cb)
+        btn.set_tooltip("Undo a single selection (if a selection took place)")
+        box.add_widget(btn)
+
+        # the redo button goes forward
+        btn = Widgets.Button("Redo")
+        btn.add_callback('activated', self.redo2_cb)
+        btn.set_tooltip("Undo an undo action (if an undo action took place)")
+        box.add_widget(btn)
+
+        # the clear button nullifies all crops
+        btn = Widgets.Button("Back")
+        btn.add_callback('activated', self.prev_obj_cb)
+        btn.set_tooltip("Go back to the previous object")
+        box.add_widget(btn)
+        
+        # the next button moves on to the next object
+        btn = Widgets.Button("Next")
+        btn.add_callback('activated', self.next_obj_cb)
+        btn.set_tooltip("Accept and proceed to the next object")
+        box.add_widget(btn)
+        
+        # put in a spacer
+        box.add_widget(Widgets.Label(""), stretch=True)
+        
+        # another HBox holds the skip button, because it doesn't fit on the first line
+        box = Widgets.HBox()
+        box.set_spacing(3)
+        gui.add_widget(box)
+        
+        # the skip button sets this object to NaN and moves on
+        btn = Widgets.Button("Skip")
+        btn.add_callback('activated', self.skip_obj_cb)
+        btn.set_tooltip("Remove this object from the data set")
+        box.add_widget(btn)
+        
+        # put in a spacer
+        box.add_widget(Widgets.Label(""), stretch=True)
+        
+        # make a new box for a combobox+label combo
+        box = Widgets.VBox()
+        box.set_spacing(3)
+        gui.add_widget(box)
+        lbl = Widgets.Label("Selection Mode:")
+        box.add_widget(lbl)
+        
+        # this is the combobox of selection options
+        com = Widgets.ComboBox()
+        for text in selection_modes:
+            com.append_text(text)
+        com.add_callback('activated', self.choose_select_cb)
+        box.add_widget(com)
+        
+        # create a CanvasView for step 2
+        viewer = Viewers.CanvasView(logger=self.logger)
+        viewer.set_desired_size(420, 420)
+        viewer.enable_autozoom('on')
+        viewer.enable_autocuts('on')
+        self.step2_viewer = viewer
+        
+        # put it in a ViewerWidget, and put that in the gui
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
+        pic = Viewers.GingaViewerWidget(viewer=viewer)
+        frm.set_widget(pic)
+        
+        # space appropriately and return
+        gui.add_widget(Widgets.Label(''), stretch=True)
+        return gui
         
         
     
@@ -777,49 +751,70 @@ class MESLocate(MESPlugin):
 
     
     @staticmethod
-    def read_input_file():
+    def read_sbr_file(filename):
         """
-        Reads the COO file and returns the position of the first active
-        object as well as the relative positions of all the other objects in a list
+        Reads the file and returns the data within, structured as the position
+        of the first star as well as the positions of the other stars
+        @param filename:
+            The name of the file which contains the data
         @returns:
-            A tuple containing a list of float tuples representing relative
-            locations and radii of objects, and a single float tuple (absolute
-            location of first object)
+            A numpy array of two columns, containing the first two data in each
+            row of the sbr file
         """
-        # define variables
+        # open the file
+        try:
+            sbr = open(filename, 'r')
+        except IOError:
+            return np.zeros((1,2))
+        
+        # declare some variables
+        array = []
+        line = sbr.readline()
+        
+        # read and convert the first two variables from each line
+        while line != "":
+            vals = line.split(', ')
+            if vals[0] == 'C':
+                sbrX, sbrY = float(vals[1]), float(vals[2])
+                array.append(MESLocate.imgXY_from_sbrXY(sbrX, sbrY))
+            line = sbr.readline()
+        return np.array(array)
+        
+    
+    @staticmethod
+    def parse_data(data):
+        """
+        Reads the data and returns it in a more useful form
+        @param data:
+            A numpy array of two or three columns, representing x, y[, and r]
+        @returns:
+            A tuple containing a list of tuples of three floats representing
+            relative locations and radii of objects, and a single float tuple
+            (absolute location of first object)
+        """
         obj_list = []
         obj0 = None
         
-        # try to open the file
-        try:
-            sbr = open(input_sbr, 'r')
-        except IOError:
-            try:
-                sbr = open("sbr_elaisn1rev.sbr")
-            except IOError:
-                return [(dx, dy) for dx in [0,1,-1] for dy in [0,1,-1]], (0,0)
-        
-        # now parse it!
-        line = sbr.readline()
-        while line != "":
+        for row in data:
             # for each line, get the important values and save them in obj_list
-            vals = [word.strip(" \n") for word in line.split(",")]
-            if vals[0] == "C":
-                newX, newY = MESLocate.imgXY_from_sbrXY((vals[1], vals[2]))
-                if obj0 == None:
-                    obj_list.append((0, 0, 2*sq_size))
-                    obj0 = (newX, newY)
-                else:
-                    obj_list.append((newX-obj0[0],   # don't forget to shift it so object #0 is at the origin
-                                     newY-obj0[1],
-                                     2*sq_size))
-            line = sbr.readline()
+            x, y = row[:2]
+            if len(row) >= 3:
+                r = row[2]
+            else:
+                r = float('NaN')    # XXX: what is the point of the B stars
+            
+            # if this is the first one, put something in obj0
+            if obj0 == None:
+                obj0 = (x, y)
+                obj_list.append((0, 0, r))
+            else:
+                obj_list.append((x - obj0[0], y - obj0[1], r))
             
         return obj_list, obj0
 
 
     @staticmethod
-    def imgXY_from_sbrXY(sbr_coords):
+    def imgXY_from_sbrXY(sbrX, sbrY):
         """
         Converts coordinates from the SBR file to coordinates
         compatible with FITS files
@@ -829,7 +824,6 @@ class MESLocate(MESPlugin):
             A float tuple of x amd u that will work with the rest of Ginga
         """
         # I'm sorry; I have no idea what any of this math is.
-        sbrX, sbrY = sbr_coords
         fX = 1078.0 - float(sbrX)*17.57789
         fY = 1857.0 + float(sbrY)*17.57789
         fHoleX = 365.0 + (fX-300.0)
@@ -839,7 +833,7 @@ class MESLocate(MESPlugin):
     
     @staticmethod
     def locate_obj(bounds, masks, image, viewer=None,
-                   min_search_radius=exp_obj_size, thresh=threshold_dist):
+                   min_search_radius=None, thresh=3):
         """
         Finds the center of an object using center of mass calculation
         @param bounds:
@@ -900,6 +894,8 @@ class MESLocate(MESPlugin):
             return (float('NaN'), float('NaN'), float('NaN'))
         
         # iterate over progressively smaller search radii
+        if min_search_radius == None:
+            min_search_radius = search_radius/2
         while search_radius >= min_search_radius:
             old_x_cen, old_y_cen = float('-inf'), float('-inf')
             # repeat the following until you hit an assymptote:
@@ -909,17 +905,20 @@ class MESLocate(MESPlugin):
                 local_data = ma.masked_array(data, mask=circle_mask)
                 
                 # calculate some moments and stuff
-                mom1x = ma.sum(local_data*(x_arr))
-                mom1y = ma.sum(local_data*(y_arr))
-                mom0 = ma.sum(local_data)
-                area = ma.sum(np.sign(local_data))
+                mom1x = float(ma.sum(local_data*(x_arr)))
+                mom1y = float(ma.sum(local_data*(y_arr)))
+                mom0 = float(ma.sum(local_data))
+                area = float(ma.sum(np.sign(local_data)))
                 
-                # now do a center-of-mass calculation to find the size and centroid
-                old_x_cen = x_cen
-                old_y_cen = y_cen
-                x_cen = mom1x/mom0
-                y_cen = mom1y/mom0
-                radius = math.sqrt(area/math.pi)
+                # now try a center-of-mass calculation to find the size and centroid
+                try:
+                    old_x_cen = x_cen
+                    old_y_cen = y_cen
+                    x_cen = mom1x/mom0
+                    y_cen = mom1y/mom0
+                    radius = math.sqrt(area/math.pi)
+                except ZeroDivisionError:
+                    return (float('NaN'), float('NaN'), float('NaN'))
             
             search_radius = search_radius/2
         
@@ -946,6 +945,11 @@ def tag(step, mod_1, mod_2=None):
         return '@{}:{}'.format(step, mod_1)
     else:
         return '@{}:{}:{}'.format(step, mod_1, mod_2)
+
+
+# * NOTE: self.drag_history is a list of lists, with one list for each
+#       object; each inner list contains tuples of the form
+#       (float x1, float y1, float x2, float y2, string ['mask'/'crop'])
 
 #END
 
