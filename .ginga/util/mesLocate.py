@@ -72,6 +72,11 @@ class MESLocate:
         self.interact = interact
         self.finish_cb = next_step
         
+        # set the autocut to make things easier to see
+        method = 'stddev' if mode == 'star' else 'zscale'
+        self.fitsimage.get_settings().set(autocut_method=method)
+        self.fv.showStatus("Locate the object labeled '1' by clicking.")
+        
         # creates the list of thumbnails that will go in the GUI
         self.thumbnails = self.create_viewer_list(self.obj_num, self.logger)
         for row in range(int(math.ceil(self.obj_num/2.0))):
@@ -86,11 +91,6 @@ class MESLocate:
         # set the mouse controls and automatically select the first point
         self.set_callbacks()
         self.click1_cb(self.canvas, 1, *self.obj0)
-        
-        # set the autocut to make things easier to see
-        method = 'stddev' if mode == 'star' else 'zscale'
-        self.fitsimage.get_settings().set(autocut_method=method)
-        self.fv.showStatus("Locate the object labeled '1' by clicking.")
         
         # show the GUI
         self.manager.go_to_gui('find')

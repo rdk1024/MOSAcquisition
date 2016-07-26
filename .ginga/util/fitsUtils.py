@@ -37,8 +37,7 @@ def process_star_frames(star_chip1, sky_chip1, rootname, c_file, img_dir,
         A function which should take one argument, and will be called to report
         information
     """
-    # declare all of the raw input filenames TODO: log
-    log("Loading images...")
+    # declare all of the raw input filenames
     star_chip1_filename = "{}MCSA{:08d}.fits[0]".format(img_dir, star_chip1)
     star_chip2_filename = "{}MCSA{:08d}.fits[0]".format(img_dir, star_chip1+1)
     sky_chip1_filename = "{}MCSA{:08d}.fits[0]".format(img_dir, sky_chip1)
@@ -61,14 +60,15 @@ def process_star_frames(star_chip1, sky_chip1, rootname, c_file, img_dir,
         dif_chip2_filename = rootname+"_ss_chip2.fits"
         if not retry1:
             delete(dif_chip1_filename, dif_chip2_filename)
-            imarith(star_chip1_filename,'-',sky_chip1_filename, dif_chip1_filename)
-            imarith(star_chip2_filename,'-',sky_chip2_filename, dif_chip2_filename)
+            imarith(star_chip1_filename,'-',sky_chip1_filename,
+                    dif_chip1_filename)
+            imarith(star_chip2_filename,'-',sky_chip2_filename,
+                    dif_chip2_filename)
     else:
         dif_chip1_filename = star_chip1_filename
         dif_chip2_filename = star_chip2_filename
     
     # mosaic the chips together
-    log("Mosaicing images...")
     comb_star_filename = rootname+"_star.fits"
     if not retry1:
         delete(comb_star_filename)
@@ -76,6 +76,7 @@ def process_star_frames(star_chip1, sky_chip1, rootname, c_file, img_dir,
                    c_file, log=log)
     
     # apply gaussian blur
+    log("Blurring...")
     final_star_filename = rootname+"_starg10.fits"
     if not retry1:
         delete(final_star_filename)
@@ -86,14 +87,14 @@ def process_star_frames(star_chip1, sky_chip1, rootname, c_file, img_dir,
         next_step()
 
 
-def process_mask_frames(log=nothing):
+def process_mask_frames(log=nothing, next_step=None):
     pass
     
 def process_starhole_frames(log=nothing):
     pass
 
 
-def makemosaic(input_fits1, input_fits2, output_fits, c_file, log=nothing):     #TODO: check for variables that are only used once
+def makemosaic(input_fits1, input_fits2, output_fits, c_file, log=nothing):
     """
     Combine the two images by stacking them vertically, and correct for
     distortion
@@ -140,7 +141,7 @@ def makemosaic(input_fits1, input_fits2, output_fits, c_file, log=nothing):     
     # mosaic
     log("Repositioning chips...")
     delete(temp_file[1][0], temp_file[1][1])
-    geotran(temp_file[0][0], temp_file[1][0], config[8], config[9]) # TODO: get them out of stdout
+    geotran(temp_file[0][0], temp_file[1][0], config[8], config[9])
     geotran(temp_file[0][1], temp_file[1][1], config[10], config[11])
     hedit(temp_file[1][0], 'BPM', config[12], add='yes', update='yes', ver='no')
     hedit(temp_file[1][1], 'BPM', config[13], add='yes', update='yes', ver='no')

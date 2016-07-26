@@ -335,6 +335,22 @@ class MESInterface:
                 setters[key](self.manager.globals[key])
             setters[key](17)
         self.stack.set_index(page_num)
+    
+    
+    def wait(self, condition_string, next_step=None):
+        """
+        Set the 'wait' GUI to wait for a certain condition, and prepare to
+        execute the next step.
+        @param condition_string:
+            The text the user will see above the 'Go!' button
+        @param next_step:
+            The function to be called when the 'Go!' button is pressed
+        """
+        self.fitsimage.zoom_fit()
+        self.fitsimage.center_image()
+        self.waiting_text.set_text(condition_string)
+        if next_step != None:
+            self.waiting_button.set_callback('activated', next_step)
         
         
     def log(self, text, *args, **kwargs):
@@ -345,7 +361,6 @@ class MESInterface:
         """
         self.logger.info(text.strip(), *args, **kwargs)
         self.log_textarea.append_text(text+"\n", autoscroll=True)
-        #self.fv.process_events()
         
         
     def gui_list(self, orientation='vertical'):
@@ -361,6 +376,7 @@ class MESInterface:
                 ('epar 1', self.make_gui_epar(1, self.start_1_cb, orientation)),
                 ('epar 2', self.make_gui_epar(2, self.start_2_cb, orientation)),
                 ('epar 3', self.make_gui_epar(3, self.start_3_cb, orientation)),
+                ('wait',   self.make_gui_wait(orientation)),
                 ('log',    self.make_gui_log(orientation))]
         
         
@@ -418,11 +434,40 @@ class MESInterface:
         # space appropriately and return
         gui.add_widget(Widgets.Label(''), stretch=True)
         return gui
+    
+    
+    def make_gui_wait(self, orientation='vertical'):
+        """
+        Construct a GUI that waits for the user to press a button
+        @param orientation:
+            Either 'vertical' or 'horizontal', the orientation of this new GUI
+        @returns:
+            A Widgets.Box object containing all necessary buttons, labels, etc.
+        """
+        # start by creating the container
+        gui = Widgets.Box(orientation=orientation)
+        gui.set_spacing(4)
+        
+        # make a textbox
+        txt = Widgets.TextArea(wrap=True, editable=False)
+        txt.set_font(self.manager.body_font)
+        gui.add_widget(txt)
+        self.waiting_text = txt
+
+        # make a button
+        btn = Widgets.Button("Go!")
+        btn.set_tooltip("Press once the above condition has been met.")
+        gui.add_widget(btn)
+        self.waiting_button = btn
+        
+        # space appropriately and return
+        gui.add_widget(Widgets.Label(''), stretch=True)
+        return gui
         
         
     def make_gui_log(self, orientation='vertical'):
         """
-        Construct a GUI for the second step: cropping the stars
+        Construct a GUI for the log: a simple textbox
         @param orientation:
             Either 'vertical' or 'horizontal', the orientation of this new GUI
         @returns:
@@ -440,7 +485,7 @@ class MESInterface:
         # the only thing here is a gigantic text box
         txt = Widgets.TextArea(wrap=False, editable=False)
         txt.set_font(self.manager.body_font)
-        txt.set_text("\n"*100)
+        txt.set_text("\n"*100)  #XXX find a better way to stretch it
         gui.add_widget(txt, stretch=True)
         self.log_textarea = txt
         
