@@ -102,14 +102,18 @@ class MESOffset(mosPlugin.MESPlugin):
         the SBR input file. The first step is opening the FITS image
         """
         self.__dict__.update(self.globals)
+        self.mes_interface.log("Starting MES Offset1...")
         
         self.go_to_gui('log')
-        fitsUtils.process_star_frames(self.star_chip1, self.sky_chip1,
-                                      self.rootname, self.c_file, self.img_dir,
-                                      self.retry1,
-                                      log=self.mes_interface.log,
-                                      next_step=self.load_processed_star)
-        
+        self.fv.nongui_do(lambda:
+                fitsUtils.process_star_frames(self.star_chip1, self.sky_chip1,
+                                              self.rootname, self.c_file,
+                                              self.img_dir, self.retry1,
+                                              log=self.mes_interface.log,
+                                              next_step=self.load_processed_star
+                                              )
+                       )
+    
     
     def load_processed_star(self):
         """
@@ -133,7 +137,7 @@ class MESOffset(mosPlugin.MESPlugin):
         """
         Finish off the first, rough, star/hole location
         """
-        self.mes_interface.log("Done with MESOffset1!")
+        self.mes_interface.log("Done with MES Offset1!")
         self.canvas.delete_all_objects()    # TODO: does this canvas get reused, or replaced?
         self.fitsimage.center_image()
         self.fitsimage.zoom_fit()

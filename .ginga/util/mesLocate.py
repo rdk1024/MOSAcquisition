@@ -563,7 +563,7 @@ class MESLocate:
         exp = Widgets.Expander(title="Instructions")
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.manager.body_font)
+        txt.set_font(self.manager.normal_font)
         txt.set_text("Left click on the object closest to the box labeled "+
                      "'1'. The other objects should appear in the boxes "+
                      "below. Click again to select another position. Click "+
@@ -637,7 +637,7 @@ class MESLocate:
         exp = Widgets.Expander(title="Instructions")
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.manager.body_font)
+        txt.set_font(self.manager.normal_font)
         txt.set_text("Help the computer find the centroid of this object. "+
                      "Click and drag to include or exclude regions; "+
                      "left-click will crop to selection and middle-click will "+

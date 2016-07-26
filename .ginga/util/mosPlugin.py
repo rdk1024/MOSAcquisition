@@ -21,7 +21,8 @@ class MESPlugin(GingaPlugin.LocalPlugin):
     
     title_font  = GwHelp.get_font('sansFont', 18)
     header_font = GwHelp.get_font('sansFont', 14)
-    body_font   = GwHelp.get_font('sansFont', 12)
+    normal_font = GwHelp.get_font('sansFont', 12)
+    body_font   = GwHelp.get_font('sansFont', 10)
     
     
     

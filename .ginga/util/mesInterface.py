@@ -345,7 +345,7 @@ class MESInterface:
         """
         self.logger.info(text.strip(), *args, **kwargs)
         self.log_textarea.append_text(text+"\n", autoscroll=True)
-        self.fv.process_events()
+        #self.fv.process_events()
         
         
     def gui_list(self, orientation='vertical'):
@@ -385,7 +385,7 @@ class MESInterface:
         exp = Widgets.Expander(title="Instructions")
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.manager.body_font)
+        txt.set_font(self.manager.normal_font)
         txt.set_text("Use the widgets below to specify the parameters for "+
                      name+". Hover over each one to get a description of "+
                      "what it means. When you are finished, press the 'Go!' "+

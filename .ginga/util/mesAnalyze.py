@@ -318,7 +318,7 @@ class MESAnalyze:
         exp = Widgets.Expander(title="Instructions")
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.manager.body_font)
+        txt.set_font(self.manager.normal_font)
         txt.set_text("Look at the graphs. Remove any data with residuals "+
                      "greater than 1.0 or less than -1.0. Delete points by "+
                      "right clicking, and restore them by left-clicking. "+
@@ -378,7 +378,7 @@ class MESAnalyze:
         exp = Widgets.Expander(title="Instructions")
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.manager.body_font)
+        txt.set_font(self.manager.normal_font)
         txt.set_text("Enter the numbers you see below into the ANA window. dx "+
                      "and dy values are in pixels, and rotation value is in "+
                      "degrees. Values of less than 0.5 pixels and 0.01 "+

@@ -38,6 +38,7 @@ def process_star_frames(star_chip1, sky_chip1, rootname, c_file, img_dir,
         information
     """
     # declare all of the raw input filenames TODO: log
+    log("Loading images...")
     star_chip1_filename = "{}MCSA{:08d}.fits[0]".format(img_dir, star_chip1)
     star_chip2_filename = "{}MCSA{:08d}.fits[0]".format(img_dir, star_chip1+1)
     sky_chip1_filename = "{}MCSA{:08d}.fits[0]".format(img_dir, sky_chip1)
@@ -54,11 +55,12 @@ def process_star_frames(star_chip1, sky_chip1, rootname, c_file, img_dir,
                          (star_chip2_filename, imgets.value))
     
     # subtract the sky frames from the star frames
+    log("Subtracting images...")
     if sky_chip1 != 0:
         dif_chip1_filename = rootname+"_ss_chip1.fits"
         dif_chip2_filename = rootname+"_ss_chip2.fits"
         if not retry1:
-            delete(dif_chip1_filename, dif_chip2_filename)    # TODO: Can we please use some for loops here? It feels like every line happens twice
+            delete(dif_chip1_filename, dif_chip2_filename)
             imarith(star_chip1_filename,'-',sky_chip1_filename, dif_chip1_filename)
             imarith(star_chip2_filename,'-',sky_chip2_filename, dif_chip2_filename)
     else:
@@ -66,10 +68,12 @@ def process_star_frames(star_chip1, sky_chip1, rootname, c_file, img_dir,
         dif_chip2_filename = star_chip2_filename
     
     # mosaic the chips together
+    log("Mosaicing images...")
     comb_star_filename = rootname+"_star.fits"
     if not retry1:
         delete(comb_star_filename)
-        makemosaic(dif_chip1_filename, dif_chip2_filename, comb_star_filename, c_file)
+        makemosaic(dif_chip1_filename, dif_chip2_filename, comb_star_filename,
+                   c_file, log=log)
     
     # apply gaussian blur
     final_star_filename = rootname+"_starg10.fits"
@@ -103,18 +107,10 @@ def makemosaic(input_fits1, input_fits2, output_fits, c_file, log=nothing):     
         The location of the configuration .cfg file
     """
     # check header info
-    imgets(input_fits1, 'DET-ID')
-    if imgets.value != '1':
-        raise ValueError("%s is data from chip%s, but should be from chip1" %
-                         (input_fits1, imgets.value))
     imgets(input_fits1, 'ALTITUDE')
     if float(imgets.value) < 45.:
         log(("WARN: %s has a low elevation of %s; the mosaicing database may "+
              "not be applicable here.") % (input_fits1, imgets.value))
-    imgets(input_fits2, 'DET-ID')
-    if imgets.value != '2':
-        raise ValueError("%s is data from chip%s, but should be from chip2" %
-                         (input_fits2, imgets.value))
     imgets(input_fits2, 'ALTITUDE')
     if float(imgets.value) < 45.:
         log(("WARN: %s has a low elevation of %s; the mosaicing database may "+
@@ -131,31 +127,35 @@ def makemosaic(input_fits1, input_fits2, output_fits, c_file, log=nothing):     
     cfg.close()
     
     # come up with some temporary filenames
-    temp_name = [["makemosaic_temp%d_ch%d"%(i,j) for i in (1,2)] for j in (1,2)]
+    temp_file = [["makemosaic_temp%d_ch%d.fits"%(j,i) for i in (0,1)]
+                 for j in (0,1)]
+    unrotated = "makemosaic_temp3.fits"
     
     # correct for distortion
-    delete("makemos_temp1_ch1.fits", "makemos_temp1_ch2.fits")
-    geotran(input_fits1, "makemos_temp1_ch1.fits", config[2], config[3])
-    geotran(input_fits2, "makemos_temp1_ch2.fits", config[4], config[5])
+    log("Correcting distortion...")
+    delete(temp_file[0][0], temp_file[0][1])
+    geotran(input_fits1, temp_file[0][0], config[2], config[3])
+    geotran(input_fits2, temp_file[0][1], config[4], config[5])
     
     # mosaic
-    delete("makemos_temp2_ch1.fits", "makemos_temp2_ch2.fits")
-    geotran("makemos_temp1_ch1.fits", "makemos_temp2_ch1.fits", config[8], config[9])
-    geotran("makemos_temp1_ch2.fits", "makemos_temp2_ch2.fits", config[10], config[11])
-    hedit("makemos_temp2_ch1.fits", "BPM", config[12], add='yes', update='yes', ver='no')
-    hedit("makemos_temp2_ch2.fits", "BPM", config[13], add='yes', update='yes', ver='no')
+    log("Repositioning chips...")
+    delete(temp_file[1][0], temp_file[1][1])
+    geotran(temp_file[0][0], temp_file[1][0], config[8], config[9]) # TODO: get them out of stdout
+    geotran(temp_file[0][1], temp_file[1][1], config[10], config[11])
+    hedit(temp_file[1][0], 'BPM', config[12], add='yes', update='yes', ver='no')
+    hedit(temp_file[1][1], 'BPM', config[13], add='yes', update='yes', ver='no')
+    delete(temp_file[0][0], temp_file[0][1])
     
-    delete("makemos_temp1_ch1.fits", "makemos_temp1_ch2.fits")  # TODO: should makemos_... be variables?
+    # combine the images
+    log("Combining the chips...")
+    delete(unrotated)
+    imcombine(temp_file[1][0]+','+temp_file[1][1], unrotated,
+              reject='avsig', masktype='goodvalue')
+    delete(temp_file[1][0], temp_file[1][1])
     
-    # combine and rotate
-    delete("makemos_temp3.fits")
-    imcombine("makemos_temp2_ch1.fits,makemos_temp2_ch2.fits", "makemos_temp3.fits", reject='avsig', masktype='goodvalue')
-    
-    delete("makemos_temp2_ch1.fits", "makemos_temp2_ch2.fits")
-    
-    rotate("makemos_temp3.fits", output_fits, 90, ncol=2048, nline=3569)    #XXX Do I need this?
-    
-    delete("makemos_temp3.fits")
+    # rotate the result
+    rotate(unrotated, output_fits, 90, ncol=2048, nline=3569)
+    delete(unrotated)
 
 
 def delete(*files):
@@ -167,7 +167,7 @@ def delete(*files):
     for filename in files:
         try:
             os.remove(filename)
-        except OSError:
+        except OSError as e:
             pass
 
 #END
