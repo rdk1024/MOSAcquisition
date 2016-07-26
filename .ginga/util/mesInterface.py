@@ -1,6 +1,6 @@
 #
-# MESOffset.py -- a ginga plugin that aligns the MOIRCS for Subaru Telescope
-# Works in conjunction with mesoffset scripts for MOS Acquisition
+# mesInterface.py -- a class that creates a nice GUI
+# Works in conjunction with MESOffset ginga plugin for MOS Acquisition
 #
 # Justin Kunimune
 #
@@ -23,6 +23,8 @@ from numpy import ma
 
 
 # constants
+# database folder location
+DBS = "../../MCSRED2/DATABASE"
 # main menu parameters
 params_0 = [    # TODO: get rid of these defaults; they're just for my convinience
         {'name':'star_chip1',
@@ -36,7 +38,7 @@ params_0 = [    # TODO: get rid of these defaults; they're just for my convinien
          'format':"{}.sbr"},
         
         {'name':'c_file',
-         'label':"Config File", 'type':'string', 'default':"dir_mcsred$DATABASE/ana_apr16.cfg",
+         'label':"Config File", 'type':'string', 'default':DBS+"/ana_apr16.cfg",
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
@@ -72,7 +74,7 @@ params_1 = [
          'format':"{}.sbr"},
         
         {'name':'c_file',
-         'label':"Config File", 'type':'string', 'default':"dir_mcsred$DATABASE/ana_apr16.cfg",
+         'label':"Config File", 'type':'string', 'default':DBS+"/ana_apr16.cfg",
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
@@ -127,7 +129,7 @@ params_2 = [
          'format':"{}.sbr"},
         
         {'name':'c_file',
-         'label':"Config File", 'type':'string', 'default':"dir_mcsred$DATABASE/ana_apr16.cfg",
+         'label':"Config File", 'type':'string', 'default':DBS+"/ana_apr16.cfg",
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
@@ -135,7 +137,7 @@ params_2 = [
          'desc':"The directory in which the raw FITS images can be found"},
         
         {'name':'retry1',
-         'label':"Reuse", 'type':'boolean', 'default':False,
+         'label':"Reuse", 'type':'boolean', 'default':False,    #TODO: retry3?
          'desc':"Do you want to reuse mosaiced images last time?"},
         
         {'name':'interac1',
@@ -170,7 +172,7 @@ params_3 = [
          'format':"{}.sbr"},
         
         {'name':'c_file',
-         'label':"Config File", 'type':'string', 'default':"dir_mcsred$DATABASE/ana_apr16.cfg",
+         'label':"Config File", 'type':'string', 'default':DBS+"/ana_apr16.cfg",
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
@@ -464,6 +466,7 @@ class MESInterface:
             are functions to set those parameter values
         """
         grd = Widgets.GridBox(rows=len(controls), columns=4)
+        grd.set_column_spacing(0)
         getters = {}
         setters = {}
         
@@ -471,7 +474,7 @@ class MESInterface:
         for i, param in enumerate(controls):
             name = param['name']
             # start by labelling the parameter
-            lbl = Widgets.Label(param['label']+":", halign='right')
+            lbl = Widgets.Label(param['label']+":  ", halign='right')
             lbl.set_tooltip(param['desc'])
             grd.add_widget(lbl, i, 0)
             
@@ -511,7 +514,7 @@ class MESInterface:
                 prefix = format_str[:idx]
                 suffix = format_str[idx+2:]
                 if prefix:
-                    grd.add_widget(Widgets.Label(prefix, 'right'), i, 1)
+                    grd.add_widget(Widgets.Label(prefix, 'right'), i, 1)    #TODO: can I vertically align these
                 grd.add_widget(wdg, i, 2)
                 if suffix:
                     grd.add_widget(Widgets.Label(suffix, 'left'), i, 3)

@@ -1,6 +1,6 @@
 #
-# MESAnalyze.py -- a ginga plugin to help analyze data about a group of objects
-# Works in conjunction with mesoffset scripts for MOS Acquisition
+# mesAnalyze.py -- a class to help analyze data about a group of objects
+# Works in conjunction with MESOffset ginga plugin for MOS Acquisition
 #
 # Justin Kunimune
 #
@@ -492,6 +492,8 @@ class MESAnalyze:
         y_shift = float(lines[-20].split()[1])
         x_rot = float(lines[-17].split()[1])
         y_rot = float(lines[-16].split()[1])
+        
+        dbs.close()
         return (x_shift, y_shift, (x_rot+y_rot)/2)
         
     

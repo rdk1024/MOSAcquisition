@@ -1,6 +1,5 @@
 #
-# MESOffset.py -- a ginga plugin designed to help locate a group of objects.
-# Works in conjunction with mesoffset scripts for MOS Acquisition
+# MESOffset.py -- a ginga plugin to align MOIRCS for Subaru Telescope
 #
 # Justin Kunimune
 #
@@ -12,6 +11,7 @@ import math
 import sys
 
 # local imports
+from util import fitsUtils
 from util import mosPlugin
 from util.mesAnalyze import MESAnalyze
 from util.mesInterface import MESInterface
@@ -103,8 +103,21 @@ class MESOffset(mosPlugin.MESPlugin):
         """
         self.__dict__.update(self.globals)
         
-        starg10_filename = self.rootname+"_star.fits"    # TODO: does it have to be "starg10"?
-        self.open_fits(starg10_filename, next_step=self.mes_star_cb)
+        self.go_to_gui('log')
+        fitsUtils.process_star_frames(self.star_chip1, self.sky_chip1,
+                                      self.rootname, self.c_file, self.img_dir,
+                                      self.retry1,
+                                      log=self.mes_interface.log,
+                                      next_step=self.load_processed_star)
+        
+    
+    def load_processed_star(self):
+        """
+        Load the star frame FITS image that was processed and composed by
+        fitsUtils
+        """
+        star_filename = self.rootname+"_starg10.fits"   # TODO: let's change this to something more descriptive once this works
+        self.open_fits(star_filename, next_step=self.mes_star_cb)
     
     
     def mes_star_cb(self, *args):
@@ -112,7 +125,7 @@ class MESOffset(mosPlugin.MESPlugin):
         Call MESLocate in star mode on the current image
         """
         sbr_data = self.mes_locate.read_sbr_file(self.rootname+".sbr")
-        self.mes_locate.start(sbr_data, 'star', True,
+        self.mes_locate.start(sbr_data, 'star', self.globals['inter1'],
                               next_step=self.end_mesoffset1)
     
     

@@ -1,5 +1,5 @@
 #
-# mosplugin.py -- defines a base for all plugins that work with MOS Acquisition
+# mosPlugin.py -- a base for all ginga plugins that work with MOS Acquisition
 # Should not be instantiated
 #
 # Justin Kunimune
@@ -19,9 +19,9 @@ class MESPlugin(GingaPlugin.LocalPlugin):
     MOS Acquisition software for aligning MOIRCS.
     """
     
-    title_font  = GwHelp.get_font('Monospace', 18)
-    header_font = GwHelp.get_font('Monospace', 14)
-    body_font   = GwHelp.get_font('Monospace', 10)
+    title_font  = GwHelp.get_font('sansFont', 18)
+    header_font = GwHelp.get_font('sansFont', 14)
+    body_font   = GwHelp.get_font('sansFont', 12)
     
     
     

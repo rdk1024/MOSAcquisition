@@ -1,6 +1,6 @@
 #
-# MESLocate.py -- a ginga plugin designed to help locate a group of objects.
-# Works in conjunction with mesoffset scripts for MOS Acquisition
+# mesLocate.py -- a class designed to help locate a group of objects.
+# Works in conjunction with MESOffset ginga plugin for MOS Acquisition
 #
 # Justin Kunimune
 #
@@ -778,6 +778,8 @@ class MESLocate:
                 sbrX, sbrY = float(vals[1]), float(vals[2])
                 array.append(MESLocate.imgXY_from_sbrXY(sbrX, sbrY))
             line = sbr.readline()
+        
+        sbr.close()
         return np.array(array)
         
     
