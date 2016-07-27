@@ -11,7 +11,6 @@
 import math
 import os
 import sys
-from time import strftime
 
 # local imports
 from util import mosPlots
@@ -42,19 +41,26 @@ class MESAnalyze(object):
     
     
     
-    def start(self, input_coo, output_dbs, output_log, output_res=None):
+    def start(self, star_pos, hole_pos, output_log=None, next_step=None):   # TODO: what do I need the log for, again?
         """
-        Interpret the data from MESLocate
+        Analyze the data from MESLocate
+        @param star_pos:
+            A three column (x,y,r) array specifying the star locations and sizes
+        @param hole_pos:
+            A three column (x,y,r) array specifying the hole locations and sizes
+        @param rootname:
+            The string that will be used for all temporary filenames
+        @param output_log:
+            The filename to which to print the final results
+        @param next_step:
+            The function to call when this process is done
         """
-        # assign all the attributes
-        self.active = np.ones(self.data.shape[0], dtype=np.bool)
-        self.offset = (0, 0, 0)
+        # set attributes
+        self.data, self.active = self.parse_data(star_pos, hole_pos)
+        self.output_log = output_log
+        self.next_step = next_step
         
-        # creates the list of plots that will go in the GUI
-        self.plots = [mosPlots.MOSPlot(logger=self.logger),
-                      mosPlots.MOSPlot(logger=self.logger)]
-        
-        # sets the mouse controls
+        # set the mouse controls
         self.set_callbacks()
         
         # adjust the cut levels to make the points easier to see
@@ -63,7 +69,9 @@ class MESAnalyze(object):
         
         # initialize the plots
         self.delete_outliers()
-        self.update_plots()
+        
+        # show the GUI
+        self.manager.go_to_gui('plots')
     
     
     def set_callbacks(self):
@@ -71,40 +79,37 @@ class MESAnalyze(object):
         Assign all necessary callbacks to the canvas for the current step
         """
         canvas = self.canvas
-        step = self.get_step()
         
         # clear all existing callbacks first
         for cb in ('cursor-down', 'cursor-up',
                     'panset-down', 'panset-up', 'draw-up'):
             canvas.clear_callback(cb)
         
-        # for step three, the only callbacks are for right-click and left-click
-        if step == 3:
-            canvas.add_callback('cursor-down', self.set_active_cb, True)
-            canvas.add_callback('draw-down', self.set_active_cb, False)
+        # the only callbacks are for right-click and left-click
+        canvas.add_callback('cursor-down', self.set_active_cb, True)
+        canvas.add_callback('draw-down', self.set_active_cb, False)
     
     
     def step4_cb(self, *args):
         """
-        Responds to the Next button in step 3 by displaying the offset values
+        Respond to the Next button in step 3 by displaying the offset values
         """
-        self.stack.set_index(1)
+        self.manager.go_to_gui('values')
         self.fv.showStatus("Read the MES Offset values!")
-        self.set_callbacks()
         self.display_values()
         
         
-    def exit_cb(self, *args):
+    def finish_cb(self, *args):
         """
-        Responds to the Exit button in step 4 by closing ginga
+        Respond to the 'Finish' button in step 4 by finishing up
         """
-        self.close()
-        self.fv.quit()
+        if self.next_step != None:
+            self.next_step()
         
         
     def set_active_cb(self, _, __, x, y, val):
         """
-        Responds to right click by deleting the datum nearest the cursor
+        Respond to right click by deleting the datum nearest the cursor
         @param val:
             The new active value for the point - should be boolean
         @param x:
@@ -120,35 +125,38 @@ class MESAnalyze(object):
     
     def update_plots(self):
         """
-        Graphs data on all plots and displays it
+        Graph data on all plots and display it
         @returns:
             The x and y residuals in numpy array form
         """
-        # then record the new data
-        self.overwrite_data(self.input_coo, self.data, self.active)
+        # come up with some temporary variable names
+        input_coo = "geomap_temp_input.coo"
+        output_dbs = "geomap_temp_output.dbs"
+        # record the new data
+        self.write_data(input_coo, self.data, self.active)
         
-        # delete some files and call iraf.geomap
+        # call iraf.geomap
         try:
-            os.remove(self.output_res)
+            os.remove(output_dbs)
         except OSError:
             pass
         try:
-            geomap(self.input_coo, self.output_dbs, INDEF, INDEF, INDEF, INDEF,
-                   fitgeom="rotate", results=self.output_res)
+            geomap(input_coo, output_dbs, INDEF, INDEF, INDEF, INDEF,
+                   fitgeom="rotate")
         except IOError:
-            geomap("sbr_elaisn1rev_starmask.coo", "sbr_elaisn1rev_starmask.dbs",    # TODO: maybe remove these defaults later
-                   xmin=INDEF, xmax=INDEF, ymin=INDEF, ymax=INDEF,
-                   fitgeom="rotate", results="sbr_elaisn1rev_starholemask.res")
+            pass
+        os.remove(input_coo)
         
         # use its results to calculate some stuff
         xref = self.data[:, 0]
         yref = self.data[:, 1]
         xin  = self.data[:, 2]
         yin  = self.data[:, 3]
-        self.offset = self.get_transformation(self.output_dbs)
-        xcalc, ycalc = self.transform(xin, yin, self.offset)
+        self.transformation = self.get_transformation(output_dbs)
+        xcalc, ycalc = self.transform(xin, yin, self.transformation)
         xres = xcalc - xref
         yres = ycalc - yref
+        os.remove(output_dbs)
         
         # graph residual data on the plots
         self.plots[0].residual(xref, xres, self.active, var_name="X")
@@ -209,12 +217,13 @@ class MESAnalyze(object):
                             
     def display_values(self):
         """
-        Shows the final MES Offset values on the screen, based on self.offset
+        Shows the final MES Offset values on the screen, based on
+        self.transformation
         """
         # collect values from other sources
         xcenter = 1024.0
         ycenter = 1750.0
-        xshift, yshift, thetaD = self.offset
+        xshift, yshift, thetaD = self.transformation
         thetaR = math.radians(thetaD)
         
         # calculate dx and dy (no idea what all this math is)
@@ -232,30 +241,16 @@ class MESAnalyze(object):
             thetaD = 0
         
         # then display all values
-        self.final_displays["dx"].set_text("{:,.1f} pix".format(dx))
-        self.final_displays["dy"].set_text("{:,.1f} pix".format(dy))
-        self.final_displays["Rotate"].set_text(u"{:,.3f}\u00B0".format(thetaD))
-        
-        # now log it!
-        self.write_to_log(dx, dy, thetaD)   # TODO: move this to MESOffset or MESInterface
-        
-    
-    def write_to_log(self, *args):
-        """
-        Writes important information to the log_file
-        @param args:
-            The values to be written to log - must be (dx, dy, rotate)
-        """
-        log = open(self.output_log, 'a')
-        log.write(strftime("%a %b %d %H:%M:%S %Z %Y\n"))
-        log.write(("dx = {:6,.1f} (pix) dy = {:6,.1f} (pix) "+
-                   "rotate = {:7,.3f} (degree) \n").format(*args))
-        log.close()
+        self.final_displays["dx"].set_text("{:,.2f} pix".format(dx))
+        self.final_displays["dy"].set_text("{:,.2f} pix".format(dy))
+        self.final_displays["Rotate"].set_text(u"{:,.4f}\u00B0".format(thetaD))
+        self.offset = (dx, dy, thetaD)
 
         
     def delete_outliers(self):
         """
-        Removes any data points with residuals of absolute values greater than 1
+        Remove any data points with residuals of absolute values greater than 1.
+        Also updates the plots
         """
         active = self.active
         
@@ -347,9 +342,10 @@ class MESAnalyze(object):
         frm.set_widget(box)
         
         # finally, add both plots in frames
+        self.plots = []
         for i in range(2):
-            fig = mosPlots.MOSPlot(logger=self.logger)
-            plt = Plot.PlotWidget(fig)
+            self.plots.append(mosPlots.MOSPlot(logger=self.logger))
+            fig = Plot.PlotWidget(self.plots[i])
             box.add_widget(fig)
         
         # space appropriately and return
@@ -382,8 +378,8 @@ class MESAnalyze(object):
         txt.set_text("Enter the numbers you see below into the ANA window. dx "+
                      "and dy values are in pixels, and rotation value is in "+
                      "degrees. Values of less than 0.5 pixels and 0.01 "+
-                     "degrees have been ignored. Click 'Exit' below when you "+
-                     "are done.")
+                     "degrees have been ignored. Click 'Finish' below when "+
+                     "you are done.")
         exp.set_widget(txt)
         
         # make a frame for the results
@@ -404,8 +400,8 @@ class MESAnalyze(object):
             box.add_widget(txt)
             self.final_displays[val] = txt
         
-        btn = Widgets.Button("Exit")
-        btn.add_callback('activated', self.exit_cb)
+        btn = Widgets.Button("Finish")
+        btn.add_callback('activated', self.finish_cb)
         btn.set_tooltip("Close Ginga")
         gui.add_widget(btn)
         
@@ -416,50 +412,39 @@ class MESAnalyze(object):
     
     
     @staticmethod
-    def read_input_file(filename):
+    def parse_data(data1, data2):
         """
-        Read the COO file and return the data within as a numpy array
+        Read the data and return it in a more useful format: a four-columned
+        numpy array with the nans removed
+        @param data1:
+            The first input array: the star locations and sizes, or ref values
+        @param data2:
+            The second input array: the hole locations and sizes, or in values
         @returns:
-            A numpy array of four columns: x_in, y_in, x_out, y_out
+            A four-column array representing the star positions and hole
+            positions, and a 1-dimensional array of Trues
         """
-        # define variables
-        val_list = []
+        data = np.hstack((data2[:,:2], data1[:,:2]))
+        real_idx = np.logical_not(np.any(np.isnan(data), axis=1))
+        data = data[np.nonzero(real_idx)]
         
-        # try to open the file
-        try:
-            coo = open(filename, 'r')
-        except IOError:
-            try:
-                coo = open("sbr_elaisn1rev_starmask.coo")
-            except IOError:
-                return np.array([[0., 0., 0., 0.]])
+        return data, np.ones(data.shape[0], dtype=bool)
         
-        # now parse it!
-        line = coo.readline()
-        while line != "":
-            # for each line, get the important values and save them in val_list
-            vals = np.array([float(word) for word in line.split()])
-            if not np.any(np.isnan(vals)):
-                val_list.append(vals)
-            line = coo.readline()
-        
-        coo.close()
-        return np.array(val_list)
-
+    
     
     @staticmethod
-    def overwrite_data(filename, new_data, active):
+    def write_data(filename, data, active):
         """
         Writes the new data to the filename
         @param filename:
             The name of a .coo file
-        @param new_data:
+        @param data:
             A numpy array
         @active
             A boolean array specifying which of the data are valid
         """
         coo = open(filename, 'w')
-        data = new_data[np.nonzero(active)]
+        data = data[np.nonzero(active)]
         for row in data:
             for datum in row:
                 coo.write(str(datum))
@@ -476,6 +461,7 @@ class MESAnalyze(object):
             The str name of the file in which the transformation info can be found
         @returns:
             A tuple of three floats: (x_shift, y_shift, rotation in degrees)
+            or None if no transformation was found
         """
         try:
             dbs = open(filename, 'r')
@@ -488,12 +474,14 @@ class MESAnalyze(object):
         # now skip to and read the important bits
         lines = dbs.readlines()
         dbs.close()
-        x_shift = float(lines[-21].split()[1])
-        y_shift = float(lines[-20].split()[1])
-        x_rot = float(lines[-17].split()[1])
-        y_rot = float(lines[-16].split()[1])
+        try:
+            x_shift = float(lines[-21].split()[1])
+            y_shift = float(lines[-20].split()[1])
+            x_rot = float(lines[-17].split()[1])
+            y_rot = float(lines[-16].split()[1])
+        except IndexError:
+            return None
         
-        dbs.close()
         return (x_shift, y_shift, (x_rot+y_rot)/2)
         
     
@@ -509,7 +497,11 @@ class MESAnalyze(object):
             A tuple of floats: (x_shift, y_shift, rotation in degrees)
         @returns:
             A tuple of the new x value array and the new y value array
+            or NaN, NaN if trans was None
         """
+        if trans == None:
+            return float('NaN'), float('NaN')
+        
         xshift, yshift, thetaD = trans
         thetaR = math.radians(thetaD)
         newX = (x - xshift)*math.cos(thetaR) - (y - yshift)*math.sin(thetaR)

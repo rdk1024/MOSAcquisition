@@ -22,7 +22,7 @@ def nothing(*args, **kwargs):
 
 def process_star_frames(star_chip1, sky_chip1, rootname, c_file, img_dir,
                         log=nothing, next_step=None
-                        ): #TODO: I don't need all of these
+                        ):
     """
     Process the raw star and sky images by subtracting the sky from the star
     images, adding a gaussian filter to the result, and mosaicing it all

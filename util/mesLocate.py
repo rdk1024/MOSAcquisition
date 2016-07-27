@@ -67,10 +67,11 @@ class MESLocate(object):
         self.drag_history = [[]]*self.obj_num   # places we've click-dragged*
         self.drag_index = [-1]*self.obj_num     # index of the current drag for each object
         self.drag_start = None      # the place where we most recently began to drag
-        self.obj_centroids = [None]*self.obj_num     # the new obj_list based on user input and calculations
-        self.square_size = {'star':25, 'mask':60, 'starhole':50}[mode]
-        self.interact = interact
-        self.finish_cb = next_step
+        self.obj_centroids = [None]*self.obj_num    # the new obj_list based on user input and calculations
+        self.square_size =  {'star':25, 'mask':60, 'starhole':50}[mode]  # the size of the search regions
+        self.exp_obj_size = {'star':4,  'mask':20, 'starhole':4}[mode]  # the maximum expected radius of the objects
+        self.interact = interact    # whether we should interact in step 2
+        self.next_step = next_step  # what to do when we're done
         
         # set the autocut to make things easier to see
         method = 'stddev' if mode == 'star' else 'zscale'
@@ -184,11 +185,7 @@ class MESLocate(object):
         # if there is no next object, finish up
         self.current_obj += 1
         if self.current_obj >= self.obj_num:
-            self.canvas.delete_all_objects()
-            self.fitsimage.zoom_fit()
-            self.fitsimage.center_image()
-            if self.finish_cb != None:
-                self.finish_cb()
+            self.finish()
             return
             
         # if there is one, focus in on it
@@ -484,6 +481,7 @@ class MESLocate(object):
             obj = self.locate_obj(self.get_current_box(),
                                   self.drag_history[co][:self.drag_index[co]+1],
                                   self.fitsimage.get_image(),
+                                  min_search_radius=self.exp_obj_size,
                                   viewer=self.step2_viewer)
         
         # if any of the coordinates are NaN, then a red x will be drawn in the middle
@@ -502,6 +500,23 @@ class MESLocate(object):
                             tag=t)
         
         self.obj_centroids[self.current_obj] = obj
+    
+    
+    def finish(self):
+        """
+        Finishes up and goes to the next step
+        """
+        # fix up the canvas
+        self.canvas.delete_all_objects()
+        self.fitsimage.zoom_fit()
+        self.fitsimage.center_image()
+        
+        # output the findings
+        self.output_data = np.array(self.obj_centroids)
+        
+        # do whatever comes next
+        if self.next_step != None:
+            self.next_step()
         
         
     def get_step(self):
@@ -756,7 +771,7 @@ class MESLocate(object):
     @staticmethod
     def read_sbr_file(filename):
         """
-        Reads the file and returns the data within, structured as the position
+        Read the file and return the data within, structured as the position
         of the first star as well as the positions of the other stars
         @param filename:
             The name of the file which contains the data

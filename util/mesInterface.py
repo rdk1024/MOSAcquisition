@@ -10,6 +10,7 @@
 # standard imports
 import math
 import sys
+from time import strftime
 
 # local imports
 
@@ -333,6 +334,31 @@ class MESInterface(object):
         else:
             self.logger.info(text.strip(),        *args, **kwargs)
         self.log_textarea.append_text(text+"\n", autoscroll=True)
+    
+    
+    def write_to_logfile(self, filename, header, values):
+        """
+        Write args to a log file
+        @param filename:
+            The name of the log file
+        @param header:
+            The string that will serve as the first line of this log file entry
+        @param args:
+            The tuple of float values to be logged in the form (dx, dy, rotate)
+        """
+        # write the informaton to the file
+        f = open(filename, 'a')
+        f.write("="*50+"\n")
+        f.write(header+"\n")
+        f.write(strftime("%a %b %d %H:%M:%S %Z %Y\n"))
+        f.write(("dx = {:7,.2f} (pix) dy = {:7,.2f} (pix) "+
+                 "rotate = {:7,.4f} (degree) \n").format(*values))
+        f.close()
+        
+        # go ahead and log it, too
+        self.log("    dx = {:7,.2f}p".format(values[0]))
+        self.log("    dy = {:7,.2f}p".format(values[1]))
+        self.log("rotate = {:7,.4f}\u00B0".format(values[2]))
         
         
     def gui_list(self, orientation='vertical'):
@@ -344,7 +370,7 @@ class MESInterface(object):
         @returns:
             A list of tuples with strings (names) and Widgets (guis)
         """
-        return [('epar 0', self.make_gui_epar(0, self.start_0_cb, orientation)),
+        return [('epar 0', self.make_gui_epar(0, self.start_0_cb, orientation)),    # TODO: tabs
                 ('epar 1', self.make_gui_epar(1, self.start_1_cb, orientation)),
                 ('epar 2', self.make_gui_epar(2, self.start_2_cb, orientation)),
                 ('epar 3', self.make_gui_epar(3, self.start_3_cb, orientation)),

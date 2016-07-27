@@ -6,23 +6,12 @@
 
 
 
-# standard imports
-import math
-import sys
-
 # local imports
 from util import fitsUtils
 from util import mosPlugin
 from util.mesAnalyze import MESAnalyze
 from util.mesInterface import MESInterface
 from util.mesLocate import MESLocate
-
-# ginga imports
-from ginga.gw import Widgets, Viewers
-
-# third-party imports
-import numpy as np
-from numpy import ma
 
 
 
@@ -134,7 +123,8 @@ class MESOffset(mosPlugin.MESPlugin):
                               next_step=self.wait_for_masks)
     
     def wait_for_masks(self, *args):
-        """ Wait for the user to add mask images """    # TODO: use an epar for this
+        """ Save data from mes_locate and wait for user input """    # TODO: use an epar for this
+        self.star_locations = self.mes_locate.output_data[:,:2]
         self.go_to_gui('wait')
         self.mes_interface.wait("Are the mask images ready for analysis?\n"+
                                 "Click 'Go!' when\n"+
@@ -171,12 +161,17 @@ class MESOffset(mosPlugin.MESPlugin):
                               next_step=self.analyze_1)
     
     def analyze_1(self, *args):
-        """ Call MESAnalyze on the data from mes_star and mes_hole """
-        self.mes_analyze.start(next_step=self.end_mesoffset1)
+        """ Call MESAnalyze on the data from mes_locate and mes_hole """
+        self.hole_locations = self.mes_locate.output_data
+        self.mes_analyze.start(self.star_locations, self.hole_locations,
+                               next_step=self.end_mesoffset1)
     
     def end_mesoffset1(self, *args):
         """ Finish off the first, rough, star/hole location """
         self.mes_interface.log("Done with MES Offset1!")    # TODO: does the canvas get deleted or replaced?
+        self.mes_interface.write_to_logfile(self.rootname+"_log",
+                                            "MES Offset 1",
+                                            self.mes_analyze.offset)
         self.go_to_gui('epar 2')
     
     
