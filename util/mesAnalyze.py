@@ -25,7 +25,7 @@ from pyraf.iraf import geomap, INDEF
 
 
 
-class MESAnalyze:
+class MESAnalyze(object):
     """
     A class that graphs some data about some objects' positions and
     asks the user to modify the data if necessary. Intended for use as part of

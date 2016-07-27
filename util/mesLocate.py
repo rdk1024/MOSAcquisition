@@ -25,7 +25,7 @@ colors = ('green','red','blue','yellow','magenta','cyan','orange')
 
 
 
-class MESLocate:
+class MESLocate(object):
     """
     A class that locates a set of calibration objects, asks for users to help
     locate anomolies and artifacts on its images of those objects, and then
@@ -184,6 +184,9 @@ class MESLocate:
         # if there is no next object, finish up
         self.current_obj += 1
         if self.current_obj >= self.obj_num:
+            self.canvas.delete_all_objects()
+            self.fitsimage.zoom_fit()
+            self.fitsimage.center_image()
             if self.finish_cb != None:
                 self.finish_cb()
             return

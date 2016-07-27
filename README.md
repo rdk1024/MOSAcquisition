@@ -1,31 +1,28 @@
 # MOSAcquisition
-A series of scripts and plugins that use ginga to align the Multi Object Camera
-and Spectrograph system for Subaru Telecope.
+A Ginga local plugin to align the *Multi Object Camera and Spectrograph*
+system for Subaru Telecope.
 
 ## Installation
 ### Dependencies
-This package requires a Python interpreter and an IRAF interpreter. It also
-makes use of numpy, astropy, ginga, and pyraf. To install those packages, simply
-call  
+This package requires a Python interpreter. It also makes use of numpy, astropy,
+ginga, and pyraf. To install those packages, simply call  
 `$ pip install numpy astropy ginga pyraf`  
 It also requires much of the existing MOIRCS Acquisition software, which is not
 on the internet as far as I know, so if you don't work for Subaru, ha ha, too
 bad.
 
 ### File Locations
-The files in this repository need to go in several different places:  
-The .ginga subdirectory (might be invisible) must be merged with $HOME/.ginga.
-The moircs01 subdirectory must be merged with $HOME/moircs01.  
-Now, assuming you have the rest of the MOS Acquisition stuff and you know how to
-use it, it should work just fine.
+The folders in this repository must be merged with the corresponding files in
+the user's `.ginga` folder (might be invisible); `plugins` merges with
+`plugins`, and `util` merges with `util`.
 
 ## Usage
-Once this package has been installed as specified above, one can run it the same
-way one would run the original MOS Acquisition:  
-`$ goiraf`  
-`ecl> epar mesoffset0`  
-If all has been installed correctly, IRAF should now use ginga instead of
-pgplot.
+Once this plugin has been installed as specified above, one can run it the
+simple command:  
+`$ ginga --plugins=MESOffset`  
+This should launch Ginga with the MESOffset plugin loaded. Click on 'Operation'
+and then 'MESOffset' to begin the process. From there, enter any information it
+asks for and follow the instructions.
 
 ## License
 Copyright (c) 2016, Justin Kunimune

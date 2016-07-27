@@ -28,14 +28,12 @@ DBS = "../../MCSRED2/DATABASE"
 # main menu parameters
 params_0 = [    # TODO: get rid of these defaults; they're just for my convinience
         {'name':'star_chip1',
-         'label':"Star Frame", 'type':'number', 'default':227463,   #TODO odd constraint
-         'desc':"The frame number for the chip1 star FITS image",
-         'format':"MCSA{}.fits"},
+         'label':"Star Frame", 'type':'number', 'default':227463, 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 star FITS image"},
         
         {'name':'rootname',
-         'label':"Root Name", 'type':'string', 'default':"sbr_elaisn1rev",
-         'desc':"The filename of the SBR file, which is used as rootname",
-         'format':"{}.sbr"},
+         'label':"Root Name", 'type':'string', 'default':"sbr_elaisn1rev", 'format':"{}.sbr",
+         'desc':"The filename of the SBR file, which is used as rootname"},
         
         {'name':'c_file',
          'label':"Config File", 'type':'string', 'default':DBS+"/ana_apr16.cfg",
@@ -46,32 +44,27 @@ params_0 = [    # TODO: get rid of these defaults; they're just for my convinien
          'desc':"The directory in which the input FITS images can be found"},
         
         {'name':'exec_mode',
-         'label':"Execution Mode", 'type':'choice', 'default':0,    #TODO
-         'desc':"The desired level of precision of alignment",
-         'options':["Normal", "Fine"]},
+         'label':"Execution Mode", 'type':'choice', 'options':["Normal","Fine"],   #TODO
+         'desc':"The desired level of precision of alignment"},
         
         {'name':'mode',
-         'label':"Mode", 'type':'choice', 'default':0,
-         'desc':"I don't know what this means. Remind me to look it up later.",
-         'options':["q1"]}
+         'label':"Mode", 'type':'choice', 'options':["q1"],
+         'desc':"I don't know what this means. Remind me to look it up later."}
         ]
 
 # mesoffset1 parameters
 params_1 = [
         {'name':'star_chip1',
-         'label':"Star Frame", 'type':'number',
-         'desc':"The frame number for the chip1 star FITS image",
-         'format':"MCSA{}.fits"},
+         'label':"Star Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 star FITS image"},
         
         {'name':'sky_chip1',
-         'label':"Sky Frame", 'type':'number',
-         'desc':"The frame number for the chip1 sky FITS image",
-         'format':"MCSA{}.fits"},
+         'label':"Sky Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 sky FITS image"},
         
         {'name':'rootname',
-         'label':"Root Name", 'type':'string',
-         'desc':"The filename of the SBR file, which is used as rootname",
-         'format':"{}.sbr"},
+         'label':"Root Name", 'type':'string', 'format':"{}.sbr",
+         'desc':"The filename of the SBR file, which is used as rootname"},
         
         {'name':'c_file',
          'label':"Config File", 'type':'string', 'default':DBS+"/ana_apr16.cfg",
@@ -81,19 +74,19 @@ params_1 = [
          'label':"Image Directory", 'type':'string', 'default':"data$",
          'desc':"The directory in which the raw FITS images can be found"},
         
-        {'name':'retry1',
+        {'name':'reuse1',
          'label':"Reuse Star", 'type':'boolean',
-         'desc':"Do you want to reuse mosaiced star images last time?"},
+         'desc':"Do you want to reuse mosaiced star images from last time?"},
         
-        {'name':'retry2',
+        {'name':'reuse2',
          'label':"Reuse Mask", 'type':'boolean',
-         'desc':"Do you want to reuse mosaiced mask images last time?"},
+         'desc':"Do you want to reuse mosaiced mask images from last time?"},
         
-        {'name':'inter1',
+        {'name':'interact1',
          'label':"Interact Star", 'type':'boolean',
          'desc':"Do you want to interact with star position measurement?"},
         
-        {'name':'inter2',
+        {'name':'interact2',
          'label':"Interact Hole", 'type':'boolean',
          'desc':"Do you want to interact with hole position measurement?"},
         
@@ -106,27 +99,23 @@ params_1 = [
          'desc':"I'm sorry, were you hoping for a descriptive tooltip?"},
         
         {'name':'mode',
-         'label':"Mode", 'type':'choice',
-         'desc':"I don't know what this means. Remind me to look it up later.",
-         'options':["q1"]}
+         'label':"Mode", 'type':'choice', 'options':["q1"],
+         'desc':"I don't know what this means. Remind me to look it up later."}
         ]
 
 # mesoffset2 parameters
 params_2 = [
         {'name':'starhole_chip1',
-         'label':"Star-Hole Frame", 'type':'number',
-         'desc':"The frame number for the chip1 star-hole FITS image",
-         'format':"MCSA{}.fits"},
+         'label':"Star-Hole Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 star-hole FITS image"},
         
         {'name':'sky_chip1',
-         'label':"Sky Name", 'type':'number',
-         'desc':"The frame number for the chip1 sky FITS image",
-         'format':"MCSA{}.fits"},
+         'label':"Sky Name", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 sky FITS image"},
         
         {'name':'rootname',
-         'label':"Root Name", 'type':'string',
-         'desc':"The filename of the SBR file, which is used as rootname",
-         'format':"{}.sbr"},
+         'label':"Root Name", 'type':'string', 'format':"{}.sbr",
+         'desc':"The filename of the SBR file, which is used as rootname"},
         
         {'name':'c_file',
          'label':"Config File", 'type':'string', 'default':DBS+"/ana_apr16.cfg",
@@ -136,11 +125,11 @@ params_2 = [
          'label':"Image Directory", 'type':'string', 'default':"data$",
          'desc':"The directory in which the raw FITS images can be found"},
         
-        {'name':'retry1',
-         'label':"Reuse", 'type':'boolean', 'default':False,    #TODO: retry3?
-         'desc':"Do you want to reuse mosaiced images last time?"},
+        {'name':'reuse3',
+         'label':"Reuse", 'type':'boolean',
+         'desc':"Do you want to reuse mosaiced images from last time?"},
         
-        {'name':'interac1',
+        {'name':'interact3',
          'label':"Interact", 'type':'boolean',
          'desc':"Do you want to interact with star position measurement?"},
         
@@ -149,27 +138,23 @@ params_2 = [
          'desc':"something something something something something something "},
         
         {'name':'mode',
-         'label':"Mode", 'type':'choice',
-         'desc':"I don't know what this means. Remind me to look it up later.",
-         'options':["q1"]}
+         'label':"Mode", 'type':'choice', 'options':["q1"],
+         'desc':"I don't know what this means. Remind me to look it up later."}
         ]
 
 # mesoffset3 parameters
 params_3 = [
         {'name':'star_chip1',
-         'label':"Star-Hole Frame", 'type':'number', 'default':226725,
-         'desc':"The frame number for the chip1 star-hole FITS image",
-         'format':"MCSA{}.fits"},
+         'label':"Star-Hole Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 star-hole FITS image"},
         
         {'name':'sky_chip1',
-         'label':"Sky Name", 'type':'number', 'default':226725,
-         'desc':"The frame number for the chip1 sky FITS image",
-         'format':"MCSA{}.fits"},
+         'label':"Sky Name", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 sky FITS image"},
         
         {'name':'rootname',
-         'label':"Root Name", 'type':'string',
-         'desc':"The filename of the SBR file, which is used as rootname",
-         'format':"{}.sbr"},
+         'label':"Root Name", 'type':'string', 'format':"{}.sbr",
+         'desc':"The filename of the SBR file, which is used as rootname"},
         
         {'name':'c_file',
          'label':"Config File", 'type':'string', 'default':DBS+"/ana_apr16.cfg",
@@ -179,19 +164,19 @@ params_3 = [
          'label':"Image Directory", 'type':'string', 'default':"data$",
          'desc':"The directory in which the raw FITS images can be found"},
         
-        {'name':'retry1',
+        {'name':'reuse2',
          'label':"Reuse Star", 'type':'boolean',
-         'desc':"Do you want to reuse mosaiced star images last time?"},
+         'desc':"Do you want to reuse mosaiced star images from last time?"},
         
-        {'name':'retry2',
+        {'name':'reuse3',
          'label':"Reuse Mask", 'type':'boolean',
-         'desc':"Do you want to reuse mosaiced mask images last time?"},
+         'desc':"Do you want to reuse mosaiced mask images from last time?"},
         
-        {'name':'interac1',
+        {'name':'interact2',
          'label':"Interact Hole", 'type':'boolean',
          'desc':"Do you want to interact with hole position measurement?"},
         
-        {'name':'interac2',
+        {'name':'interact3',
          'label':"Interact Star-Hole", 'type':'boolean',
          'desc':"Do you want to interact with star-hole position measurement?"},
         
@@ -200,14 +185,13 @@ params_3 = [
          'desc':"something something something something something something "},
         
         {'name':'mode',
-         'label':"Mode", 'type':'choice',
-         'desc':"I don't know what this means. Remind me to look it up later.",
-         'options':["q1"]}
+         'label':"Mode", 'type':'choice', 'options':["q1"],
+         'desc':"I don't know what this means. Remind me to look it up later."}
         ]
 
 
 
-class MESInterface:
+class MESInterface(object):
     """
     A class that takes parameters from the user in a user-friendly menu.
     Intended for use as part of the MOS Acquisition software for aligning
@@ -320,23 +304,6 @@ class MESInterface:
                 setters[key](self.manager.globals[key])
     
     
-    def go_to_page(self, page_num):
-        """
-        Take the user to the interface for mesoffset{page_num}, and fills in
-        default values
-        @param page_num:
-            The index of this mesoffset
-        """
-        print("GO TO PAGE")
-        raise Exception("Test")
-        setters = self.set_value[page_num]
-        for key in setters:
-            if self.manager.globals.has_key(key):
-                setters[key](self.manager.globals[key])
-            setters[key](17)
-        self.stack.set_index(page_num)
-    
-    
     def wait(self, condition_string, next_step=None):
         """
         Set the 'wait' GUI to wait for a certain condition, and prepare to
@@ -359,7 +326,12 @@ class MESInterface:
         @param text:
             The string to be logged
         """
-        self.logger.info(text.strip(), *args, **kwargs)
+        if text.find("WARN: ") == 0:
+            self.logger.warning(text[6:].strip(), *args, **kwargs)
+        elif text.find("ERROR: ") == 0:
+            self.logger.error(text[7:].strip(),   *args, **kwargs)
+        else:
+            self.logger.info(text.strip(),        *args, **kwargs)
         self.log_textarea.append_text(text+"\n", autoscroll=True)
         
         
