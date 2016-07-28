@@ -158,7 +158,7 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         self.canvas.ui_setActive(False)
 
 
-    def redo(self):
+    def redo(self): # TODO: throws an error?
         """
         Called whenever a new image is loaded
         One of the required LocalPlugin methods

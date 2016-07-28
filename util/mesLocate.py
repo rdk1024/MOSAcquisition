@@ -43,7 +43,8 @@ class MESLocate(object):
     
     
     
-    def start(self, input_data, mode, interact=True, next_step=None):
+    def start(self, input_data, mode, interact1=False, interact2=True,
+              next_step=None):
         """
         Get the positions of a series of objects
         @param input_data:
@@ -51,8 +52,10 @@ class MESLocate(object):
         @param mode:
             Either 'star' or 'mask' or 'starhole'; alters the sizes of squares
             and the autocut method
-        @param interact:
-            Whether we should give the use a chance to crop/mask the objects
+        @param interact1:
+            Wheter we should give the user a chance to interact with step 1
+        @param interact2:
+            Whether we should give the user a chance to interact with step 2
         @param next_step:
             A function to call when MESLocate is finished
         """
@@ -68,13 +71,18 @@ class MESLocate(object):
         self.drag_index = [-1]*self.obj_num     # index of the current drag for each object
         self.drag_start = None      # the place where we most recently began to drag
         self.obj_centroids = [None]*self.obj_num    # the new obj_list based on user input and calculations
-        self.square_size =  {'star':25, 'mask':60, 'starhole':50}[mode]  # the size of the search regions
+        self.square_size =  {'star':25, 'mask':60, 'starhole':25}[mode]  # the size of the search regions
         self.exp_obj_size = {'star':4,  'mask':20, 'starhole':4}[mode]  # the maximum expected radius of the objects
-        self.interact = interact    # whether we should interact in step 2
+        self.interact = interact2    # whether we should interact in step 2
         self.next_step = next_step  # what to do when we're done
         
         # set the autocut to make things easier to see
-        method = 'stddev' if mode == 'star' else 'zscale'
+        if mode == 'star':
+            method = 'stddev'
+        elif mode == 'mask':
+            method = 'zscale'
+        elif mode == 'starhole':
+            method = 'minmax'
         self.fitsimage.get_settings().set(autocut_method=method)
         self.fv.showStatus("Locate the object labeled '1' by clicking.")
         
@@ -89,12 +97,12 @@ class MESLocate(object):
                 except IndexError:
                     pass
         
-        # set the mouse controls and automatically select the first point
+        # set the mouse controls and automatically start
         self.set_callbacks()
         self.click1_cb(self.canvas, 1, *self.obj0)
-        
-        # show the GUI
         self.manager.go_to_gui('find')
+        if not interact1:
+            self.step2_cb()
         
         
         
@@ -799,6 +807,24 @@ class MESLocate(object):
         
         sbr.close()
         return np.array(array)
+
+
+    @staticmethod
+    def imgXY_from_sbrXY(sbrX, sbrY):
+        """
+        Converts coordinates from the SBR file to coordinates
+        compatible with FITS files
+        @param sbr_coords:
+            A string or float tuple of x and y read from *.sbr
+        @returns:
+            A float tuple of x amd u that will work with the rest of Ginga
+        """
+        # I'm sorry; I have no idea what any of this math is.
+        fX = 1078.0 - float(sbrX)*17.57789
+        fY = 1857.0 + float(sbrY)*17.57789
+        fHoleX = 365.0 + (fX-300.0)
+        fHoleY = 2580.0 + (fY-2660.0)
+        return (fHoleX, fHoleY)
         
     
     @staticmethod
@@ -821,7 +847,7 @@ class MESLocate(object):
             if len(row) >= 3:
                 r = row[2]
             else:
-                r = float('NaN')    # XXX: what is the point of the B stars
+                r = float('NaN')
             
             # if this is the first one, put something in obj0
             if obj0 == None:
@@ -831,24 +857,6 @@ class MESLocate(object):
                 obj_list.append((x - obj0[0], y - obj0[1], r))
             
         return obj_list, obj0
-
-
-    @staticmethod
-    def imgXY_from_sbrXY(sbrX, sbrY):
-        """
-        Converts coordinates from the SBR file to coordinates
-        compatible with FITS files
-        @param sbr_coords:
-            A string or float tuple of x and y read from *.sbr
-        @returns:
-            A float tuple of x amd u that will work with the rest of Ginga
-        """
-        # I'm sorry; I have no idea what any of this math is.
-        fX = 1078.0 - float(sbrX)*17.57789
-        fY = 1857.0 + float(sbrY)*17.57789
-        fHoleX = 365.0 + (fX-300.0)
-        fHoleY = 2580.0 + (fY-2660.0)
-        return (fHoleX, fHoleY)
         
     
     @staticmethod

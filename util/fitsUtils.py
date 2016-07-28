@@ -20,9 +20,9 @@ def nothing(*args, **kwargs):
     pass
 
 
-def process_star_frames(star_chip1, sky_chip1, rootname, c_file, img_dir,
-                        log=nothing, next_step=None
-                        ):
+def process_star_fits(star_chip1, sky_chip1, c_file, img_dir, output_filename,
+                      log=nothing, next_step=None
+                      ):
     """
     Process the raw star and sky images by subtracting the sky from the star
     images, adding a gaussian filter to the result, and mosaicing it all
@@ -31,15 +31,17 @@ def process_star_frames(star_chip1, sky_chip1, rootname, c_file, img_dir,
         The number in the star image filename
     @param sky_chip1_num:
         The number in the sky image filename
-    @param rootname:
-        The string used as a filename for all the files IRAF creates
     @param c_file:
         The location of the cfg file that contains parameters for makemosaic
     @param img_dir:
         The string prefix to all raw image filenames
+    @param output_filename:
+        The filename of the final FITS image
     @param log:
         A function which should take one argument, and will be called to report
         information
+    @param next_step:
+        The function to be called at the end of this process
     """
     log("Processing star frames...")
     
@@ -68,8 +70,8 @@ def process_star_frames(star_chip1, sky_chip1, rootname, c_file, img_dir,
     # subtract the sky frames from the star frames
     log("Subtracting images...")
     if sky_chip1 != 0:
-        dif_chip1_filename = rootname+"_dif_chip1.fits"
-        dif_chip2_filename = rootname+"_dif_chip2.fits"
+        dif_chip1_filename = "star_dif_chip1.fits"
+        dif_chip2_filename = "star_dif_chip2.fits"
         delete(dif_chip1_filename, dif_chip2_filename)
         iraf.imarith(star_chip1_filename,'-',sky_chip1_filename,
                      dif_chip1_filename)
@@ -80,7 +82,7 @@ def process_star_frames(star_chip1, sky_chip1, rootname, c_file, img_dir,
         dif_chip2_filename = star_chip2_filename
     
     # mosaic the chips together
-    sharp_star_filename = rootname+"_star_sharp.fits"
+    sharp_star_filename = "star_sharp.fits"
     delete(sharp_star_filename)
     makemosaic(dif_chip1_filename, dif_chip2_filename, sharp_star_filename,
                c_file, log=log)
@@ -88,9 +90,8 @@ def process_star_frames(star_chip1, sky_chip1, rootname, c_file, img_dir,
     
     # apply gaussian blur
     log("Blurring...")
-    final_star_filename = rootname+"_star.fits"
-    delete(final_star_filename)
-    iraf.gauss(sharp_star_filename, final_star_filename, 1.0)
+    delete(output_filename)
+    iraf.gauss(sharp_star_filename, output_filename, 1.0)
     delete(sharp_star_filename)
     
     # finish up with the provided callback
@@ -98,19 +99,19 @@ def process_star_frames(star_chip1, sky_chip1, rootname, c_file, img_dir,
         next_step()
 
 
-def process_mask_frames(mask_chip1, rootname, c_file, img_dir,
-                        log=nothing, next_step=None):
+def process_mask_fits(mask_chip1, c_file, img_dir, output_filename,
+                      log=nothing, next_step=None):
     """
     Process the raw mask frames by changing their data type and mosaicing them
     together
     @param mask_chip1:
         The number in the filename of the mask chip1 FITS image
-    @param rootname:
-        The string used as a filename for all the files IRAF creates
     @param c_file:
         The location of the cfg file that controls makemosaic
     @param img_dir:
         The prefix for all raw image filenames
+    @param output_filename:
+        The filename of the output FITS image
     @param log:
         The function that will be called whenever something interesting happens
     @param next_step:
@@ -124,27 +125,22 @@ def process_mask_frames(mask_chip1, rootname, c_file, img_dir,
     
     # reformat the raw images
     log("Changing data type...")
-    real_chip1_filename = rootname+"_real_chip1.fits"
-    real_chip2_filename = rootname+"_real_chip2.fits"
+    real_chip1_filename = "mask_real_chip1.fits"
+    real_chip2_filename = "mask_real_chip2.fits"
     delete(real_chip1_filename, real_chip2_filename)
     iraf.chpixtype(mask_chip1_filename, real_chip1_filename, 'real')
     iraf.chpixtype(mask_chip2_filename, real_chip2_filename, 'real')
     delete(mask_chip1_filename, mask_chip2_filename)
     
     # mosaic the reformatted results together
-    final_mask_filename = rootname+"_mask.fits"
-    delete(final_mask_filename)
-    makemosaic(real_chip1_filename, real_chip2_filename, final_mask_filename,
+    delete(output_filename)
+    makemosaic(real_chip1_filename, real_chip2_filename, output_filename,
                c_file, log=log)
     delete(real_chip1_filename, real_chip2_filename)
     
     # and you're done! go ahead to the next step
     if next_step != None:
         next_step()
-
-
-def process_starhole_frames(log=nothing):
-    pass
 
 
 def makemosaic(input_fits1, input_fits2, output_fits, c_file, log=nothing):
@@ -181,8 +177,8 @@ def makemosaic(input_fits1, input_fits2, output_fits, c_file, log=nothing):
     cfg.close()
     
     # come up with some temporary filenames
-    temp_file = [["makemosaic_temp%d_ch%d.fits"%(j,i) for i in (0,1)]
-                 for j in (0,1)]
+    temp_file = [["makemosaic_temp1_chip1.fits", "makemosaic_temp1_chip2.fits"],
+                 ["makemosaic_temp2_chip1.fits", "makemosaic_temp2_chip2.fits"]]
     unrotated = "makemosaic_temp3.fits"
     
     # correct for distortion

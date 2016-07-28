@@ -42,7 +42,7 @@ class MESOffset(mosPlugin.MESPlugin):
         self.mes_locate = MESLocate(self)
         self.mes_analyze = MESAnalyze(self)
         
-        self.globals = {}   # the variables shared between the departments
+        self.database = {}   # the variables shared between the departments
         
         self.stack_idx = {} # the indices of the guis in the stack
         
@@ -90,11 +90,11 @@ class MESOffset(mosPlugin.MESPlugin):
         Start the first, rough, star/hole location, based on the raw data and
         the SBR input file. The first step is processing the star frames
         """
-        self.__dict__.update(self.globals)
-        self.mes_interface.log("Starting MES Offset1...")
-        self.process_star_frames()
+        self.__dict__.update(self.database)
+        self.mes_interface.log("Starting MES Offset 1...")
+        self.process_star_fits()
     
-    def process_star_frames(self, *args):
+    def process_star_fits(self, *args):
         """ Use fitsUtils to combine raw data into a usable star mosaic """
         # if reuse is on, don't bother with any of this
         if self.reuse1:
@@ -103,12 +103,11 @@ class MESOffset(mosPlugin.MESPlugin):
         
         self.go_to_gui('log')
         self.fv.nongui_do(lambda:
-                fitsUtils.process_star_frames(self.star_chip1, self.sky_chip1,
-                                              self.rootname, self.c_file,
-                                              self.img_dir,
-                                              log=self.mes_interface.log,
-                                              next_step=self.load_processed_star
-                                              )
+                fitsUtils.process_star_fits(self.star_chip1, self.sky_chip1,
+                                            self.c_file, self.img_dir,
+                                            self.rootname+"_star.fits",
+                                            log=self.mes_interface.log,
+                                            next_step=self.load_processed_star)
                           )
     
     def load_processed_star(self, *args):
@@ -119,7 +118,7 @@ class MESOffset(mosPlugin.MESPlugin):
     def mes_star(self, *args):  # TODO: display values and give a chance to redo
         """ Call MESLocate in star mode on the current image """
         self.sbr_data = self.mes_locate.read_sbr_file(self.rootname+".sbr")
-        self.mes_locate.start(self.sbr_data, 'star', self.interact1,
+        self.mes_locate.start(self.sbr_data, 'star', True, self.interact1,
                               next_step=self.wait_for_masks)
     
     def wait_for_masks(self, *args):
@@ -131,23 +130,21 @@ class MESOffset(mosPlugin.MESPlugin):
                                 "MCSA{:08d}.fits and\nMCSA{:08d}.fits ".format(
                                         self.star_chip1+4, self.star_chip1+5)+
                                 "are in {} and ready.".format(self.img_dir),
-                                next_step=self.process_mask_frames)
+                                next_step=self.process_mask_fits)
     
-    def process_mask_frames(self, *args):
+    def process_mask_fits(self, *args):
         """ Use fitsUtils to comine raw data into a usable mask mosaic """
-        # if reuse2 is on, don't bother processing frames
         if self.reuse2:
             self.load_processed_mask()
             return
         
         self.go_to_gui('log')
         self.fv.nongui_do(lambda:
-                fitsUtils.process_mask_frames(self.star_chip1+4,
-                                              self.rootname, self.c_file,
-                                              self.img_dir,
-                                              log=self.mes_interface.log,
-                                              next_step=self.load_processed_mask
-                                              )
+                fitsUtils.process_mask_fits(self.star_chip1+4,
+                                            self.c_file, self.img_dir,
+                                            self.rootname+"_mask.fits",
+                                            log=self.mes_interface.log,
+                                            next_step=self.load_processed_mask)
                           )
     
     def load_processed_mask(self, *args):
@@ -157,27 +154,78 @@ class MESOffset(mosPlugin.MESPlugin):
     
     def mes_hole(self, *args):
         """ Call MESLocate in mask mode on the current image """
-        self.mes_locate.start(self.sbr_data, 'mask', self.interact2,
+        self.mes_locate.start(self.sbr_data, 'mask', True, self.interact2,
                               next_step=self.analyze_1)
     
     def analyze_1(self, *args):
-        """ Call MESAnalyze on the data from mes_locate and mes_hole """
+        """ Call MESAnalyze on the data from mes_star and mes_hole """
         self.hole_locations = self.mes_locate.output_data
         self.mes_analyze.start(self.star_locations, self.hole_locations,
                                next_step=self.end_mesoffset1)
     
     def end_mesoffset1(self, *args):
         """ Finish off the first, rough, star/hole location """
-        self.mes_interface.log("Done with MES Offset1!")    # TODO: does the canvas get deleted or replaced?
+        self.mes_interface.log("Done with MES Offset 1!")    # TODO: does the canvas get deleted or replaced?
         self.mes_interface.write_to_logfile(self.rootname+"_log",
                                             "MES Offset 1",
                                             self.mes_analyze.offset)
+        self.database['starhole_chip1'] = self.star_chip1+6
+        self.database['sky_chip1'] = self.sky_chip1+2
+        self.mes_interface.set_defaults(2)
         self.go_to_gui('epar 2')
     
     
     ### ----- MESOFFSET2 FUNCTIONS ----- ###
     def begin_mesoffset2(self):
-        print "MESOffset2!"
+        """
+        Start the second, star-hole location, based on the raw data. The first
+        step is processing the starhole frames
+        """
+        self.__dict__.update(self.database)
+        self.mes_interface.log("Starting MES Offset 2...")
+        self.process_starh_fits()
+    
+    
+    def process_starh_fits(self, *args):
+        """ Use fitsUtils to combine raw data into a compound starhole image """
+        if self.reuse3:
+            self.load_processed_starh()
+            return
+        
+        self.go_to_gui('log')
+        self.fv.nongui_do(lambda:
+                fitsUtils.process_star_fits(self.starhole_chip1, self.sky_chip1,
+                                            self.c_file, self.img_dir,
+                                            self.rootname+"_starhole.fits",
+                                            log=self.mes_interface.log,
+                                            next_step=self.load_processed_starh)
+                          )
+    
+    def load_processed_starh(self, *args):
+        """ Load the finished starhole image into ginga """
+        starhole_filename = self.rootname+"_starhole.fits"
+        self.open_fits(starhole_filename, next_step=self.mes_starhole)
+    
+    def mes_starhole(self, *args):
+        """ Call MESLocate in starhole mode on the current image """
+        self.mes_locate.start(self.hole_locations, 'starhole',
+                              False, self.interact3,
+                              next_step=self.analyze_2)
+    
+    def analyze_2(self, *args):
+        """ Call MESAnalyze on the data from mes_star and mes_starhole """
+        self.star_locations = self.mes_locate.output_data
+        self.mes_analyze.start(self.star_locations, self.hole_locations,
+                               next_step=self.end_mesoffset2)
+    
+    def end_mesoffset2(self, *args):
+        """ Finish off the second star-hole location """
+        self.mes_interface.log("Done with MES Offset 2!")
+        self.mes_interface.write_to_logfile(self.rootname+"_log",
+                                            "MES Offset 2",
+                                            self.mes_analyze.offset)
+        self.mes_interface.set_defaults(3)
+        self.go_to_gui('epar 3')
     
     
     ### ----- MESOFFSET3 FUNCTIONS ----- ###
@@ -193,6 +241,7 @@ class MESOffset(mosPlugin.MESPlugin):
         @param next_step:
             The function to call once the image has been loaded
         """
+        print filename
         self.fitsimage.clear_callback('image-set')  #TODO: can I do this while preserving the built-in callbacks?
         if next_step != None:
             self.fitsimage.add_callback('image-set', next_step)

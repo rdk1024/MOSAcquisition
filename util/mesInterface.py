@@ -41,11 +41,11 @@ params_0 = [    # TODO: get rid of these defaults; they're just for my convinien
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
-         'label':"Image Directory", 'type':'string', 'default':"RAW/",
+         'label':"Image Directory", 'type':'string', 'default':"RAW",
          'desc':"The directory in which the input FITS images can be found"},
         
         {'name':'exec_mode',
-         'label':"Execution Mode", 'type':'choice', 'options':["Normal","Fine"],   #TODO
+         'label':"Execution Mode", 'type':'choice', 'options':["Normal","Fine"],   #TODO use this
          'desc':"The desired level of precision of alignment"},
         
         {'name':'mode',
@@ -269,7 +269,7 @@ class MESInterface(object):
         @returns:
             The current value of the variable
         """
-        return self.manager.globals[name]
+        return self.manager.database[name]
     
     
     def set_param(self, name, val): 
@@ -280,7 +280,7 @@ class MESInterface(object):
         @param val:
             The new value of the variable
         """
-        self.manager.globals[name] = val
+        self.manager.database[name] = val
     
     
     def update_parameters(self, getters):
@@ -290,7 +290,7 @@ class MESInterface(object):
             The dictionary of getter methods for parameter values
         """
         new_params = {key:get_val() for key, get_val in getters.items()}
-        self.manager.globals.update(new_params)
+        self.manager.database.update(new_params)
         
         
     def set_defaults(self, page_num):
@@ -301,8 +301,8 @@ class MESInterface(object):
         """
         setters = self.set_value[page_num]
         for key in setters:
-            if self.manager.globals.has_key(key):
-                setters[key](self.manager.globals[key])
+            if self.manager.database.has_key(key):
+                setters[key](self.manager.database[key])
     
     
     def wait(self, condition_string, next_step=None):
@@ -358,7 +358,7 @@ class MESInterface(object):
         # go ahead and log it, too
         self.log("    dx = {:7,.2f}p".format(values[0]))
         self.log("    dy = {:7,.2f}p".format(values[1]))
-        self.log("rotate = {:7,.4f}\u00B0".format(values[2]))
+        self.log("rotate = {:7,.4f}deg".format(values[2]))
         
         
     def gui_list(self, orientation='vertical'):

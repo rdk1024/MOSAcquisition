@@ -74,7 +74,7 @@ class MESAnalyze(object):
         self.manager.go_to_gui('plots')
     
     
-    def set_callbacks(self):
+    def set_callbacks(self, step=3):
         """
         Assign all necessary callbacks to the canvas for the current step
         """
@@ -82,18 +82,21 @@ class MESAnalyze(object):
         
         # clear all existing callbacks first
         for cb in ('cursor-down', 'cursor-up',
-                    'panset-down', 'panset-up', 'draw-up'):
+                    'panset-down', 'panset-up',
+                    'draw-down', 'draw-up'):
             canvas.clear_callback(cb)
         
         # the only callbacks are for right-click and left-click
-        canvas.add_callback('cursor-down', self.set_active_cb, True)
-        canvas.add_callback('draw-down', self.set_active_cb, False)
+        if step == 3:
+            canvas.add_callback('cursor-down', self.set_active_cb, True)
+            canvas.add_callback('draw-down', self.set_active_cb, False)
     
     
     def step4_cb(self, *args):
         """
         Respond to the Next button in step 3 by displaying the offset values
         """
+        self.set_callbacks(step=4)
         self.manager.go_to_gui('values')
         self.fv.showStatus("Read the MES Offset values!")
         self.display_values()
@@ -103,6 +106,7 @@ class MESAnalyze(object):
         """
         Respond to the 'Finish' button in step 4 by finishing up
         """
+        self.canvas.delete_all_objects()
         if self.next_step != None:
             self.next_step()
         
