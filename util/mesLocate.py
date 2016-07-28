@@ -345,6 +345,7 @@ class MESLocate(object):
         if self.click_index > 0:
             self.canvas.delete_object_by_tag(tag(1, self.click_index))
             self.click_index -= 1
+            self.canvas.delete_object_by_tag(tag(1, self.click_index))
             self.select_point(self.click_history[self.click_index])
     
     

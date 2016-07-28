@@ -1,5 +1,5 @@
 #
-# fitsUtils.py -- A utility file with methods that use IRAF to manipulate FITS files
+# fitsUtils.py -- A utility file with methods to manipulate FITS files
 # Works in conjunction with MESOffset ginga plugin for MOS Acquisition
 #
 # Justin Kunimune
@@ -11,7 +11,9 @@
 import os
 
 # third-party imports
-from pyraf import iraf   # TODO: astropy?
+from astropy.io import fits
+import numpy as np
+from scipy.ndimage.filters import gaussian_filter
 
 
 
@@ -20,17 +22,17 @@ def nothing(*args, **kwargs):
     pass
 
 
-def process_star_fits(star_chip1, sky_chip1, c_file, img_dir, output_filename,
+def process_star_fits(star_num, sky_num, c_file, img_dir, output_filename,
                       log=nothing, next_step=None
                       ):
     """
     Process the raw star and sky images by subtracting the sky from the star
     images, adding a gaussian filter to the result, and mosaicing it all
     together
-    @param star_chip1_num:
-        The number in the star image filename
-    @param sky_chip1_num:
-        The number in the sky image filename
+    @param star_num:
+        The number in the star image chip1 filename
+    @param sky_num:
+        The number in the sky image chip1 filename
     @param c_file:
         The location of the cfg file that contains parameters for makemosaic
     @param img_dir:
@@ -42,72 +44,65 @@ def process_star_fits(star_chip1, sky_chip1, c_file, img_dir, output_filename,
         information
     @param next_step:
         The function to be called at the end of this process
-    @param raises IOError:
+    @raises IOError:
         If it cannot find the specified images
+    @raises ValueError:
+        If the images have the wrong detector id
     """
     log("Processing star frames...")
     
-    # declare all of the raw input filenames
-    star_chip1_filename = "{}MCSA{:08d}.fits[0]".format(img_dir, star_chip1)
-    star_chip2_filename = "{}MCSA{:08d}.fits[0]".format(img_dir, star_chip1+1)
-    sky_chip1_filename = "{}MCSA{:08d}.fits[0]".format(img_dir, sky_chip1)
-    sky_chip2_filename = "{}MCSA{:08d}.fits[0]".format(img_dir, sky_chip1+1)
+    # open all the FITS, if you can TODO: what happens when the files aren't there?
+    star_chip = []
+    sky_chip = []
+    for chip in (0, 1):
+        star_chip.append(fits.open("{}MCSA{:08d}.fits".format(
+                                            img_dir, star_num+chip))[0])
+        sky_chip.append(fits.open("{}MCSA{:08d}.fits".format(
+                                            img_dir, sky_num+chip))[0])
     
     # check header info
-    try:
-        iraf.imgets(star_chip1_filename, 'DET-ID')
-        if iraf.imgets.value != '1':
-            raise ValueError("%s is data from chip%s, but should be from chip1"%
-                             (star_chip1_filename, iraf.imgets.value))
-        iraf.imgets(star_chip2_filename, 'DET-ID')
-        if iraf.imgets.value != '2':
-            raise ValueError("%s is data from chip%s, but should be from chip2"%
-                             (star_chip2_filename, iraf.imgets.value))
-    except iraf.IrafError as e:
-        errmsg = ("The chip number or image directory are incorrect,\nor you "+
-                  "may be running python from the wrong working directory.")
-        log("ERROR: {}".format(str(e).strip()))
-        log(errmsg)
-        raise IOError(errmsg)
+    for i in (0, 1):
+        if star_chip[i].header['DET-ID'] != i+1:
+            raise ValueError(("{}MCSA{:08d}.fits is data from chip{}, but "+
+                              "should be from chip{}").format(
+                                            img_dir, star_num,
+                                            star_chip[i].header['DET-ID'], i+1))
+        if star_chip[i].header['ALTITUDE'] < 45.0:
+            log(("WARN: {}MCSA{:08d}.fits has a low elevation of {}; the "+
+                 "mosaicing database may not be applicable here.").format(
+                                            img_dir, star_num,
+                                            star_chip[i].header['ALTITUDE']))
     
     # subtract the sky frames from the star frames
     log("Subtracting images...")
-    if sky_chip1 != 0:
-        dif_chip1_filename = "star_dif_chip1.fits"
-        dif_chip2_filename = "star_dif_chip2.fits"
-        delete(dif_chip1_filename, dif_chip2_filename)
-        iraf.imarith(star_chip1_filename,'-',sky_chip1_filename,
-                     dif_chip1_filename)
-        iraf.imarith(star_chip2_filename,'-',sky_chip2_filename,
-                     dif_chip2_filename)
+    if sky_num != 0:
+        dif_data = [star_chip[0].data - sky_chip[0].data,
+                    star_chip[1].data - sky_chip[1].data]
     else:
-        dif_chip1_filename = star_chip1_filename
-        dif_chip2_filename = star_chip2_filename
+        dif_data = [star_chip[0].data,
+                    star_chip[1].data]
     
     # mosaic the chips together
-    sharp_star_filename = "star_sharp.fits"
-    delete(sharp_star_filename)
-    makemosaic(dif_chip1_filename, dif_chip2_filename, sharp_star_filename,
-               c_file, log=log)
-    delete(dif_chip1_filename, dif_chip2_filename)
+    mosaic_hdu = makemosaic(dif_data, star_chip[0].header, c_file, log=log)
     
     # apply gaussian blur
     log("Blurring...")
-    delete(output_filename)
-    iraf.gauss(sharp_star_filename, output_filename, 1.0)
-    delete(sharp_star_filename)
+    gaussian_filter(mosaic_hdu.data, 1.0, output=mosaic_hdu.data)
+    
+    # write to file
+    mosaic_hdu.writeto(output_filename, clobber=True)
     
     # finish up with the provided callback
     if next_step != None:
         next_step()
 
 
-def process_mask_fits(mask_chip1, c_file, img_dir, output_filename,
+def process_mask_fits(mask_num, c_file, img_dir, output_filename,
                       log=nothing, next_step=None):
     """
     Process the raw mask frames by changing their data type and mosaicing them
     together
-    @param mask_chip1:
+    @param mask_num:
         The number in the filename of the mask chip1 FITS image
     @param c_file:
         The location of the cfg file that controls makemosaic
@@ -119,56 +114,43 @@ def process_mask_fits(mask_chip1, c_file, img_dir, output_filename,
         The function that will be called whenever something interesting happens
     @param next_step:
         The function to be called at the end of this process
+    @raises IOError:
+        If it cannot find the FITS images
     """
     log("Processing mask frames...")
     
-    # deduce the raw image filenames
-    mask_chip1_filename = "{}MCSA{:08d}.fits[0]".format(img_dir, mask_chip1)
-    mask_chip2_filename = "{}MCSA{:08d}.fits[0]".format(img_dir, mask_chip1+1)
+    # load the files
+    mask_chip = []
+    for chip in (0, 1):
+        mask_chip.append(fits.open("{}MCSA{:08d}.fits".format(
+                                            img_dir, mask_num+chip))[0])
     
-    # reformat the raw images
-    log("Changing data type...")
-    real_chip1_filename = "mask_real_chip1.fits"
-    real_chip2_filename = "mask_real_chip2.fits"
-    delete(real_chip1_filename, real_chip2_filename)
-    iraf.chpixtype(mask_chip1_filename, real_chip1_filename, 'real')
-    iraf.chpixtype(mask_chip2_filename, real_chip2_filename, 'real')
-    delete(mask_chip1_filename, mask_chip2_filename)
-    
-    # mosaic the reformatted results together
-    delete(output_filename)
-    makemosaic(real_chip1_filename, real_chip2_filename, output_filename,
-               c_file, log=log)
-    delete(real_chip1_filename, real_chip2_filename)
+    # mosaic the reformatted results to a file
+    mosaic_hdu = makemosaic([mask_chip[0].data, mask_chip[1].data],
+                            mask_chip[0].header, c_file, log=log)
+    mosaic_hdu.writeto(output_filename, clobber=True)
     
     # and you're done! go ahead to the next step
     if next_step != None:
         next_step()
 
 
-def makemosaic(input_fits1, input_fits2, output_fits, c_file, log=nothing):
+def makemosaic(input_data, input_header, c_file, log=nothing):
     """
-    Combine the two images by stacking them vertically, and correct for
-    distortion
-    @param input_fits1:
-        The filename of the first image
-    @param input_fits2:
-        The filename of the second image
-    @param output_fits:
-        The output filename
+    Correct the images for distortion, and then combine the two FITS images by
+    rotating and stacking them vertically. Also do something to the header
+    @param input_data:
+        A sequence of two numpy 2D arrays to mosaic together
+    @param input_header:
+        The HDU header on which the output image's header will be based
     @param c_file:
-        The location of the configuration .cfg file
+        The location of the configuration .cfg file that manages distortion-
+        correction
+    @param log:
+        A function that takes a single string argument and records it somehow
+    @returns:
+        An astropy HDU object consisting of the new data and the updated header
     """
-    # check header info
-    iraf.imgets(input_fits1, 'ALTITUDE')
-    if float(iraf.imgets.value) < 45.:
-        log(("WARN: %s has a low elevation of %s; the mosaicing database may "+
-             "not be applicable here.") % (input_fits1, iraf.imgets.value))
-    iraf.imgets(input_fits2, 'ALTITUDE')
-    if float(iraf.imgets.value) < 45.:
-        log(("WARN: %s has a low elevation of %s; the mosaicing database may "+
-             "not be applicable here.") % (input_fits2, iraf.imgets.value))
-    
     # read MSCRED c_file
     cfg = open(c_file, 'r')
     config = []
@@ -179,49 +161,45 @@ def makemosaic(input_fits1, input_fits2, output_fits, c_file, log=nothing):
         line = cfg.readline()
     cfg.close()
     
-    # come up with some temporary filenames
-    temp_file = [["makemosaic_temp1_chip1.fits", "makemosaic_temp1_chip2.fits"],
-                 ["makemosaic_temp2_chip1.fits", "makemosaic_temp2_chip2.fits"]]
-    unrotated = "makemosaic_temp3.fits"
-    
     # correct for distortion
     log("Correcting for distortion...")
-    delete(temp_file[0][0], temp_file[0][1])
-    iraf.geotran(input_fits1, temp_file[0][0], config[2], config[3])
-    iraf.geotran(input_fits2, temp_file[0][1], config[4], config[5])
+    # XXX: stuff I haven't figured out how to do wiothout IRAF yet :XXX #
+    correct_data = [transform(input_data[0], config[2], config[3]),
+                    transform(input_data[1], config[4], config[5])]
+    # XXX: stuff I haven't figured out how to do wiothout IRAF yet :XXX #
     
-    # mosaic
-    log("Repositioning chips...")
-    delete(temp_file[1][0], temp_file[1][1])
-    iraf.geotran(temp_file[0][0], temp_file[1][0], config[8], config[9])
-    iraf.geotran(temp_file[0][1], temp_file[1][1], config[10], config[11])
-    iraf.hedit(temp_file[1][0], 'BPM', config[12], add='yes', update='yes', ver='no')   # TODO: what are the defaults?
-    iraf.hedit(temp_file[1][1], 'BPM', config[13], add='yes', update='yes', ver='no')
-    delete(temp_file[0][0], temp_file[0][1])
+    # crop images
+    cropped_data = [correct_data[0][:, 0:1818], correct_data[1][:, -1818:-1]]
     
-    # combine the images
+    # combine and rotate the images
     log("Combining the chips...")
-    delete(unrotated)
-    iraf.imcombine(temp_file[1][0]+','+temp_file[1][1], unrotated,
-              reject='avsig', masktype='goodvalue')
-    delete(temp_file[1][0], temp_file[1][1])
+    mosaic_data = np.rot90(np.hstack(cropped_data), k=3)
     
-    # rotate the result
-    iraf.rotate(unrotated, output_fits, 90, ncol=2048, nline=3569)
-    delete(unrotated)
+    input_header['BPM'] = config[12]    # XXX: I don't know what this does
+    input_header['BPM'] = config[13]    #TODO: hedit? BPM?
+    return fits.PrimaryHDU(data=mosaic_data, header=input_header)
 
 
-def delete(*files):
+def transform(input_arr, dbs_file, gmp_file):
     """
-    Delete files(s) without throwing any errors
-    @param files:
-        The locations of the files to be deleted
+    Correct the input array for distortion using the given dbs and gmp
+    @param input_arr:
+        The input numpy array
+    @param dbs_file:
+        IDK. A string, I think
+    @param gmp_file:
+        I'm even less sure what this one is
+    @returns:
+        The corrected numpy array
     """
-    for filename in files:
-        try:
-            os.remove(filename)
-        except OSError as e:
-            pass
+    from pyraf.iraf import geotran
+    
+    fits.PrimaryHDU(data=input_arr).writeto("tempin.fits", clobber=True)
+    geotran("tempin.fits", "tempout.fits", dbs_file, gmp_file)
+    output = fits.open("tempout.fits")[0].data
+    os.remove("tempin.fits")
+    os.remove("tempout.fits")
+    return output
 
 #END
 
