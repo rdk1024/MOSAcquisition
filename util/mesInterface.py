@@ -135,7 +135,7 @@ params_2 = [
          'desc':"Do you want to interact with star position measurement?"},
         
         {'name':'list1',
-         'label':"List 1", 'type':'string',
+         'label':"List 1", 'type':'string',#TODO: what are the lists?
          'desc':"something something something something something something "},
         
         {'name':'mode',
@@ -145,7 +145,7 @@ params_2 = [
 
 # mesoffset3 parameters
 params_3 = [
-        {'name':'star_chip1',
+        {'name':'starhole_chip1',
          'label':"Star-Hole Frame", 'type':'number', 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 star-hole FITS image"},
         
@@ -165,21 +165,21 @@ params_3 = [
          'label':"Image Directory", 'type':'string', 'default':"data$",
          'desc':"The directory in which the raw FITS images can be found"},
         
-        {'name':'reuse2',
-         'label':"Reuse Star", 'type':'boolean',
-         'desc':"Do you want to reuse mosaiced star images from last time?"},
-        
-        {'name':'reuse3',
+        {'name':'reuse4',
          'label':"Reuse Mask", 'type':'boolean',
          'desc':"Do you want to reuse mosaiced mask images from last time?"},
         
-        {'name':'interact2',
+        {'name':'reuse5',
+         'label':"Reuse Star-Hole", 'type':'boolean',
+         'desc':"Do you want to reuse mosaiced star-hole images from last time?"},
+        
+        {'name':'interact4',
          'label':"Interact Hole", 'type':'boolean',
          'desc':"Do you want to interact with hole position measurement?"},
         
-        {'name':'interact3',
+        {'name':'interact5',
          'label':"Interact Star-Hole", 'type':'boolean',
-         'desc':"Do you want to interact with star-hole position measurement?"},
+         'desc':"Do you want to interact with star position measurement?"},
         
         {'name':'list1',
          'label':"List 1", 'type':'string',
@@ -354,11 +354,6 @@ class MESInterface(object):
         f.write(("dx = {:7,.2f} (pix) dy = {:7,.2f} (pix) "+
                  "rotate = {:7,.4f} (degree) \n").format(*values))
         f.close()
-        
-        # go ahead and log it, too
-        self.log("    dx = {:7,.2f}p".format(values[0]))
-        self.log("    dy = {:7,.2f}p".format(values[1]))
-        self.log("rotate = {:7,.4f}deg".format(values[2]))
         
         
     def gui_list(self, orientation='vertical'):

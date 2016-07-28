@@ -43,7 +43,7 @@ class MESLocate(object):
     
     
     
-    def start(self, input_data, mode, interact1=False, interact2=True,
+    def start(self, input_data, mode, interact2=True,
               next_step=None):
         """
         Get the positions of a series of objects
@@ -52,8 +52,6 @@ class MESLocate(object):
         @param mode:
             Either 'star' or 'mask' or 'starhole'; alters the sizes of squares
             and the autocut method
-        @param interact1:
-            Wheter we should give the user a chance to interact with step 1
         @param interact2:
             Whether we should give the user a chance to interact with step 2
         @param next_step:
@@ -97,11 +95,11 @@ class MESLocate(object):
                 except IndexError:
                     pass
         
-        # set the mouse controls and automatically start
+        # set the mouse controls and automatically start if this is starhole mode
         self.set_callbacks()
         self.click1_cb(self.canvas, 1, *self.obj0)
         self.manager.go_to_gui('find')
-        if not interact1:
+        if mode == 'starhole':
             self.step2_cb()
         
         

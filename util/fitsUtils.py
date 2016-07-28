@@ -42,6 +42,8 @@ def process_star_fits(star_chip1, sky_chip1, c_file, img_dir, output_filename,
         information
     @param next_step:
         The function to be called at the end of this process
+    @param raises IOError:
+        If it cannot find the specified images
     """
     log("Processing star frames...")
     
@@ -62,10 +64,11 @@ def process_star_fits(star_chip1, sky_chip1, c_file, img_dir, output_filename,
             raise ValueError("%s is data from chip%s, but should be from chip2"%
                              (star_chip2_filename, iraf.imgets.value))
     except iraf.IrafError as e:
+        errmsg = ("The chip number or image directory are incorrect,\nor you "+
+                  "may be running python from the wrong working directory.")
         log("ERROR: {}".format(str(e).strip()))
-        log("The chip number or image directory are incorrect,\n"+
-            "or you may be running python from the wrong working directory.")
-        return
+        log(errmsg)
+        raise IOError(errmsg)
     
     # subtract the sky frames from the star frames
     log("Subtracting images...")
