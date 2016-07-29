@@ -84,14 +84,27 @@ class MESOffset(mosPlugin.MESPlugin):
         self.stack.set_index(self.stack_idx[gui_name])
     
     
+    ### ----- MESOFFSET0 FUNCTION ----- ###
+    def execute_mesoffset0(self):
+        """ Set some stuff up to run mesoffset 1, 2, and 3 continuously """
+        self.database['sky_chip1'] = self.database['star_chip1'] + 2
+        if self.database['img_dir'][-1] != '/':
+            self.database['img_dir'] += '/'
+        
+        # next step depends on exec_mode
+        if self.database['exec_mode'] == 0:
+            self.mes_interface.go_to_mesoffset(1)
+        else:
+            self.mes_interface.go_to_mesoffset(2)
+    
+    
     ### ----- MESOFFSET1 FUNCTIONS ----- ###
     def begin_mesoffset1(self): # TODO: check for errors opening FITS in ginga, running iraf stuff, finding img_dir/c_file
         """
         Start the first, rough, star/hole location, based on the raw data and
         the SBR input file. The first step is processing the star frames
         """
-        self.__dict__.update(self.database)
-        self.mes_interface.log("Starting MES Offset 1...")
+        self.__dict__.update(self.database) # NOTE: updating __dict__ gives self a bunch of attributes from mesInterface
         self.process_star_fits()
     
     def process_star_fits(self, *args):
@@ -150,8 +163,7 @@ class MESOffset(mosPlugin.MESPlugin):
                                             self.mes_analyze.offset)
         self.database['starhole_chip1'] = self.star_chip1+6
         self.database['sky_chip1'] = self.sky_chip1+2
-        self.mes_interface.set_defaults(2)
-        self.go_to_gui('epar 2')
+        self.mes_interface.go_to_mesoffset(2)
     
     
     ### ----- MESOFFSET2 FUNCTIONS ----- ###
@@ -161,7 +173,6 @@ class MESOffset(mosPlugin.MESPlugin):
         step is processing the starhole frames
         """
         self.__dict__.update(self.database)
-        self.mes_interface.log("Starting MES Offset 2...")
         self.process_starhole_fits()
     
     
@@ -194,8 +205,7 @@ class MESOffset(mosPlugin.MESPlugin):
                                             self.mes_analyze.offset)
                                             
         self.database['starhole_chip1'] = self.starhole_chip1+2
-        self.mes_interface.set_defaults(3)
-        self.go_to_gui('epar 3')
+        self.mes_interface.go_to_mesoffset(3)
     
     
     ### ----- MESOFFSET3 FUNCTIONS ----- ###
@@ -205,7 +215,6 @@ class MESOffset(mosPlugin.MESPlugin):
         The first step is processing the mask frames
         """
         self.__dict__.update(self.database)
-        self.mes_interface.log("Starting MES Offset 3...")
         self.process_new_mask_fits()
     
     def process_new_mask_fits(self, *args):
@@ -264,8 +273,7 @@ class MESOffset(mosPlugin.MESPlugin):
                                             self.mes_analyze.offset)
                                             
         self.database['starhole_chip1'] = self.starhole_chip1+2
-        self.mes_interface.set_defaults(2)
-        self.go_to_gui('epar 2')
+        self.mes_interface.go_to_mesoffset(2)
     
     
     def auto_process_fits(self, mode,

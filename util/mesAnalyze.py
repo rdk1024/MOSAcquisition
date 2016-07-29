@@ -20,7 +20,6 @@ from ginga.gw import Widgets, Viewers, Plot
 
 # third-party imports
 import numpy as np
-from pyraf.iraf import geomap, INDEF
 
 
 
@@ -134,49 +133,25 @@ class MESAnalyze(object):
             The x and y residuals in numpy array form
         """
         data = self.data[np.nonzero(self.active)]
-        print "\nInput:"
-        print data
+        
         # calculate the optimal transformation from the input data
-        A = np.asmatrix(data[:, 0:2])   # TODO: wow, this is practically unreadable!
-        B = np.asmatrix(data[:, 2:4])
-        n = A.shape[0]
-        centroid_A = np.mean(A, axis=0)
-        centroid_B = np.mean(B, axis=0)
-        AA = A - np.tile(centroid_A, (n,1))
-        BB = B - np.tile(centroid_B, (n,1))
-        H = np.transpose(AA)*BB
-        U, S, Vt = np.linalg.svd(H)
-        R = Vt.T * U.T
-        t = -R*centroid_A.T + centroid_B.T
-        theta = np.mean([math.acos(R[0,0]), math.asin(R[0,1])])
-        self.transformation = (t[0,0], t[1,0], theta)
-        '''centroid = np.mean(data, axis=0)
-        data -= centroid
-        p_i = np.asmatrix(data[:,2:4].T)
-        p_f = np.asmatrix(data[:,0:2])
-        u, s, v = np.linalg.svd(p_i * p_f)
-        rot_m = v.T * u.T   # ATBT = (BA)T?
-        cent_i, cent_f = np.asmatrix(centroid[2:4]), np.asmatrix(centroid[0:2])
-        shift = cent_i - cent_f*rot_m.T # i hope so
-        theta = np.mean([math.acos(rot_m[0,0]), math.asin(rot_m[0,1])])
-        self.transformation = (shift[0,0], shift[0,1], theta)'''
-        print "\nOutput:"
-        print t
-        print R
-        print self.transformation
+        centroid = np.mean(data, axis=0)
+        data = data - centroid
+        p_i = np.asmatrix(data[:, 0:2])
+        p_f = np.asmatrix(data[:, 2:4])
+        u, s, v = np.linalg.svd(p_i.T * p_f)
+        rot_mat = u * v
+        shift =  centroid[2:4] - centroid[0:2]*rot_mat
+        theta = np.mean([math.acos(rot_mat[0,0]), math.asin(rot_mat[1,0])])
+        self.transformation = (shift[0,0], shift[0,1], theta)
         
         # use its results to calculate some stuff
         xref = self.data[:, 0]
         yref = self.data[:, 1]
         xin  = self.data[:, 2]
         yin  = self.data[:, 3]
-        print "\nResults"
-        print xin
-        print xref
         xcalc, ycalc = self.transform(xin, yin, self.transformation)
-        print xcalc
         xres = xcalc - xref
-        print xres
         yres = ycalc - yref
         
         # graph residual data on the plots
@@ -369,8 +344,6 @@ class MESAnalyze(object):
             fig = Plot.PlotWidget(self.plots[i])
             box.add_widget(fig)
         
-        # space appropriately and return
-        gui.add_widget(Widgets.Label(''), stretch=True)
         return gui
     
     

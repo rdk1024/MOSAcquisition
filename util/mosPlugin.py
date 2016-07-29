@@ -72,11 +72,8 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         # the rest is a stack of GUIs for each step, as decided by the subclass
         stk = Widgets.StackWidget()
         self.stack_guis(stk, orientation)
-        box.add_widget(stk)
+        box.add_widget(stk, stretch=True)
         self.stack = stk
-        
-        # space the GUI appropriately
-        box.add_widget(Widgets.Label(""), stretch=True)
 
         # end is an HBox that comes at the very end, after the rest of the GUIs
         end = Widgets.HBox()

@@ -45,8 +45,8 @@ params_0 = [    # TODO: get rid of these defaults; they're just for my convinien
          'desc':"The directory in which the input FITS images can be found"},
         
         {'name':'exec_mode',
-         'label':"Execution Mode", 'type':'choice', 'options':["Normal","Fine"],   #TODO use this
-         'desc':"The desired level of precision of alignment"},
+         'label':"Execution Mode", 'type':'choice', 'options':["Normal","Fine"],
+         'desc':"Choose 'Fine' to skip MES Offset 1"},
         
         {'name':'mode',
          'label':"Mode", 'type':'choice', 'options':["q1"],
@@ -68,14 +68,14 @@ params_1 = [
          'desc':"The filename of the SBR file, which is used as rootname"},
         
         {'name':'c_file',
-         'label':"Config File", 'type':'string', 'default':DBS+"/ana_apr16.cfg",
+         'label':"Config File", 'type':'string',
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
-         'label':"Image Directory", 'type':'string', 'default':"data$",
+         'label':"Image Directory", 'type':'string',
          'desc':"The directory in which the raw FITS images can be found"},
         
-        {'name':'reuse1',
+        {'name':'reuse1',   # TODO: change reuse to recalculate or something
          'label':"Reuse Star", 'type':'boolean',
          'desc':"Do you want to reuse mosaiced star images from last time?"},
         
@@ -119,11 +119,11 @@ params_2 = [
          'desc':"The filename of the SBR file, which is used as rootname"},
         
         {'name':'c_file',
-         'label':"Config File", 'type':'string', 'default':DBS+"/ana_apr16.cfg",
+         'label':"Config File", 'type':'string',
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
-         'label':"Image Directory", 'type':'string', 'default':"data$",
+         'label':"Image Directory", 'type':'string',
          'desc':"The directory in which the raw FITS images can be found"},
         
         {'name':'reuse3',
@@ -158,11 +158,11 @@ params_3 = [
          'desc':"The filename of the SBR file, which is used as rootname"},
         
         {'name':'c_file',
-         'label':"Config File", 'type':'string', 'default':DBS+"/ana_apr16.cfg",
+         'label':"Config File", 'type':'string',
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
-         'label':"Image Directory", 'type':'string', 'default':"data$",
+         'label':"Image Directory", 'type':'string',
          'desc':"The directory in which the raw FITS images can be found"},
         
         {'name':'reuse4',
@@ -221,71 +221,27 @@ class MESInterface(object):
         self.fv.showStatus("Waiting to start the MESOffset process.")
     
     
-    def start_0_cb(self, *args):
+    def start_process_cb(self, _, idx):
         """
-        Take the parameters from the mesoffset0 gui and go to page 1
+        Take the parameters from the gui and begin mesoffset{idx}
+        @param n:
+            The index for the process we are going to start - 0, 1, 2, or 3
         """
-        # adjust parameters
-        self.update_parameters(self.get_value[0])
-        self.set_param('sky_chip1', self.get_param('star_chip1') + 2)
-        if self.get_param('img_dir')[-1] != "/":
-            self.set_param('img_dir', self.get_param('img_dir') + "/")
-        self.set_defaults(1)
-        
-        # go to the MESOffset1 page
-        self.log("Going to MES Offset 1...")
-        self.manager.go_to_gui('epar 1')
-    
-    
-    def start_1_cb(self, *args):
-        """
-        Begin mesoffset1 with the current parameters
-        """
-        self.update_parameters(self.get_value[1])
-        self.manager.begin_mesoffset1()
-    
-    
-    def start_2_cb(self, *args):
-        """
-        Begin mesoffset2 with the current parameters
-        """
-        self.update_parameters(self.get_value[2])
-        self.manager.begin_mesoffset2()
-    
-    
-    def start_3_cb(self, *args):
-        """
-        Begin mesoffset3 with the current parameters
-        """
-        self.update_parameters(self.get_value[3])
-        self.manager.begin_mesoffset3()
-    
-    
-    def get_param(self, name):
-        """
-        Returns the global parameter of the given name
-        @param name:
-            The name of the variable
-        @returns:
-            The current value of the variable
-        """
-        return self.manager.database[name]
-    
-    
-    def set_param(self, name, val): 
-        """
-        Assigns a value of val to the global parameter of the given name
-        @param name:
-            The name of the variable
-        @param val:
-            The new value of the variable
-        """
-        self.manager.database[name] = val
+        self.log("Starting MES Offset {}...".format(idx))
+        self.update_parameters(self.get_value[idx])
+        if idx == 0:
+            self.manager.execute_mesoffset0()
+        elif idx == 1:
+            self.manager.begin_mesoffset1()
+        elif idx == 2:
+            self.manager.begin_mesoffset2()
+        elif idx == 3:
+            self.manager.begin_mesoffset3()
     
     
     def update_parameters(self, getters):
         """
-        Reads parameter values from getters and saves them in self.manager
+        Read parameter values from getters and saves them in self.manager
         @param getters:
             The dictionary of getter methods for parameter values
         """
@@ -295,7 +251,7 @@ class MESInterface(object):
         
     def set_defaults(self, page_num):
         """
-        Sets the default values for the gui on page page_num
+        Set the default values for the gui on page page_num
         @param page_num:
             The number for the GUI whose defaults we must set
         """
@@ -303,6 +259,19 @@ class MESInterface(object):
         for key in setters:
             if self.manager.database.has_key(key):
                 setters[key](self.manager.database[key])
+    
+    
+    def go_to_mesoffset(self, idx):
+        """
+        Go to the 'epar' TabWidget and ask the user for parameters for this
+        mesoffset process
+        @param idx:
+            The index of the process we want parameters for
+        """
+        self.set_defaults(idx)
+        self.parameter_tabs.set_index(idx)
+        self.manager.go_to_gui('epar')
+        
     
     
     def wait(self, condition_string, next_step=None):
@@ -365,21 +334,24 @@ class MESInterface(object):
         @returns:
             A list of tuples with strings (names) and Widgets (guis)
         """
-        return [('epar 0', self.make_gui_epar(0, self.start_0_cb, orientation)),    # TODO: tabs
-                ('epar 1', self.make_gui_epar(1, self.start_1_cb, orientation)),
-                ('epar 2', self.make_gui_epar(2, self.start_2_cb, orientation)),
-                ('epar 3', self.make_gui_epar(3, self.start_3_cb, orientation)),
-                ('wait',   self.make_gui_wait(orientation)),
-                ('log',    self.make_gui_log(orientation))]
+        # the interface is unique in that it has a tabwidget of similar guis
+        tab = Widgets.TabWidget()
+        tab.add_widget(self.make_gui_epar(0, orientation), "MESOffset 0")
+        tab.add_widget(self.make_gui_epar(1, orientation), "MESOffset 1")
+        tab.add_widget(self.make_gui_epar(2, orientation), "MESOffset 2")
+        tab.add_widget(self.make_gui_epar(3, orientation), "MESOffset 3")
+        self.parameter_tabs = tab
+        
+        return [('epar', self.parameter_tabs),
+                ('wait', self.make_gui_wait(orientation)),
+                ('log',  self.make_gui_log(orientation))]
         
         
-    def make_gui_epar(self, idx, process, orientation='vertical'):
+    def make_gui_epar(self, idx, orientation='vertical'):
         """
         Construct a GUI for the parameter menu, which prepares to launch process
         @param idx:
             The index of this MESOffset process
-        @param process:
-            The function that the GO! button will call
         @param orientation:
             Either 'vertical' or 'horizontal', the orientation of this new GUI
         @returns:
@@ -421,7 +393,7 @@ class MESInterface(object):
         
         # the go button is important
         btn = Widgets.Button("Go!")
-        btn.add_callback('activated', process)
+        btn.add_callback('activated', self.start_process_cb, idx)
         gui.add_widget(btn)
         
         # space appropriately and return
