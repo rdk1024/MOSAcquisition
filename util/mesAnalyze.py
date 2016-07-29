@@ -129,38 +129,55 @@ class MESAnalyze(object):
     
     def update_plots(self):
         """
-        Graph data on all plots and display it
+        Calculates self.transformation, graph data on all plots, and display it
         @returns:
             The x and y residuals in numpy array form
         """
-        # come up with some temporary variable names
-        input_coo = "geomap_temp_input.coo"
-        output_dbs = "geomap_temp_output.dbs"
-        # record the new data
-        self.write_data(input_coo, self.data, self.active)
-        
-        # call iraf.geomap
-        try:
-            os.remove(output_dbs)
-        except OSError:
-            pass
-        try:
-            geomap(input_coo, output_dbs, INDEF, INDEF, INDEF, INDEF,
-                   fitgeom="rotate")
-        except IOError:
-            pass
-        os.remove(input_coo)
+        data = self.data[np.nonzero(self.active)]
+        print "\nInput:"
+        print data
+        # calculate the optimal transformation from the input data
+        A = np.asmatrix(data[:, 0:2])   # TODO: wow, this is practically unreadable!
+        B = np.asmatrix(data[:, 2:4])
+        n = A.shape[0]
+        centroid_A = np.mean(A, axis=0)
+        centroid_B = np.mean(B, axis=0)
+        AA = A - np.tile(centroid_A, (n,1))
+        BB = B - np.tile(centroid_B, (n,1))
+        H = np.transpose(AA)*BB
+        U, S, Vt = np.linalg.svd(H)
+        R = Vt.T * U.T
+        t = -R*centroid_A.T + centroid_B.T
+        theta = np.mean([math.acos(R[0,0]), math.asin(R[0,1])])
+        self.transformation = (t[0,0], t[1,0], theta)
+        '''centroid = np.mean(data, axis=0)
+        data -= centroid
+        p_i = np.asmatrix(data[:,2:4].T)
+        p_f = np.asmatrix(data[:,0:2])
+        u, s, v = np.linalg.svd(p_i * p_f)
+        rot_m = v.T * u.T   # ATBT = (BA)T?
+        cent_i, cent_f = np.asmatrix(centroid[2:4]), np.asmatrix(centroid[0:2])
+        shift = cent_i - cent_f*rot_m.T # i hope so
+        theta = np.mean([math.acos(rot_m[0,0]), math.asin(rot_m[0,1])])
+        self.transformation = (shift[0,0], shift[0,1], theta)'''
+        print "\nOutput:"
+        print t
+        print R
+        print self.transformation
         
         # use its results to calculate some stuff
         xref = self.data[:, 0]
         yref = self.data[:, 1]
         xin  = self.data[:, 2]
         yin  = self.data[:, 3]
-        self.transformation = self.get_transformation(output_dbs)
+        print "\nResults"
+        print xin
+        print xref
         xcalc, ycalc = self.transform(xin, yin, self.transformation)
+        print xcalc
         xres = xcalc - xref
+        print xres
         yres = ycalc - yref
-        os.remove(output_dbs)
         
         # graph residual data on the plots
         self.plots[0].residual(xref, xres, self.active, var_name="X")
@@ -227,8 +244,8 @@ class MESAnalyze(object):
         # collect values from other sources
         xcenter = 1024.0
         ycenter = 1750.0
-        xshift, yshift, thetaD = self.transformation
-        thetaR = math.radians(thetaD)
+        xshift, yshift, thetaR = self.transformation
+        thetaD = math.degrees(thetaR)
         
         # calculate dx and dy (no idea what all this math is)
         dx = -yshift + xcenter*math.sin(thetaR) + ycenter*(1-math.cos(thetaR))
@@ -433,29 +450,7 @@ class MESAnalyze(object):
         data = data[np.nonzero(real_idx)]
         
         return data, np.ones(data.shape[0], dtype=bool)
-        
     
-    
-    @staticmethod
-    def write_data(filename, data, active):
-        """
-        Writes the new data to the filename
-        @param filename:
-            The name of a .coo file
-        @param data:
-            A numpy array
-        @active
-            A boolean array specifying which of the data are valid
-        """
-        coo = open(filename, 'w')
-        data = data[np.nonzero(active)]
-        for row in data:
-            for datum in row:
-                coo.write(str(datum))
-                coo.write(' ')
-            coo.write('\n')
-        coo.close()
-        
     
     @staticmethod
     def get_transformation(filename):
@@ -506,8 +501,7 @@ class MESAnalyze(object):
         if trans == None:
             return float('NaN'), float('NaN')
         
-        xshift, yshift, thetaD = trans
-        thetaR = math.radians(thetaD)
+        xshift, yshift, thetaR = trans
         newX = (x - xshift)*math.cos(thetaR) - (y - yshift)*math.sin(thetaR)
         newY = (x - xshift)*math.sin(thetaR) + (y - yshift)*math.cos(thetaR)
         return newX, newY

@@ -166,36 +166,67 @@ def makemosaic(input_data, input_header, c_file, log=nothing):
     # XXX: stuff I haven't figured out how to do wiothout IRAF yet :XXX #
     correct_data = [transform(input_data[0], config[2], config[3]),
                     transform(input_data[1], config[4], config[5])]
+    shifted_data = [transform(correct_data[0], config[8], config[9]),
+                    transform(correct_data[1], config[10], config[11])]
+    masked_data = [apply_mask(shifted_data[0], config[12]),
+                   apply_mask(shifted_data[1], config[13])]
     # XXX: stuff I haven't figured out how to do wiothout IRAF yet :XXX #
     
     # crop images
-    cropped_data = [correct_data[0][:, 0:1818], correct_data[1][:, -1818:-1]]
+    cropped_data = [masked_data[0][:, 0:1818], masked_data[1][:, -1818:-1]] # XXX is it okay for me to hardcode the 1818?
     
     # combine and rotate the images
     log("Combining the chips...")
     mosaic_data = np.rot90(np.hstack(cropped_data), k=3)
     
-    input_header['BPM'] = config[12]    # XXX: I don't know what this does
-    input_header['BPM'] = config[13]    #TODO: hedit? BPM?
     return fits.PrimaryHDU(data=mosaic_data, header=input_header)
 
 
-def transform(input_arr, dbs_file, gmp_file):
+def transform(input_arr, dbs_filename, gmp_filename):
     """
     Correct the input array for distortion using the given dbs and gmp
     @param input_arr:
         The input numpy array
-    @param dbs_file:
-        IDK. A string, I think
-    @param gmp_file:
-        I'm even less sure what this one is
+    @param dbs_filename:
+        The filename of the IRAF 'database file'. Not to be confused with an
+        SQLBase .dbs file, or a .db database file.
+    @param gmp_filename:
+        ??? There's a whole bunch of different kinds of .gmp files, and I'm sure
+        this is none of those. Isn't IRAF great?
     @returns:
         The corrected numpy array
     """
     from pyraf.iraf import geotran
     
     fits.PrimaryHDU(data=input_arr).writeto("tempin.fits", clobber=True)
-    geotran("tempin.fits", "tempout.fits", dbs_file, gmp_file)
+    geotran("tempin.fits", "tempout.fits", dbs_filename, gmp_filename)
+    output = fits.open("tempout.fits")[0].data
+    os.remove("tempin.fits")
+    os.remove("tempout.fits")
+    return output
+
+
+def apply_mask(input_arr, pl_filename, mask_val=0):
+    """
+    Replace all masked pixels with zero in the input array
+    @param input_arr:
+        The input numpy array
+    @param pl_filename:
+        Is it a Perl script? No. Well, it's some kind of text file, right? No.
+        This is a 'pixel list', and by that I mean binary image, and not a list
+        at all. It represents a mask. It has to pretend to be a Perl script
+        instead of an image so that no program besides IRAF can read it.
+    @param mask_val:
+        The value to put into all of the masked pixels
+    """
+    from pyraf.iraf import imcombine
+    
+    hdu = fits.PrimaryHDU(data=input_arr)
+    hdu.header['BPM'] = pl_filename
+    hdu.writeto("tempin.fits", clobber=True)
+    imcombine.masktype="goodvalue"
+    imcombine.maskvalue=mask_val
+    imcombine("tempin.fits", "tempout.fits")
     output = fits.open("tempout.fits")[0].data
     os.remove("tempin.fits")
     os.remove("tempout.fits")
