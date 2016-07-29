@@ -68,8 +68,8 @@ def process_star_fits(star_num, sky_num, c_file, img_dir, output_filename,
                                             img_dir, star_num,
                                             star_chip[i].header['DET-ID'], i+1))
         if star_chip[i].header['ALTITUDE'] < 45.0:
-            log(("WARN: {}MCSA{:08d}.fits has a low elevation of {}; the "+
-                 "mosaicing database may not be applicable here.").format(
+            log((u"WARN: {}MCSA{:08d}.fits has low elevation of {:.1}\u00B0; "+
+                  "the mosaicing database may not be applicable here.").format(
                                             img_dir, star_num,
                                             star_chip[i].header['ALTITUDE']))
     
@@ -161,13 +161,14 @@ def makemosaic(input_data, input_header, c_file, log=nothing):
         line = cfg.readline()
     cfg.close()
     
-    # correct for distortion
+    # correct for distortion and apply mask
     log("Correcting for distortion...")
     # XXX: stuff I haven't figured out how to do wiothout IRAF yet :XXX #
     correct_data = [transform(input_data[0], config[2], config[3]),
                     transform(input_data[1], config[4], config[5])]
     shifted_data = [transform(correct_data[0], config[8], config[9]),
                     transform(correct_data[1], config[10], config[11])]
+    log("Masking bad pixels...")
     masked_data = [apply_mask(shifted_data[0], config[12]),
                    apply_mask(shifted_data[1], config[13])]
     # XXX: stuff I haven't figured out how to do wiothout IRAF yet :XXX #
@@ -191,18 +192,22 @@ def transform(input_arr, dbs_filename, gmp_filename):
         The filename of the IRAF 'database file'. Not to be confused with an
         SQLBase .dbs file, or a .db database file.
     @param gmp_filename:
-        ??? There's a whole bunch of different kinds of .gmp files, and I'm sure
-        this is none of those. Isn't IRAF great?
+        I don't know what kind of file this is; there's a whole bunch of
+        different kinds of .gmp files, and I'm sure this is none of those. Isn't
+        IRAF great?
     @returns:
         The corrected numpy array
     """
     from pyraf.iraf import geotran
     
+    if os.path.exists('tempout.fits'):
+        os.remove('tempout.fits')
     fits.PrimaryHDU(data=input_arr).writeto("tempin.fits", clobber=True)
-    geotran("tempin.fits", "tempout.fits", dbs_filename, gmp_filename)
-    output = fits.open("tempout.fits")[0].data
-    os.remove("tempin.fits")
-    os.remove("tempout.fits")
+    geotran('tempin.fits', 'tempout.fits', dbs_filename, gmp_filename,
+            verbose='no')
+    output = fits.open('tempout.fits')[0].data
+    os.remove('tempin.fits')
+    os.remove('tempout.fits')
     return output
 
 
@@ -221,15 +226,16 @@ def apply_mask(input_arr, pl_filename, mask_val=0):
     """
     from pyraf.iraf import imcombine
     
+    if os.path.exists('tempout.fits'):
+        os.remove('tempout.fits')
     hdu = fits.PrimaryHDU(data=input_arr)
     hdu.header['BPM'] = pl_filename
-    hdu.writeto("tempin.fits", clobber=True)
-    imcombine.masktype="goodvalue"
-    imcombine.maskvalue=mask_val
-    imcombine("tempin.fits", "tempout.fits")
-    output = fits.open("tempout.fits")[0].data
-    os.remove("tempin.fits")
-    os.remove("tempout.fits")
+    hdu.writeto('tempin.fits', clobber=True)
+    imcombine('tempin.fits', 'tempout.fits',
+              masktype='goodvalue', maskvalue=mask_val)
+    output = fits.open('tempout.fits')[0].data
+    os.remove('tempin.fits')
+    os.remove('tempout.fits')
     return output
 
 #END

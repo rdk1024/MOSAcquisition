@@ -40,7 +40,7 @@ class MESAnalyze(object):
     
     
     
-    def start(self, star_pos, hole_pos, output_log=None, next_step=None):   # TODO: what do I need the log for, again?
+    def start(self, star_pos, hole_pos, output_log=None, next_step=None):
         """
         Analyze the data from MESLocate
         @param star_pos:
@@ -49,14 +49,11 @@ class MESAnalyze(object):
             A three column (x,y,r) array specifying the hole locations and sizes
         @param rootname:
             The string that will be used for all temporary filenames
-        @param output_log:
-            The filename to which to print the final results
         @param next_step:
             The function to call when this process is done
         """
         # set attributes
         self.data, self.active = self.parse_data(star_pos, hole_pos)
-        self.output_log = output_log
         self.next_step = next_step
         
         # set the mouse controls
@@ -64,7 +61,6 @@ class MESAnalyze(object):
         
         # adjust the cut levels to make the points easier to see
         self.fitsimage.get_settings().set(autocut_method='stddev')
-        self.fv.showStatus("Analyze and trim the data.")
         
         # initialize the plots
         self.delete_outliers()
@@ -97,7 +93,6 @@ class MESAnalyze(object):
         """
         self.set_callbacks(step=4)
         self.manager.go_to_gui('values')
-        self.fv.showStatus("Read the MES Offset values!")
         self.display_values()
         
         
@@ -163,9 +158,8 @@ class MESAnalyze(object):
             self.draw_vector_on_canvas(xref[i], yref[i], xres[i], yres[i], i)
         
         return xres, yres
-        
-        
-                
+    
+    
     def draw_vector_on_canvas(self, xref, yref, xres, yres, idx):
         """
         Draws the residual vector at the given point on the canvas
@@ -209,8 +203,8 @@ class MESAnalyze(object):
                                              "{:.1f}p".format(magnitude),
                                              color=color)),
                         tag=str(idx))
-                            
-                            
+    
+    
     def display_values(self):
         """
         Shows the final MES Offset values on the screen, based on

@@ -41,16 +41,20 @@ params_0 = [    # TODO: get rid of these defaults; they're just for my convinien
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
-         'label':"Image Directory", 'type':'string', 'default':"RAW",
+         'label':"Image Directory", 'type':'string', 'default':"RAW/",
          'desc':"The directory in which the input FITS images can be found"},
+        
+        {'name':'recalc0',
+         'label':"Recalculate", 'type':'boolean', 'default':False,
+         'desc':"Do you want to generate new FITS images from raw data?"},
+        
+        {'name':'interact0',
+         'label':"Interact", 'type':'boolean', 'default':False,
+         'desc':"Do you want to interact with object position measurement?"},
         
         {'name':'exec_mode',
          'label':"Execution Mode", 'type':'choice', 'options':["Normal","Fine"],
-         'desc':"Choose 'Fine' to skip MES Offset 1"},
-        
-        {'name':'mode',
-         'label':"Mode", 'type':'choice', 'options':["q1"],
-         'desc':"I don't know what this means. Remind me to look it up later."}
+         'desc':"Choose 'Fine' to skip MES Offset 1"}
         ]
 
 # mesoffset1 parameters
@@ -75,21 +79,13 @@ params_1 = [
          'label':"Image Directory", 'type':'string',
          'desc':"The directory in which the raw FITS images can be found"},
         
-        {'name':'reuse1',   # TODO: change reuse to recalculate or something
-         'label':"Reuse Star", 'type':'boolean',
-         'desc':"Do you want to reuse mosaiced star images from last time?"},
-        
-        {'name':'reuse2',
-         'label':"Reuse Mask", 'type':'boolean',
-         'desc':"Do you want to reuse mosaiced mask images from last time?"},
+        {'name':'recalc1',
+         'label':"Recalculate Star", 'type':'boolean',
+         'desc':"Do you want to generate new mosaiced star images?"},
         
         {'name':'interact1',
          'label':"Interact Star", 'type':'boolean',
          'desc':"Do you want to interact with star position measurement?"},
-        
-        {'name':'interact2',
-         'label':"Interact Hole", 'type':'boolean',
-         'desc':"Do you want to interact with hole position measurement?"},
         
         {'name':'list1',
          'label':"List 1", 'type':'string',
@@ -97,11 +93,22 @@ params_1 = [
         
         {'name':'list2',
          'label':"List 2", 'type':'string',
-         'desc':"I'm sorry, were you hoping for a descriptive tooltip?"},
+         'desc':"I'm sorry, were you hoping for a descriptive tooltip?"}
+        ]
+
+# mesoffset1.5 parameters
+params_1p5 = [
+        {'name':'mask_chip1',
+         'label':"Mask Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 mask FITS image"},
         
-        {'name':'mode',
-         'label':"Mode", 'type':'choice', 'options':["q1"],
-         'desc':"I don't know what this means. Remind me to look it up later."}
+        {'name':'recalc2',
+         'label':"Recalculate Hole", 'type':'boolean',
+         'desc':"Do you want to generate new mosaiced mask images?"},
+        
+        {'name':'interact2',
+         'label':"Interact Hole", 'type':'boolean',
+         'desc':"Do you want to interact with hole position measurement?"}
         ]
 
 # mesoffset2 parameters
@@ -111,7 +118,7 @@ params_2 = [
          'desc':"The frame number for the chip1 star-hole FITS image"},
         
         {'name':'sky_chip1',
-         'label':"Sky Name", 'type':'number', 'format':"MCSA{}.fits",
+         'label':"Sky Frame", 'type':'number', 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 sky FITS image"},
         
         {'name':'rootname',
@@ -126,68 +133,67 @@ params_2 = [
          'label':"Image Directory", 'type':'string',
          'desc':"The directory in which the raw FITS images can be found"},
         
-        {'name':'reuse3',
-         'label':"Reuse", 'type':'boolean',
-         'desc':"Do you want to reuse mosaiced images from last time?"},
+        {'name':'recalc3',
+         'label':"Recalculate Star-Hole", 'type':'boolean',
+         'desc':"Do you want to generate new mosaiced star-hole images?"},
         
         {'name':'interact3',
-         'label':"Interact", 'type':'boolean',
-         'desc':"Do you want to interact with star position measurement?"},
-        
-        {'name':'list1',
-         'label':"List 1", 'type':'string',#TODO: what are the lists?
-         'desc':"something something something something something something "},
-        
-        {'name':'mode',
-         'label':"Mode", 'type':'choice', 'options':["q1"],
-         'desc':"I don't know what this means. Remind me to look it up later."}
-        ]
-
-# mesoffset3 parameters
-params_3 = [
-        {'name':'starhole_chip1',
-         'label':"Star-Hole Frame", 'type':'number', 'format':"MCSA{}.fits",
-         'desc':"The frame number for the chip1 star-hole FITS image"},
-        
-        {'name':'sky_chip1',
-         'label':"Sky Name", 'type':'number', 'format':"MCSA{}.fits",
-         'desc':"The frame number for the chip1 sky FITS image"},
-        
-        {'name':'rootname',
-         'label':"Root Name", 'type':'string', 'format':"{}.sbr",
-         'desc':"The filename of the SBR file, which is used as rootname"},
-        
-        {'name':'c_file',
-         'label':"Config File", 'type':'string',
-         'desc':"The location of the MCSRED configuration file"},
-        
-        {'name':'img_dir',
-         'label':"Image Directory", 'type':'string',
-         'desc':"The directory in which the raw FITS images can be found"},
-        
-        {'name':'reuse4',
-         'label':"Reuse Mask", 'type':'boolean',
-         'desc':"Do you want to reuse mosaiced mask images from last time?"},
-        
-        {'name':'reuse5',
-         'label':"Reuse Star-Hole", 'type':'boolean',
-         'desc':"Do you want to reuse mosaiced star-hole images from last time?"},
-        
-        {'name':'interact4',
-         'label':"Interact Hole", 'type':'boolean',
-         'desc':"Do you want to interact with hole position measurement?"},
-        
-        {'name':'interact5',
          'label':"Interact Star-Hole", 'type':'boolean',
          'desc':"Do you want to interact with star position measurement?"},
         
         {'name':'list1',
-         'label':"List 1", 'type':'string',
-         'desc':"something something something something something something "},
+         'label':"List 1", 'type':'string',#TODO: what are the lists?
+         'desc':"something something something something something something "}
+        ]
+
+# mesoffset3 parameters
+params_3 = [
+        {'name':'mask_chip1',
+         'label':"Mask Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 mask FITS image"},
         
-        {'name':'mode',
-         'label':"Mode", 'type':'choice', 'options':["q1"],
-         'desc':"I don't know what this means. Remind me to look it up later."}
+        {'name':'sky_chip1',
+         'label':"Sky Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 sky FITS image"},
+        
+        {'name':'rootname',
+         'label':"Root Name", 'type':'string', 'format':"{}.sbr",
+         'desc':"The filename of the SBR file, which is used as rootname"},
+        
+        {'name':'c_file',
+         'label':"Config File", 'type':'string',
+         'desc':"The location of the MCSRED configuration file"},
+        
+        {'name':'img_dir',
+         'label':"Image Directory", 'type':'string',
+         'desc':"The directory in which the raw FITS images can be found"},
+        
+        {'name':'recalc4',
+         'label':"Recalculate Mask", 'type':'boolean',
+         'desc':"Do you want to generate new mosaiced mask images?"},
+        
+        {'name':'interact4',
+         'label':"Interact Mask", 'type':'boolean',
+         'desc':"Do you want to interact with hole position measurement?"},
+        
+        {'name':'list1',
+         'label':"List 1", 'type':'string',
+         'desc':"something something something something something something "}
+        ]
+
+# mesoffset3.5 parameters
+params_3p5 = [
+        {'name':'starhole_chip1',
+         'label':"Star-Hole Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 star-hole FITS image"},
+        
+        {'name':'recalc5',
+         'label':"Recalculate Star-Hole", 'type':'boolean',
+         'desc':"Do you want to generate new mosaiced star-hole images?"},
+        
+        {'name':'interact5',
+         'label':"Interact Star-Hole", 'type':'boolean',
+         'desc':"Do you want to interact with star position measurement?"}
         ]
 
 
@@ -208,23 +214,16 @@ class MESInterface(object):
         manager.initialise(self)
         
         # attributes
-        self.get_value = []     # getter methods for all parameters
-        self.set_value = []     # setter methods for all parameters
+        self.get_value = []         # getter methods for all parameters
+        self.set_value = []         # setter methods for all parameters
+        self.resume_mesoffset = {}  # intermediate functions to call after waiting
         
-    
-    
-    def start(self):
-        """
-        Get user input so that we can start MES Locate/Analyze
-        """
-        # set the initial status message
-        self.fv.showStatus("Waiting to start the MESOffset process.")
     
     
     def start_process_cb(self, _, idx):
         """
         Take the parameters from the gui and begin mesoffset{idx}
-        @param n:
+        @param idx:
             The index for the process we are going to start - 0, 1, 2, or 3
         """
         self.log("Starting MES Offset {}...".format(idx))
@@ -239,6 +238,19 @@ class MESInterface(object):
             self.manager.begin_mesoffset3()
     
     
+    def resume_process_cb(self, _, idx):
+        """
+        Take the parameters from the intermediate gui and resume
+        @param idx:
+            The index for the process we must resume - 1 or 3
+        """
+        if idx == 1:
+            self.update_parameters(self.get_value[4])
+        elif idx == 3:
+            self.update_parameters(self.get_value[5])
+        self.resume_mesoffset[idx]()
+    
+    
     def update_parameters(self, getters):
         """
         Read parameter values from getters and saves them in self.manager
@@ -247,6 +259,35 @@ class MESInterface(object):
         """
         new_params = {key:get_val() for key, get_val in getters.items()}
         self.manager.database.update(new_params)
+    
+    
+    def go_to_mesoffset(self, idx):
+        """
+        Go to the 'epar' TabWidget and ask the user for parameters for this
+        mesoffset process
+        @param idx:
+            The index of the process we want parameters for
+        """
+        self.set_defaults(idx)
+        self.parameter_tabs.set_index(idx)
+        self.manager.go_to_gui('epar')
+    
+    
+    def wait(self, idx, next_step=None):
+        """
+        Go to the 'wait' gui at this index to get more info from the user, and
+        prepare to execute the next step.
+        @param idx:
+            The index of the process that this interrupts
+        @param next_step:
+            The function to be called when the 'Go!' button is pressed
+        """
+        if idx == 1:
+            self.set_defaults(4)
+        elif idx == 3:
+            self.set_defaults(5)
+        self.manager.go_to_gui('wait '+str(idx))
+        self.resume_mesoffset[idx] = next_step
         
         
     def set_defaults(self, page_num):
@@ -261,35 +302,6 @@ class MESInterface(object):
                 setters[key](self.manager.database[key])
     
     
-    def go_to_mesoffset(self, idx):
-        """
-        Go to the 'epar' TabWidget and ask the user for parameters for this
-        mesoffset process
-        @param idx:
-            The index of the process we want parameters for
-        """
-        self.set_defaults(idx)
-        self.parameter_tabs.set_index(idx)
-        self.manager.go_to_gui('epar')
-        
-    
-    
-    def wait(self, condition_string, next_step=None):
-        """
-        Set the 'wait' GUI to wait for a certain condition, and prepare to
-        execute the next step.
-        @param condition_string:
-            The text the user will see above the 'Go!' button
-        @param next_step:
-            The function to be called when the 'Go!' button is pressed
-        """
-        self.fitsimage.zoom_fit()
-        self.fitsimage.center_image()
-        self.waiting_text.set_text(condition_string)
-        if next_step != None:
-            self.waiting_button.set_callback('activated', next_step)
-        
-        
     def log(self, text, *args, **kwargs):
         """
         Print text to the logger TextArea
@@ -342,16 +354,17 @@ class MESInterface(object):
         tab.add_widget(self.make_gui_epar(3, orientation), "MESOffset 3")
         self.parameter_tabs = tab
         
-        return [('epar', self.parameter_tabs),
-                ('wait', self.make_gui_wait(orientation)),
-                ('log',  self.make_gui_log(orientation))]
+        return [('epar',   self.parameter_tabs),
+                ('wait 1', self.make_gui_wait(1, orientation)),
+                ('wait 3', self.make_gui_wait(3, orientation)),
+                ('log',    self.make_gui_log(orientation))]
         
         
     def make_gui_epar(self, idx, orientation='vertical'):
         """
         Construct a GUI for the parameter menu, which prepares to launch process
         @param idx:
-            The index of this MESOffset process
+            The index of this MESOffset process, or None for an ambiguous epar
         @param orientation:
             Either 'vertical' or 'horizontal', the orientation of this new GUI
         @returns:
@@ -401,29 +414,49 @@ class MESInterface(object):
         return gui
     
     
-    def make_gui_wait(self, orientation='vertical'):
+    def make_gui_wait(self, idx, orientation='vertical'):
         """
-        Construct a GUI that waits for the user to press a button
+        Construct an intermediate epar GUI, as a break in the middle of a
+        process
         @param orientation:
             Either 'vertical' or 'horizontal', the orientation of this new GUI
         @returns:
             A Widgets.Box object containing all necessary buttons, labels, etc.
         """
+        name = "MES Offset {}".format(idx)
         # start by creating the container
         gui = Widgets.Box(orientation=orientation)
         gui.set_spacing(4)
         
-        # make a textbox
+        # fill a text box with brief instructions and put in in an expander
+        exp = Widgets.Expander(title="Instructions")
+        gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.manager.body_font)
-        gui.add_widget(txt)
-        self.waiting_text = txt
-
-        # make a button
+        txt.set_font(self.manager.normal_font)
+        txt.set_text("Verify parameters in order to continue "+name+", using "+
+                     "the widgets below. When you are finished and the "+
+                     "specified files are ready for analysis, press the 'Go!' "+
+                     "button, which will resume "+name+".")
+        exp.set_widget(txt)
+        
+        # chose the params
+        if idx == 1:
+            params = params_1p5
+        elif idx == 3:
+            params = params_3p5
+        
+        # create a grid to group the different controls
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
+        grd, getters, setters = self.build_control_layout(params)
+        self.get_value.append(getters)  # NOTE that these getters and setters
+        self.set_value.append(setters)  # will have different indices than idx
+        frm.set_widget(grd)
+        
+        # the go button is important
         btn = Widgets.Button("Go!")
-        btn.set_tooltip("Press once the above condition has been met.")
+        btn.add_callback('activated', self.resume_process_cb, idx)
         gui.add_widget(btn)
-        self.waiting_button = btn
         
         # space appropriately and return
         gui.add_widget(Widgets.Label(''), stretch=True)
@@ -438,23 +471,12 @@ class MESInterface(object):
         @returns:
             A Widgets.Box object containing all necessary buttons, labels, etc.
         """
-        # start by creating the container
-        gui = Widgets.Box(orientation=orientation)
-        gui.set_spacing(4)
-        
-        # label the log
-        lbl = Widgets.Label("Please wait...")
-        lbl.set_font(self.manager.header_font)
-        gui.add_widget(lbl)
-
         # the only thing here is a gigantic text box
         txt = Widgets.TextArea(wrap=False, editable=False)
         txt.set_font(self.manager.body_font)
-        txt.set_text("\n"*100)  #XXX find a better way to stretch it
-        gui.add_widget(txt, stretch=True)
         self.log_textarea = txt
         
-        return gui
+        return txt
     
     
     

@@ -86,19 +86,6 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         end.add_widget(btn)
         end.add_widget(Widgets.Label(''), stretch=True)
         
-        
-    def build_specific_gui(self, stack, orientation='vertical'):
-        """
-        Combine the GUIs necessary for this particular plugin
-        Must be implemented for each MESPlugin
-        @param stack:
-            The stack in which each part of the GUI will be stored
-        @param orientation:
-            Either 'vertical' or 'horizontal', the orientation of this new GUI
-        """
-        raise NotImplementedError("make_specific_gui() must be implemented "+
-                                  "for every subclass of mosplugin.MESPlugin")
-        
     
     def start(self):
         """
@@ -140,6 +127,7 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         """
         # activate the GUI
         self.canvas.ui_setActive(True)
+        self.fv.showStatus("Calculate the offset values to align MOIRCS")
 
 
     def stop(self):

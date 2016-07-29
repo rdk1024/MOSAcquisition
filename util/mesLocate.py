@@ -5,7 +5,7 @@
 # Justin Kunimune
 #
 
-
+    # TODO: are pieces of stars in starhole getting cropped out? I hope not...
 
 # standard imports
 import math
@@ -77,12 +77,9 @@ class MESLocate(object):
         # set the autocut to make things easier to see
         if mode == 'star':
             method = 'stddev'
-        elif mode == 'mask':
-            method = 'zscale'
-        elif mode == 'starhole':
+        else:
             method = 'minmax'
         self.fitsimage.get_settings().set(autocut_method=method)
-        self.fv.showStatus("Locate the object labeled '1' by clicking.")
         
         # creates the list of thumbnails that will go in the GUI
         self.thumbnails = self.create_viewer_list(self.obj_num, self.logger)
@@ -147,7 +144,6 @@ class MESLocate(object):
         Responds to back button by returning to step 1
         """
         self.manager.go_to_gui('find')
-        self.fv.showStatus("Locate the object labeled '1' by clicking.")
         self.set_callbacks(step=1)
         self.fitsimage.center_image()
         self.fitsimage.zoom_fit()
@@ -159,7 +155,6 @@ class MESLocate(object):
         """
         # set everything up for the first object of step 2
         self.manager.go_to_gui('centroid')
-        self.fv.showStatus("Crop each object image by clicking and dragging")
         self.set_callbacks(step=2)
         self.canvas.delete_all_objects()
         self.select_point(self.click_history[self.click_index])
