@@ -916,8 +916,11 @@ class MESLocate(object):
         # iterate over progressively smaller search radii
         if min_search_radius == None:
             min_search_radius = search_radius/2
-        while search_radius >= min_search_radius:
+        has_not_executed_yet = True
+        while search_radius >= min_search_radius or has_not_executed_yet:
+            has_not_executed_yet = False
             old_x_cen, old_y_cen = float('-inf'), float('-inf')
+            
             # repeat the following until you hit an assymptote:
             while np.hypot(x_cen-old_x_cen, y_cen-old_y_cen) >= 0.5:
                 # define an array for data constrained to its search radius

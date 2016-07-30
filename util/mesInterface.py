@@ -23,181 +23,6 @@ from numpy import ma
 
 
 
-# constants
-# database folder location
-DBS = "../../MCSRED2/DATABASE"
-# main menu parameters
-params_0 = [    # TODO: get rid of these defaults; they're just for my convinience
-        {'name':'star_chip1',
-         'label':"Star Frame", 'type':'number', 'default':227463, 'format':"MCSA{}.fits",
-         'desc':"The frame number for the chip1 star FITS image"},
-        
-        {'name':'rootname',
-         'label':"Root Name", 'type':'string', 'default':"sbr_elaisn1rev", 'format':"{}.sbr",
-         'desc':"The filename of the SBR file, which is used as rootname"},
-        
-        {'name':'c_file',
-         'label':"Config File", 'type':'string', 'default':DBS+"/ana_apr16.cfg",
-         'desc':"The location of the MCSRED configuration file"},
-        
-        {'name':'img_dir',
-         'label':"Image Directory", 'type':'string', 'default':"RAW/",
-         'desc':"The directory in which the input FITS images can be found"},
-        
-        {'name':'recalc0',
-         'label':"Recalculate", 'type':'boolean', 'default':False,
-         'desc':"Do you want to generate new FITS images from raw data?"},
-        
-        {'name':'interact0',
-         'label':"Interact", 'type':'boolean', 'default':False,
-         'desc':"Do you want to interact with object position measurement?"},
-        
-        {'name':'exec_mode',
-         'label':"Execution Mode", 'type':'choice', 'options':["Normal","Fine"],
-         'desc':"Choose 'Fine' to skip MES Offset 1"}
-        ]
-
-# mesoffset1 parameters
-params_1 = [
-        {'name':'star_chip1',
-         'label':"Star Frame", 'type':'number', 'format':"MCSA{}.fits",
-         'desc':"The frame number for the chip1 star FITS image"},
-        
-        {'name':'sky_chip1',
-         'label':"Sky Frame", 'type':'number', 'format':"MCSA{}.fits",
-         'desc':"The frame number for the chip1 sky FITS image"},
-        
-        {'name':'rootname',
-         'label':"Root Name", 'type':'string', 'format':"{}.sbr",
-         'desc':"The filename of the SBR file, which is used as rootname"},
-        
-        {'name':'c_file',
-         'label':"Config File", 'type':'string',
-         'desc':"The location of the MCSRED configuration file"},
-        
-        {'name':'img_dir',
-         'label':"Image Directory", 'type':'string',
-         'desc':"The directory in which the raw FITS images can be found"},
-        
-        {'name':'recalc1',
-         'label':"Recalculate Star", 'type':'boolean',
-         'desc':"Do you want to generate new mosaiced star images?"},
-        
-        {'name':'interact1',
-         'label':"Interact Star", 'type':'boolean',
-         'desc':"Do you want to interact with star position measurement?"},
-        
-        {'name':'list1',
-         'label':"List 1", 'type':'string',
-         'desc':"something something something something something something "},
-        
-        {'name':'list2',
-         'label':"List 2", 'type':'string',
-         'desc':"I'm sorry, were you hoping for a descriptive tooltip?"}
-        ]
-
-# mesoffset1.5 parameters
-params_1p5 = [
-        {'name':'mask_chip1',
-         'label':"Mask Frame", 'type':'number', 'format':"MCSA{}.fits",
-         'desc':"The frame number for the chip1 mask FITS image"},
-        
-        {'name':'recalc2',
-         'label':"Recalculate Hole", 'type':'boolean',
-         'desc':"Do you want to generate new mosaiced mask images?"},
-        
-        {'name':'interact2',
-         'label':"Interact Hole", 'type':'boolean',
-         'desc':"Do you want to interact with hole position measurement?"}
-        ]
-
-# mesoffset2 parameters
-params_2 = [
-        {'name':'starhole_chip1',
-         'label':"Star-Hole Frame", 'type':'number', 'format':"MCSA{}.fits",
-         'desc':"The frame number for the chip1 star-hole FITS image"},
-        
-        {'name':'sky_chip1',
-         'label':"Sky Frame", 'type':'number', 'format':"MCSA{}.fits",
-         'desc':"The frame number for the chip1 sky FITS image"},
-        
-        {'name':'rootname',
-         'label':"Root Name", 'type':'string', 'format':"{}.sbr",
-         'desc':"The filename of the SBR file, which is used as rootname"},
-        
-        {'name':'c_file',
-         'label':"Config File", 'type':'string',
-         'desc':"The location of the MCSRED configuration file"},
-        
-        {'name':'img_dir',
-         'label':"Image Directory", 'type':'string',
-         'desc':"The directory in which the raw FITS images can be found"},
-        
-        {'name':'recalc3',
-         'label':"Recalculate Star-Hole", 'type':'boolean',
-         'desc':"Do you want to generate new mosaiced star-hole images?"},
-        
-        {'name':'interact3',
-         'label':"Interact Star-Hole", 'type':'boolean',
-         'desc':"Do you want to interact with star position measurement?"},
-        
-        {'name':'list1',
-         'label':"List 1", 'type':'string',#TODO: what are the lists?
-         'desc':"something something something something something something "}
-        ]
-
-# mesoffset3 parameters
-params_3 = [
-        {'name':'mask_chip1',
-         'label':"Mask Frame", 'type':'number', 'format':"MCSA{}.fits",
-         'desc':"The frame number for the chip1 mask FITS image"},
-        
-        {'name':'sky_chip1',
-         'label':"Sky Frame", 'type':'number', 'format':"MCSA{}.fits",
-         'desc':"The frame number for the chip1 sky FITS image"},
-        
-        {'name':'rootname',
-         'label':"Root Name", 'type':'string', 'format':"{}.sbr",
-         'desc':"The filename of the SBR file, which is used as rootname"},
-        
-        {'name':'c_file',
-         'label':"Config File", 'type':'string',
-         'desc':"The location of the MCSRED configuration file"},
-        
-        {'name':'img_dir',
-         'label':"Image Directory", 'type':'string',
-         'desc':"The directory in which the raw FITS images can be found"},
-        
-        {'name':'recalc4',
-         'label':"Recalculate Mask", 'type':'boolean',
-         'desc':"Do you want to generate new mosaiced mask images?"},
-        
-        {'name':'interact4',
-         'label':"Interact Mask", 'type':'boolean',
-         'desc':"Do you want to interact with hole position measurement?"},
-        
-        {'name':'list1',
-         'label':"List 1", 'type':'string',
-         'desc':"something something something something something something "}
-        ]
-
-# mesoffset3.5 parameters
-params_3p5 = [
-        {'name':'starhole_chip1',
-         'label':"Star-Hole Frame", 'type':'number', 'format':"MCSA{}.fits",
-         'desc':"The frame number for the chip1 star-hole FITS image"},
-        
-        {'name':'recalc5',
-         'label':"Recalculate Star-Hole", 'type':'boolean',
-         'desc':"Do you want to generate new mosaiced star-hole images?"},
-        
-        {'name':'interact5',
-         'label':"Interact Star-Hole", 'type':'boolean',
-         'desc':"Do you want to interact with star position measurement?"}
-        ]
-
-
-
 class MESInterface(object):
     """
     A class that takes parameters from the user in a user-friendly menu.
@@ -388,13 +213,13 @@ class MESInterface(object):
         
         # chose the params
         if idx == 0:
-            params = params_0
+            params = self.manager.params_0
         elif idx == 1:
-            params = params_1
+            params = self.manager.params_1
         elif idx == 2:
-            params = params_2
+            params = self.manager.params_2
         elif idx == 3:
-            params = params_3
+            params = self.manager.params_3
 
         # create a grid to group the different controls
         frm = Widgets.Frame(name)
@@ -441,9 +266,9 @@ class MESInterface(object):
         
         # chose the params
         if idx == 1:
-            params = params_1p5
+            params = self.manager.params_1p5
         elif idx == 3:
-            params = params_3p5
+            params = self.manager.params_3p5
         
         # create a grid to group the different controls
         frm = Widgets.Frame()
@@ -469,7 +294,7 @@ class MESInterface(object):
         @param orientation:
             Either 'vertical' or 'horizontal', the orientation of this new GUI
         @returns:
-            A Widgets.Box object containing all necessary buttons, labels, etc.
+            A Widget object containing all necessary buttons, labels, etc.
         """
         # the only thing here is a gigantic text box
         txt = Widgets.TextArea(wrap=False, editable=False)

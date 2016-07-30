@@ -22,17 +22,17 @@ def nothing(*args, **kwargs):
     pass
 
 
-def process_star_fits(star_num, sky_num, c_file, img_dir, output_filename,
+def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
                       log=nothing, next_step=None
                       ):
     """
-    Process the raw star and sky images by subtracting the sky from the star
-    images, adding a gaussian filter to the result, and mosaicing it all
-    together
+    Process the raw star and background images by subtracting the background
+    from the star images, adding a gaussian filter to the result, and mosaicing
+    it all together
     @param star_num:
         The number in the star image chip1 filename
-    @param sky_num:
-        The number in the sky image chip1 filename
+    @param back_num:
+        The number in the background image chip1 filename
     @param c_file:
         The location of the cfg file that contains parameters for makemosaic
     @param img_dir:
@@ -51,14 +51,11 @@ def process_star_fits(star_num, sky_num, c_file, img_dir, output_filename,
     """
     log("Processing star frames...")
     
-    # open all the FITS, if you can TODO: what happens when the files aren't there?
+    # open the star FITS, if you can TODO: what happens when the files aren't there?
     star_chip = []
-    sky_chip = []
     for chip in (0, 1):
         star_chip.append(fits.open("{}MCSA{:08d}.fits".format(
                                             img_dir, star_num+chip))[0])
-        sky_chip.append(fits.open("{}MCSA{:08d}.fits".format(
-                                            img_dir, sky_num+chip))[0])
     
     # check header info
     for i in (0, 1):
@@ -68,19 +65,23 @@ def process_star_fits(star_num, sky_num, c_file, img_dir, output_filename,
                                             img_dir, star_num,
                                             star_chip[i].header['DET-ID'], i+1))
         if star_chip[i].header['ALTITUDE'] < 45.0:
-            log((u"WARN: {}MCSA{:08d}.fits has low elevation of {:.1}\u00B0; "+
+            log((u"WARN: {}MCSA{:08d}.fits has low elevation of {:.1f}\u00B0; "+
                   "the mosaicing database may not be applicable here.").format(
-                                            img_dir, star_num,
+                                            img_dir, star_num+i,
                                             star_chip[i].header['ALTITUDE']))
     
-    # subtract the sky frames from the star frames
+    # subtract the background frames from the star frames
     log("Subtracting images...")
-    if sky_num != 0:
-        dif_data = [star_chip[0].data - sky_chip[0].data,
-                    star_chip[1].data - sky_chip[1].data]
+    if back_num != 0:
+        back_chip = []
+        for chip in (0,1):
+            back_chip.append(fits.open("{}MCSA{:08d}.fits".format(
+                                                    img_dir, back_num+chip))[0])
+        
+        dif_data = [star_chip[i].data - back_chip[i].data for i in (0,1)]
+    
     else:
-        dif_data = [star_chip[0].data,
-                    star_chip[1].data]
+        dif_data = [star_chip[i].data for i in (0,1)]
     
     # mosaic the chips together
     mosaic_hdu = makemosaic(dif_data, star_chip[0].header, c_file, log=log)
@@ -192,9 +193,12 @@ def transform(input_arr, dbs_filename, gmp_filename):
         The filename of the IRAF 'database file'. Not to be confused with an
         SQLBase .dbs file, or a .db database file.
     @param gmp_filename:
-        I don't know what kind of file this is; there's a whole bunch of
-        different kinds of .gmp files, and I'm sure this is none of those. Isn't
-        IRAF great?
+        The filename inside the filename that tells IRAF which part of the dbs
+        file to look at. Because using integers was too easy, so why not just
+        use filenames with an extention that doesn't exist to index through a
+        file. Rather, the .gmp file extension does exist, and serves a log of
+        purposes, but none of them have anything to do with IRAF or image
+        transformations. WHYYYYYY?
     @returns:
         The corrected numpy array
     """

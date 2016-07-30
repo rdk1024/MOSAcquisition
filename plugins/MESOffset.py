@@ -25,6 +25,180 @@ class MESOffset(mosPlugin.MESPlugin):
     use as part of the MOS Acquisition software for aligning MOIRCS.
     """
     
+    # database folder location
+    DBS = "../../MCSRED2/DATABASE"
+    # main menu parameters
+    params_0 = [    # TODO: get rid of these defaults; they're just for my convinience
+        {'name':'star_chip1',
+         'label':"Star Frame", 'type':'number', 'default':227463, 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 star FITS image"},
+        
+        {'name':'rootname',
+         'label':"Root Name", 'type':'string', 'default':"sbr_elaisn1rev", 'format':"{}.sbr",
+         'desc':"The filename of the SBR file, which is used as rootname"},
+        
+        {'name':'c_file',
+         'label':"Config File", 'type':'string', 'default':DBS+"/ana_apr16.cfg",
+         'desc':"The location of the MCSRED configuration file"},
+        
+        {'name':'img_dir',
+         'label':"Image Directory", 'type':'string', 'default':"RAW/",
+         'desc':"The directory in which the input FITS images can be found"},
+        
+        {'name':'recalc0',
+         'label':"Recalculate", 'type':'boolean', 'default':False,
+         'desc':"Do you want to generate new FITS images from raw data?"},
+        
+        {'name':'interact0',
+         'label':"Interact", 'type':'boolean', 'default':False,
+         'desc':"Do you want to interact with object position measurement?"},
+        
+        {'name':'exec_mode',
+         'label':"Execution Mode", 'type':'choice', 'options':["Normal","Fine"],
+         'desc':"Choose 'Fine' to skip MES Offset 1"}
+        ]
+    
+    # mesoffset1 parameters
+    params_1 = [
+        {'name':'star_chip1',
+         'label':"Star Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 star FITS image"},
+        
+        {'name':'sky_chip1',
+         'label':"Sky Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 sky FITS image"},
+        
+        {'name':'rootname',
+         'label':"Root Name", 'type':'string', 'format':"{}.sbr",
+         'desc':"The filename of the SBR file, which is used as rootname"},
+        
+        {'name':'c_file',
+         'label':"Config File", 'type':'string',
+         'desc':"The location of the MCSRED configuration file"},
+        
+        {'name':'img_dir',
+         'label':"Image Directory", 'type':'string',
+         'desc':"The directory in which the raw FITS images can be found"},
+        
+        {'name':'recalc1',
+         'label':"Recalculate Star", 'type':'boolean',
+         'desc':"Do you want to generate new mosaiced star images?"},
+        
+        {'name':'interact1',
+         'label':"Interact Star", 'type':'boolean',
+         'desc':"Do you want to interact with star position measurement?"},
+        
+        {'name':'list1',
+         'label':"List 1", 'type':'string',
+         'desc':"something something something something something something "},
+        
+        {'name':'list2',
+         'label':"List 2", 'type':'string',
+         'desc':"I'm sorry, were you hoping for a descriptive tooltip?"}
+        ]
+    
+    # mesoffset1.5 parameters
+    params_1p5 = [
+        {'name':'mask_chip1',
+         'label':"Mask Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 mask FITS image"},
+        
+        {'name':'recalc2',
+         'label':"Recalculate Hole", 'type':'boolean',
+         'desc':"Do you want to generate new mosaiced mask images?"},
+        
+        {'name':'interact2',
+         'label':"Interact Hole", 'type':'boolean',
+         'desc':"Do you want to interact with hole position measurement?"}
+        ]
+    
+    # mesoffset2 parameters
+    params_2 = [
+        {'name':'starhole_chip1',
+         'label':"Star-Hole Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 star-hole FITS image"},
+        
+        {'name':'mask_chip1',
+         'label':"Mask Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 mask FITS image"},
+        
+        {'name':'rootname',
+         'label':"Root Name", 'type':'string', 'format':"{}.sbr",
+         'desc':"The filename of the SBR file, which is used as rootname"},
+        
+        {'name':'c_file',
+         'label':"Config File", 'type':'string',
+         'desc':"The location of the MCSRED configuration file"},
+        
+        {'name':'img_dir',
+         'label':"Image Directory", 'type':'string',
+         'desc':"The directory in which the raw FITS images can be found"},
+        
+        {'name':'recalc3',
+         'label':"Recalculate Star-Hole", 'type':'boolean',
+         'desc':"Do you want to generate new mosaiced star-hole images?"},
+        
+        {'name':'interact3',
+         'label':"Interact Star-Hole", 'type':'boolean',
+         'desc':"Do you want to interact with star position measurement?"},
+        
+        {'name':'list1',
+         'label':"List 1", 'type':'string',#TODO: what are the lists?
+         'desc':"something something something something something something "}
+        ]
+    
+    # mesoffset3 parameters
+    params_3 = [
+        {'name':'mask_chip1',
+         'label':"Mask Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 mask FITS image"},
+        
+        {'name':'sky_chip1',
+         'label':"Sky Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 sky FITS image"},
+        
+        {'name':'rootname',
+         'label':"Root Name", 'type':'string', 'format':"{}.sbr",
+         'desc':"The filename of the SBR file, which is used as rootname"},
+        
+        {'name':'c_file',
+         'label':"Config File", 'type':'string',
+         'desc':"The location of the MCSRED configuration file"},
+        
+        {'name':'img_dir',
+         'label':"Image Directory", 'type':'string',
+         'desc':"The directory in which the raw FITS images can be found"},
+        
+        {'name':'recalc4',
+         'label':"Recalculate Mask", 'type':'boolean',
+         'desc':"Do you want to generate new mosaiced mask images?"},
+        
+        {'name':'interact4',
+         'label':"Interact Mask", 'type':'boolean',
+         'desc':"Do you want to interact with hole position measurement?"},
+        
+        {'name':'list1',
+         'label':"List 1", 'type':'string',
+         'desc':"something something something something something something "}
+        ]
+    
+    # mesoffset3.5 parameters
+    params_3p5 = [
+        {'name':'starhole_chip1',
+         'label':"Star-Hole Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'desc':"The frame number for the chip1 star-hole FITS image"},
+        
+        {'name':'recalc5',
+         'label':"Recalculate Star-Hole", 'type':'boolean',
+         'desc':"Do you want to generate new mosaiced star-hole images?"},
+        
+        {'name':'interact5',
+         'label':"Interact Star-Hole", 'type':'boolean',
+         'desc':"Do you want to interact with star position measurement?"}
+        ]
+    
+    
+    
     def __init__(self, fv, fitsimage):
         """
         Class constructor
@@ -109,12 +283,12 @@ class MESOffset(mosPlugin.MESPlugin):
         Start the first, rough, star/hole location, based on the raw data and
         the SBR input file. The first step is processing the star frames
         """
-        self.__dict__.update(self.database) # NOTE: updating __dict__ gives self a bunch of attributes from mesInterface
+        self.__dict__.update(self.database)
         self.process_star_fits()
     
     def process_star_fits(self, *args):
         """ Use fitsUtils to combine raw data into a usable star mosaic """
-        self.auto_process_fits('star', self.star_chip1, self.recalc1,
+        self.auto_process_fits('star', self.recalc1,
                                next_step=self.load_processed_star)
     
     def load_processed_star(self, *args):
@@ -137,7 +311,7 @@ class MESOffset(mosPlugin.MESPlugin):
     def process_mask_fits(self, *args):
         """ Use fitsUtils to comine raw data into a usable mask mosaic """
         self.__dict__.update(self.database)
-        self.auto_process_fits('mask', self.mask_chip1, self.recalc2,
+        self.auto_process_fits('mask', self.recalc2,
                                next_step=self.load_processed_mask)
     
     def load_processed_mask(self, *args):
@@ -175,10 +349,9 @@ class MESOffset(mosPlugin.MESPlugin):
         self.__dict__.update(self.database)
         self.process_starhole_fits()
     
-    
     def process_starhole_fits(self, *args):
         """ Use fitsUtils to combine raw data into a compound starhole image """
-        self.auto_process_fits('starhole', self.starhole_chip1, self.recalc3,
+        self.auto_process_fits('starhole', self.recalc3,
                                next_step=self.load_processed_starhole)
     
     def load_processed_starhole(self, *args):
@@ -217,7 +390,7 @@ class MESOffset(mosPlugin.MESPlugin):
     
     def process_new_mask_fits(self, *args):
         """ Process the new, updated mask frames """
-        self.auto_process_fits('mask', self.mask_chip1, self.recalc4,   # TODO: make sure mask_chip1 is defined
+        self.auto_process_fits('mask', self.recalc4,
                                next_step=self.load_new_mask)
     
     def load_new_mask(self, *args):
@@ -235,12 +408,12 @@ class MESOffset(mosPlugin.MESPlugin):
         """ Save mes locate data and wait for user input """
         self.hole_locations = self.mes_locate.output_data
         self.database['starhole_chip1'] = self.starhole_chip1+2
-        self.mes_interface.wait(3, next_step=self.process_mask_fits)
+        self.mes_interface.wait(3, next_step=self.process_new_starhole)
     
     def process_new_starhole_fits(self, *args):
         """ Process the new starhole FITS images """
         self.__dict__.update(self.database)
-        self.auto_process_fits('starhole', self.starhole_chip1, self.recalc5,
+        self.auto_process_fits('starhole', self.recalc5,
                                next_step=self.load_new_starhole)
     
     def load_new_starhole(self, *args):
@@ -265,13 +438,12 @@ class MESOffset(mosPlugin.MESPlugin):
         self.mes_interface.write_to_logfile(self.rootname+"_log",
                                             "MES Offset 3",
                                             self.mes_analyze.offset)
-        self.database['starhole_chip1'] = self.starhole_chip1+2
+        self.database['starhole_chip1'] = self.starhole_chip1 + 2
         self.mes_interface.go_to_mesoffset(2)
     
     ### ----- END MESOFFSET METHODS ----- ###
     
-    def auto_process_fits(self, mode,
-                          framenum=0, recalc=True, next_step=None):
+    def auto_process_fits(self, mode, recalc=True, next_step=None):
         """
         Plug some values into fitsUtils to start a new thread to create a
         processed FITS image to be loaded and used
@@ -292,15 +464,22 @@ class MESOffset(mosPlugin.MESPlugin):
                 next_step()
         # otherwise, start the appropriate process in a new thread
         else:
-            n1, n2 = framenum, self.sky_chip1   # TODO: might this throw an error?
             c, i = self.c_file, self.img_dir,
             f = self.rootname+"_"+mode+".fits"
             l = self.mes_interface.log
-            if 'star' in mode:
-                task = lambda:fitsUtils.process_star_fits(n1, n2, c, i, f, l,
+            if mode == 'star':
+                task = lambda:fitsUtils.process_star_fits(self.star_chip1,
+                                                          self.sky_chip1,
+                                                          c, i, f, l,
                                                           next_step=next_step)  #TODO: this might throw an error.
-            else:
-                task = lambda:fitsUtils.process_mask_fits(n1, c, i, f, l,
+            elif mode == 'starhole':
+                task = lambda:fitsUtils.process_star_fits(self.starhole_chip1,
+                                                          self.mask_chip1,
+                                                          c, i, f, l,
+                                                          next_step=next_step)
+            elif mode == 'mask':
+                task = lambda:fitsUtils.process_mask_fits(self.mask_chip1,
+                                                          c, i, f, l,
                                                           next_step=next_step)
             self.go_to_gui('log')
             self.fv.nongui_do(task)
@@ -315,7 +494,6 @@ class MESOffset(mosPlugin.MESPlugin):
         @param next_step:
             The function to call once the image has been loaded
         """
-        print filename
         self.fitsimage.clear_callback('image-set')  #TODO: can I do this while preserving the built-in callbacks?
         if next_step != None:
             self.fitsimage.add_callback('image-set', next_step)

@@ -40,7 +40,7 @@ class MESAnalyze(object):
     
     
     
-    def start(self, star_pos, hole_pos, output_log=None, next_step=None):
+    def start(self, star_pos, hole_pos, next_step=None):
         """
         Analyze the data from MESLocate
         @param star_pos:
