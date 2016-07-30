@@ -127,7 +127,14 @@ class MESInterface(object):
                 setters[key](self.manager.database[key])
     
     
-    def log(self, text, level='i'):
+    def log(self, *args, **kwargs):
+        """
+        Print text to the logger TextArea from the main thread
+        """
+        self.fv.gui_do(self._log, *args, **kwargs)
+    
+    
+    def _log(self, text, level='i'):
         """
         Print text to the logger TextArea
         @param text:
@@ -146,12 +153,12 @@ class MESInterface(object):
         elif level[0].lower() == 'e':
             self.logger.error(text.strip())
             self.log_textarea.append_text("ERROR: "+text+"\n", autoscroll=True)
-            self.err_textarea.append_text(text+"\n\n")
+            self.err_textarea.set_text(text)
             self.manager.go_to_gui('error')
         else:
             self.logger.critical(text.strip())
             self.log_textarea.append_text("CRIT: "+text+"\n", autoscroll=True)
-            self.err_textarea.append_text("CRITICAL!\n"+text+"\n\n")
+            self.err_textarea.set_text("CRITICAL!\n"+text)
             self.manager.go_to_gui('error')
     
     

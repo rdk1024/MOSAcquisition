@@ -49,7 +49,7 @@ class MESOffset(mosPlugin.MESPlugin):
          'desc':"The directory in which the input FITS images can be found"},
         
         {'name':'recalc0',
-         'label':"Recalculate", 'type':'boolean', 'default':False,
+         'label':"Regenerate", 'type':'boolean', 'default':False,
          'desc':"Do you want to generate new FITS images from raw data?"},
         
         {'name':'interact0',
@@ -461,7 +461,7 @@ class MESOffset(mosPlugin.MESPlugin):
         """
         out_filename = self.rootname+"_"+mode+".fits"
         
-        # if recalculate is off, don't bother with any of this
+        # if regenerate is off, don't bother with any of this
         if not recalc:
             if os.path.isfile(out_filename):
                 if next_step != None:
