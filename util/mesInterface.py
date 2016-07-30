@@ -127,19 +127,32 @@ class MESInterface(object):
                 setters[key](self.manager.database[key])
     
     
-    def log(self, text, *args, **kwargs):
+    def log(self, text, level='i'):
         """
         Print text to the logger TextArea
         @param text:
             The string to be logged
+        @param level:
+            The level of urgency ('d' for debug, 'i' for info, etc.)
         """
-        if text.find("WARN: ") == 0:
-            self.logger.warning(text[6:].strip(), *args, **kwargs)
-        elif text.find("ERROR: ") == 0:
-            self.logger.error(text[7:].strip(),   *args, **kwargs)
+        if level[0].lower() == 'd':
+            self.logger.debug(text.strip())
+        elif level[0].lower() == 'i':
+            self.logger.info(text.strip())
+            self.log_textarea.append_text(text+"\n", autoscroll=True)
+        elif level[0].lower() == 'w':
+            self.logger.warning(text.strip())
+            self.log_textarea.append_text("WARN: "+text+"\n", autoscroll=True)
+        elif level[0].lower() == 'e':
+            self.logger.error(text.strip())
+            self.log_textarea.append_text("ERROR: "+text+"\n", autoscroll=True)
+            self.err_textarea.append_text(text+"\n\n")
+            self.manager.go_to_gui('error')
         else:
-            self.logger.info(text.strip(),        *args, **kwargs)
-        self.log_textarea.append_text(text+"\n", autoscroll=True)
+            self.logger.critical(text.strip())
+            self.log_textarea.append_text("CRIT: "+text+"\n", autoscroll=True)
+            self.err_textarea.append_text("CRITICAL!\n"+text+"\n\n")
+            self.manager.go_to_gui('error')
     
     
     def write_to_logfile(self, filename, header, values):
@@ -182,7 +195,8 @@ class MESInterface(object):
         return [('epar',   self.parameter_tabs),
                 ('wait 1', self.make_gui_wait(1, orientation)),
                 ('wait 3', self.make_gui_wait(3, orientation)),
-                ('log',    self.make_gui_log(orientation))]
+                ('log',    self.make_gui_log(orientation)),
+                ('error',  self.make_gui_err(orientation))]
         
         
     def make_gui_epar(self, idx, orientation='vertical'):
@@ -302,6 +316,44 @@ class MESInterface(object):
         self.log_textarea = txt
         
         return txt
+    
+    
+    def make_gui_err(self, orientation='vertical'):
+        """
+        Construct a GUI for errors: there must be a textbox and a back button
+        @param orientation:
+            Either 'vertical' or 'horizontal', the orientation of this new GUI
+        @returns:
+            A Widgets.Box object containing all the necessary stuff
+        """
+        # start by creating the container
+        gui = Widgets.Box(orientation=orientation)
+        gui.set_spacing(4)
+        
+        # start with a label to tell the user why they are here
+        lbl = Widgets.Label("Sumimasen! :(")
+        lbl.set_font(self.manager.header_font)
+        gui.add_widget(lbl)
+        
+        # now for the error box itself
+        txt = Widgets.TextArea(wrap=True, editable=False)
+        txt.set_font(self.manager.body_font)
+        gui.add_widget(txt)
+        self.err_textarea = txt
+        
+        # finish off with a box of important controls at the end
+        box = Widgets.HBox()
+        gui.add_widget(box)
+        
+        # in it is a back button
+        btn = Widgets.Button("Return to Menu")
+        btn.add_callback('activated', lambda w: self.manager.go_to_gui('epar'))
+        box.add_widget(btn)
+        box.add_widget(Widgets.Label(''), stretch=True)
+        
+        # space appropriately and return
+        gui.add_widget(Widgets.Label(''), stretch=True)
+        return gui
     
     
     

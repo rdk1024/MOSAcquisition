@@ -22,6 +22,23 @@ def nothing(*args, **kwargs):
     pass
 
 
+def auto_process_fits(mode, n1, n2, c, i, f, log=nothing, next_step=None):
+    """
+    Use mode to choose a fitsUtils method and call it with the appropriate
+    arguments
+    @param mode:
+        A string which will determine the method we call - either 'star',
+        'mask', or 'starhole'
+    """
+    try:
+        if mode == 'mask':
+            process_mask_fits(n1, c, i, f, log, next_step=next_step)
+        else:
+            process_star_fits(n1, n2, c, i, f, log, next_step=next_step)
+    except Exception as e:
+        log("{}: {}".format(type(e).__name__, e), level='e')
+
+
 def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
                       log=nothing, next_step=None
                       ):
@@ -30,9 +47,9 @@ def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
     from the star images, adding a gaussian filter to the result, and mosaicing
     it all together
     @param star_num:
-        The number in the star image chip1 filename
+        The integer in the star image chip1 filename
     @param back_num:
-        The number in the background image chip1 filename
+        The integer in the background image chip1 filename
     @param c_file:
         The location of the cfg file that contains parameters for makemosaic
     @param img_dir:
@@ -42,16 +59,18 @@ def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
     @param log:
         A function which should take one argument, and will be called to report
         information
+    @param error:
+        A function that takes a single string argument in the event of an error
     @param next_step:
         The function to be called at the end of this process
     @raises IOError:
-        If it cannot find the specified images
+        If it cannot find the FITS files in the specified directory
     @raises ValueError:
-        If the images have the wrong detector id
+        If the FITS files have the wrong chip values
     """
     log("Processing star frames...")
     
-    # open the star FITS, if you can TODO: what happens when the files aren't there?
+    # open the star FITS, if you can
     star_chip = []
     for chip in (0, 1):
         star_chip.append(fits.open("{}MCSA{:08d}.fits".format(
@@ -60,15 +79,17 @@ def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
     # check header info
     for i in (0, 1):
         if star_chip[i].header['DET-ID'] != i+1:
-            raise ValueError(("{}MCSA{:08d}.fits is data from chip{}, but "+
-                              "should be from chip{}").format(
-                                            img_dir, star_num,
-                                            star_chip[i].header['DET-ID'], i+1))
+            raise ValueError(("{}MCSA{:08d}.fits should be data from chip {}, "+
+                              "but is from chip {}. Try a different frame "+
+                              "number.").format(img_dir, star_num, i+1,
+                                                star_chip[i].header['DET-ID'])
+                             )
         if star_chip[i].header['ALTITUDE'] < 45.0:
             log((u"WARN: {}MCSA{:08d}.fits has low elevation of {:.1f}\u00B0; "+
                   "the mosaicing database may not be applicable here.").format(
                                             img_dir, star_num+i,
-                                            star_chip[i].header['ALTITUDE']))
+                                            star_chip[i].header['ALTITUDE'])
+                )
     
     # subtract the background frames from the star frames
     log("Subtracting images...")
@@ -76,7 +97,7 @@ def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
         back_chip = []
         for chip in (0,1):
             back_chip.append(fits.open("{}MCSA{:08d}.fits".format(
-                                                    img_dir, back_num+chip))[0])
+                                                img_dir, back_num+chip))[0])
         
         dif_data = [star_chip[i].data - back_chip[i].data for i in (0,1)]
     
@@ -113,6 +134,8 @@ def process_mask_fits(mask_num, c_file, img_dir, output_filename,
         The filename of the output FITS image
     @param log:
         The function that will be called whenever something interesting happens
+    @param error:
+        A function that takes a single string argument in the event of an error
     @param next_step:
         The function to be called at the end of this process
     @raises IOError:
@@ -149,6 +172,8 @@ def makemosaic(input_data, input_header, c_file, log=nothing):
         correction
     @param log:
         A function that takes a single string argument and records it somehow
+    @param error:
+        A function that takes a single string argument in the event of an error
     @returns:
         An astropy HDU object consisting of the new data and the updated header
     """
