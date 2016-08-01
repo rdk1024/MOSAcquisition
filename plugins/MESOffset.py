@@ -204,8 +204,11 @@ class MESOffset(mosPlugin.MESPlugin):
         self.mes_analyze = MESAnalyze(self)
         
         self.database = {}   # the variables shared between the departments
-        
         self.stack_idx = {} # the indices of the guis in the stack
+        
+        # the function to run when an image is loaded
+        self.image_set_next_step = None
+        self.fitsimage.add_callback('image-set', self.image_set_cb)
         
         
         
@@ -531,7 +534,6 @@ class MESOffset(mosPlugin.MESPlugin):
             self.fv.nongui_do(task)
     
     
-    
     def open_fits(self, filename, next_step=None):
         """
         Open a FITS image and display it in ginga, then call a function
@@ -540,10 +542,17 @@ class MESOffset(mosPlugin.MESPlugin):
         @param next_step:
             The function to call once the image has been loaded
         """
-        self.fitsimage.clear_callback('image-set')  #TODO: can I do this while preserving the built-in callbacks?
-        if next_step != None:
-            self.fitsimage.add_callback('image-set', next_step)
+        self.image_set_next_step = next_step
         self.fitsimage.make_callback('drag-drop', [filename])
+    
+    
+    def image_set_cb(self, *args):
+        """
+        Respond to an image being loaded by executing whatever function
+        """
+        if self.image_set_next_step != None:
+            self.image_set_next_step()
+        self.image_set_next_step = None
 
 #END
 
