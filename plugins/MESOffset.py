@@ -266,14 +266,16 @@ class MESOffset(mosPlugin.MESPlugin):
     
     
     ### ----- MESOFFSET1 FUNCTIONS ----- ###
-    def begin_mesoffset1(self): # TODO: check for errors opening FITS in ginga, running iraf stuff, finding img_dir/c_file
+    def begin_mesoffset1(self):
         """
         Start the first, rough, star/hole location, based on the raw data and
         the SBR input file. The first step is processing the star frames
         """
-        self.__dict__.update(self.database) # FIXME: skipping to mesoffset2 doesn't work
-        if len(self.img_dir) <= 0 or self.img_dir[-1] != '/':
-            self.img_dir += '/'
+        # modify the database if necessary, and then absorb all values from the database
+        img_dir = self.database['img_dir']
+        if len(img_dir) <= 0 or img_dir[-1] != '/':
+            self.database['img_dir'] += '/'
+        self.__dict__.update(self.database)
         
         self.process_star_fits()
     
@@ -291,12 +293,18 @@ class MESOffset(mosPlugin.MESPlugin):
         """ Call MESLocate in star mode on the current image """
         self.sbr_data = self.mes_locate.read_sbr_file(self.rootname+".sbr")
         self.mes_locate.start(self.sbr_data, 'star', self.interact1,
-                              next_step=self.wait_for_masks)
+                              next_step=self.check_mes_star)
+    
+    def check_mes_star(self, *args):
+        """ Review the results from mes_star and give a chance to retry """
+        self.star_locations = self.mes_locate.output_data[:,:2]
+        self.mes_interface.check_locations(self.star_locations,
+                                           last_step=self.mes_star,
+                                           next_step=self.wait_for_masks)
     
     def wait_for_masks(self, *args):
         """ Save data from mes_locate and wait for user input """
-        self.star_locations = self.mes_locate.output_data[:,:2]
-        self.database['mask_chip1'] = self.star_chip1+4
+        self.database['mask_chip1'] = self.star_chip1 + 4
         self.mes_interface.wait(1, next_step=self.process_mask_fits)
     
     def process_mask_fits(self, *args):
@@ -313,11 +321,17 @@ class MESOffset(mosPlugin.MESPlugin):
     def mes_hole(self, *args):
         """ Call MESLocate in mask mode on the current image """
         self.mes_locate.start(self.sbr_data, 'mask', self.interact2,
-                              next_step=self.res_viewer_1)
+                              next_step=self.check_mes_hole)
+    
+    def check_mes_hole(self, *args):
+        """ Review the results from mes_hole and offer a chance to retry """
+        self.hole_locations = self.mes_locate.output_data
+        self.mes_interface.check_locations(self.hole_locations,
+                                           last_step=self.mes_hole,
+                                           next_step=self.res_viewer_1)
     
     def res_viewer_1(self, *args):
         """ Call MESAnalyze on the data from mes_star and mes_hole """
-        self.hole_locations = self.mes_locate.output_data
         self.mes_analyze.start(self.star_locations, self.hole_locations,
                                next_step=self.end_mesoffset1)
     
@@ -327,7 +341,7 @@ class MESOffset(mosPlugin.MESPlugin):
         self.mes_interface.write_to_logfile(self.rootname+"_log",
                                             "MES Offset 1",
                                             self.mes_analyze.offset)
-        self.database['starhole_chip1'] = self.star_chip1+6
+        self.database['starhole_chip1'] = self.star_chip1 + 6
         self.mes_interface.go_to_mesoffset(2)
     
     
@@ -336,14 +350,17 @@ class MESOffset(mosPlugin.MESPlugin):
         """
         Start the second, star-hole location, based on the raw data. The first
         step is processing the starhole frames
-        """ # TODO: QObject::connect: Cannot queue arguments of type 'QTextCursor'  (Make sure 'QTextCursor' is registered using qRegisterMetaType().)
-        self.__dict__.update(self.database)
-        if len(self.img_dir) <= 0 or self.img_dir[-1] != '/':
-            self.img_dir += '/'
+        """
+        # modify the database if necessary, and then absorb all values from the database
+        img_dir = self.database['img_dir']
+        if len(img_dir) <= 0 or img_dir[-1] != '/':
+            self.database['img_dir'] += '/'
         if not hasattr(self, 'hole_locations'):
             self.mes_interface.log("No hole position data found; please run "+
                                    "MES Offset 1, or MES Offset 0 in 'Normal' "+
-                                   "mode.", level='e')
+                                   "mode.", level='error')
+            return
+        self.__dict__.update(self.database)
         
         self.process_starhole_fits()
     
@@ -360,11 +377,17 @@ class MESOffset(mosPlugin.MESPlugin):
     def mes_starhole(self, *args):
         """ Call MESLocate in starhole mode on the current image """
         self.mes_locate.start(self.hole_locations, 'starhole', self.interact3,
-                              next_step=self.res_viewer_2)
+                              next_step=self.check_mes_starhole)
+    
+    def check_mes_starhole(self, *args):
+        """ Review the results from mes_hole and offer a chance to retry """
+        self.star_locations = self.mes_locate.output_data[:,:2]
+        self.mes_interface.check_locations(self.star_locations,
+                                           last_step=self.mes_starhole,
+                                           next_step=self.res_viewer_2)
     
     def res_viewer_2(self, *args):
         """ Call MESAnalyze on the data from mes_star and mes_starhole """
-        self.star_locations = self.mes_locate.output_data
         self.mes_analyze.start(self.star_locations, self.hole_locations,
                                next_step=self.end_mesoffset2)
     
@@ -383,9 +406,10 @@ class MESOffset(mosPlugin.MESPlugin):
         Start the third, fine, star-hole location with updated mask locations.
         The first step is processing the mask frames
         """
+        img_dir = self.database['img_dir']
+        if len(img_dir) <= 0 or img_dir[-1] != '/':
+            self.database['img_dir'] += '/'
         self.__dict__.update(self.database)
-        if len(self.img_dir) <= 0 or self.img_dir[-1] != '/':
-            self.img_dir += '/'
         
         self.process_new_mask_fits()
     
@@ -403,12 +427,21 @@ class MESOffset(mosPlugin.MESPlugin):
         """ Get hole positions on the new mask frame """
         self.sbr_data = self.mes_locate.read_sbr_file(self.rootname+".sbr")
         self.mes_locate.start(self.sbr_data, 'mask', self.interact4,
-                              next_step=self.wait_for_starhole)
+                              next_step=self.check_mes_hole_again)
+    
+    def check_mes_hole_again(self, *args):
+        """ Review the results from mes_hole and offer a chance to retry """
+        self.hole_locations = self.mes_locate.output_data
+        self.mes_interface.check_locations(self.hole_locations,
+                                           last_step=self.mes_hole_again,
+                                           next_step=self.wait_for_starhole)
     
     def wait_for_starhole(self, *args):
         """ Save mes locate data and wait for user input """
-        self.hole_locations = self.mes_locate.output_data
-        self.database['starhole_chip1'] = self.starhole_chip1+2
+        if hasattr(self, 'starhole_chip1'):
+            self.database['starhole_chip1'] = self.starhole_chip1 + 2
+        else:
+            self.database['starhole_chip1'] = self.mask_chip1 + 2
         self.mes_interface.wait(3, next_step=self.process_new_starhole_fits)
     
     def process_new_starhole_fits(self, *args):
@@ -424,8 +457,15 @@ class MESOffset(mosPlugin.MESPlugin):
     
     def mes_starhole_again(self, *args):
         """ Get star-hole positions on the new star-hole frame """
-        self.mes_locate.start(self.mask_locations, 'starhole', self.interact5,
-                              next_step=self.res_viewer_3)
+        self.mes_locate.start(self.hole_locations, 'starhole', self.interact5,
+                              next_step=self.check_mes_starhole_again)
+    
+    def check_mes_starhole_again(self, *args):
+        """ Review the results from mes_starhole and offer a chance to retry """
+        self.star_locations = self.mes_locate.output_data[:,:2]
+        self.mes_interface.check_locations(self.star_locations,
+                                           last_step=self.mes_starhole_again,
+                                           next_step=self.res_viewer_3)
     
     def res_viewer_3(self, *args):
         """ Call MESAnalyze on the data from mes_star and mes_hole """

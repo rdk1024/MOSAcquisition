@@ -23,6 +23,7 @@ class MESPlugin(GingaPlugin.LocalPlugin):
     header_font = GwHelp.get_font('sansFont', 14)
     normal_font = GwHelp.get_font('sansFont', 12)
     body_font   = GwHelp.get_font('sansFont', 10)
+    mono_font   = GwHelp.get_font('Monospace', 12)
     
     
     
@@ -44,7 +45,7 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         self.dc = fv.get_draw_classes()
         self.canvas = self.dc.DrawingCanvas()
         self.canvas.enable_draw(False)  # TODO: Why can't I close/reopen this plugin?
-        self.canvas.set_surface(self.fitsimage) #TODO: delete the canvas after each process
+        self.canvas.set_surface(self.fitsimage)
         self.canvas.register_for_cursor_drawing(self.fitsimage)
         self.canvas.name = type(self).__name__+'-canvas'
         

@@ -44,9 +44,9 @@ class MESAnalyze(object):
         """
         Analyze the data from MESLocate
         @param star_pos:
-            A three column (x,y,r) array specifying the star locations and sizes
+            A 2-3 column (x,y[,r]) array specifying the star locations and sizes
         @param hole_pos:
-            A three column (x,y,r) array specifying the hole locations and sizes
+            A 2-3 column (x,y[,r]) array specifying the hole locations and sizes
         @param rootname:
             The string that will be used for all temporary filenames
         @param next_step:
@@ -233,7 +233,7 @@ class MESAnalyze(object):
         # then display all values
         self.final_displays["dx"].set_text("{:,.2f} pix".format(dx))
         self.final_displays["dy"].set_text("{:,.2f} pix".format(dy))
-        self.final_displays["Rotate"].set_text(u"{:,.4f}\u00B0".format(thetaD))
+        self.final_displays["Rotate"].set_text(u"{:,.4f} \u00B0".format(thetaD))
         self.offset = (dx, dy, thetaD)
 
         
@@ -293,11 +293,6 @@ class MESAnalyze(object):
         # start by creating the container
         gui = Widgets.Box(orientation=orientation)
         gui.set_spacing(4)
-        
-        # create a label to title this step
-        lbl = Widgets.Label("Manage Residuals")
-        lbl.set_font(self.manager.title_font)
-        gui.add_widget(lbl)
 
         # fill a text box with brief instructions and put in in an expander
         exp = Widgets.Expander(title="Instructions")
@@ -352,11 +347,6 @@ class MESAnalyze(object):
         # start by creating the container
         gui = Widgets.Box(orientation=orientation)
         gui.set_spacing(4)
-        
-        # create a label to title this step
-        lbl = Widgets.Label("Get Offset Values")
-        lbl.set_font(self.manager.title_font)
-        gui.add_widget(lbl)
 
         # fill a text box with brief instructions and put in in an expander
         exp = Widgets.Expander(title="Instructions")
@@ -370,7 +360,18 @@ class MESAnalyze(object):
                      "you are done.")
         exp.set_widget(txt)
         
-        # make a frame for the results
+        # make a box to hold the one control
+        box = Widgets.HBox()
+        box.set_spacing(3)
+        gui.add_widget(box)
+        
+        # the only necessary button is this 
+        btn = Widgets.Button("Finish")
+        btn.add_callback('activated', self.finish_cb)
+        btn.set_tooltip("Close Ginga")
+        box.add_widget(btn, stretch=True)
+        
+        # now make a frame for the results
         frm = Widgets.Frame()
         gui.add_widget(frm)
         box = Widgets.VBox()
@@ -381,17 +382,11 @@ class MESAnalyze(object):
         self.final_displays = {}
         for val in ("dx", "dy", "Rotate"):
             lbl = Widgets.Label(val+" =")
-            lbl.set_font(self.manager.header_font)
             box.add_widget(lbl)
             txt = Widgets.TextArea(editable=False)
-            txt.set_font(self.manager.title_font)
+            txt.set_font(self.manager.header_font)
             box.add_widget(txt)
             self.final_displays[val] = txt
-        
-        btn = Widgets.Button("Finish")
-        btn.add_callback('activated', self.finish_cb)
-        btn.set_tooltip("Close Ginga")
-        gui.add_widget(btn)
         
         # space appropriately and return
         gui.add_widget(Widgets.Label(''), stretch=True)
@@ -405,9 +400,9 @@ class MESAnalyze(object):
         Read the data and return it in a more useful format: a four-columned
         numpy array with the nans removed
         @param data1:
-            The first input array: the star locations and sizes, or ref values
+            The first input array: the star locations and/or sizes (ref values)
         @param data2:
-            The second input array: the hole locations and sizes, or in values
+            The second input array: the hole locations and/or sizes (in values)
         @returns:
             A four-column array representing the star positions and hole
             positions, and a 1-dimensional array of Trues

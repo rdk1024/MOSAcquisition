@@ -5,7 +5,7 @@
 # Justin Kunimune
 #
 
-    # TODO: are pieces of stars in starhole getting cropped out? I hope not...
+
 
 # standard imports
 import math
@@ -43,12 +43,13 @@ class MESLocate(object):
     
     
     
-    def start(self, input_data, mode, interact2=True,
+    def start(self, initial_data, mode, interact2=True,
               next_step=None):
         """
         Get the positions of a series of objects
-        @param input_data:
-            The numpy array containing the object positions we search for
+        @param initial_data:
+            The numpy array containing the approximate positions of the relevant
+            objects
         @param mode:
             Either 'star' or 'mask' or 'starhole'; alters the sizes of squares
             and the autocut method
@@ -58,7 +59,7 @@ class MESLocate(object):
             A function to call when MESLocate is finished
         """
         # read the data
-        self.obj_list, self.obj0 = self.parse_data(input_data)
+        self.obj_list, self.obj0 = self.parse_data(initial_data)
         self.obj_num = len(self.obj_list)
         
         # define some attributes
@@ -411,7 +412,13 @@ class MESLocate(object):
             # then, update the little pictures
             x1, y1, x2, y2 = (x-sq_size+dx, y-sq_size+dy,
                               x+sq_size+dx, y+sq_size+dy)
-            cropped_data = src_image.cutout_adjust(x1,y1,x2,y2)[0]
+            try:
+                cropped_data = src_image.cutout_adjust(x1,y1,x2,y2)[0]
+            except Exception as e:
+                print x1, y1, x2, y2
+                import traceback
+                print(e)
+                traceback.print_exc()
             viewer.set_data(cropped_data)
             self.fitsimage.copy_attributes(viewer,
                                            ['transforms','cutlevels','rgbmap'])
@@ -573,11 +580,6 @@ class MESLocate(object):
         # start by creating the container
         gui = Widgets.Box(orientation=orientation)
         gui.set_spacing(4)
-        
-        # create a label to title this step
-        lbl = Widgets.Label("Pick First Hole")
-        lbl.set_font(self.manager.title_font)
-        gui.add_widget(lbl)
 
         # fill a text box with brief instructions and put in in an expander
         exp = Widgets.Expander(title="Instructions")
@@ -645,11 +647,6 @@ class MESLocate(object):
         # start by creating the container
         gui = Widgets.Box(orientation=orientation)
         gui.set_spacing(4)
-        
-        # create a label to title this step
-        lbl = Widgets.Label("Determine Centroids")
-        lbl.set_font(self.manager.title_font)
-        gui.add_widget(lbl)
 
         # fill a text box with brief instructions and put in in an expander
         exp = Widgets.Expander(title="Instructions")
