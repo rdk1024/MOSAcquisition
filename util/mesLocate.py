@@ -412,13 +412,7 @@ class MESLocate(object):
             # then, update the little pictures
             x1, y1, x2, y2 = (x-sq_size+dx, y-sq_size+dy,
                               x+sq_size+dx, y+sq_size+dy)
-            try:
-                cropped_data = src_image.cutout_adjust(x1,y1,x2,y2)[0]
-            except Exception as e:
-                print x1, y1, x2, y2    #TODO
-                import traceback
-                print(e)
-                traceback.print_exc()
+            cropped_data = src_image.cutout_adjust(x1,y1,x2,y2)[0]
             viewer.set_data(cropped_data)
             self.fitsimage.copy_attributes(viewer,
                                            ['transforms','cutlevels','rgbmap'])
@@ -515,15 +509,13 @@ class MESLocate(object):
         """
         Finishes up and goes to the next step
         """
-        # fix up the canvas
-        self.canvas.delete_all_objects()
+        # fix up the canvas and clear callbacks
         self.fitsimage.zoom_fit()
         self.fitsimage.center_image()
+        self.set_callbacks(step=None)
         
-        # output the findings
+        # tell the manager to do whatever comes next
         self.output_data = np.array(self.obj_centroids)
-        
-        # do whatever comes next
         if self.next_step != None:
             self.next_step()
         
@@ -877,7 +869,7 @@ class MESLocate(object):
             A tuple of two floats representing the actual location of the object
             or a tuple of NaNs if no star could be found
         """
-        # start by getting the raw data from the image matrix
+        # start by getting the raw data from the image matrix TODO: draw circle mask
         raw, x0,y0,x1,y1 = image.cutout_adjust(*bounds[:4])
         search_radius = bounds[4]
         x_cen, y_cen = raw.shape[0]/2.0, raw.shape[1]/2.0

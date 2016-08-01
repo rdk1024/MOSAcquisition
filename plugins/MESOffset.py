@@ -31,7 +31,7 @@ class MESOffset(mosPlugin.MESPlugin):
     # database folder location
     DBS = "../../MCSRED2/DATABASE"
     # main menu parameters
-    params_0 = [    # TODO: get rid of these defaults; they're just for my convinience
+    params_0 = [    # TODO: get rid of these defaults
         {'name':'star_chip1',
          'label':"Star Frame", 'type':'number', 'default':227463, 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 star FITS image"},
@@ -252,15 +252,20 @@ class MESOffset(mosPlugin.MESPlugin):
     ### ----- MESOFFSET0 FUNCTION ----- ###
     def execute_mesoffset0(self):
         """ Set some stuff up to run mesoffset 1, 2, and 3 continuously """
-        # start by assigning all defaults for other menus
+        # start by using these values to guess at some other values
         self.__dict__.update(self.database)
         self.database['sky_chip1'] = self.star_chip1 + 2
+        self.database['mask_chip1'] = self.star_chip1 + 4
         self.database['starhole_chip1'] = self.star_chip1 + 6
         if len(self.img_dir) <= 0 or self.img_dir[-1] != '/':
             self.database['img_dir'] += '/'
         for i in range(1,6):
             self.database['recalc'+str(i)] = self.recalc0
             self.database['interact'+str(i)] = self.interact0
+        
+        # set the defaults for all other menus
+        for i in (1, 2, 3):
+            self.mes_interface.set_defaults(i)
         
         # next step depends on exec_mode
         if self.exec_mode == 0:

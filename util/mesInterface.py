@@ -127,11 +127,11 @@ class MESInterface(object):
             The function to be executed if these data are deemed good enough
         """
         if data.shape[1] == 2:
-            res_string = " x (pix)  y (pix)\n"
-            fmt_string = "  {:5.0f}    {:5.0f}\n"
+            res_string = "   x      y\n"
+            fmt_string = "{:5.0f}  {:5.0f}\n"
         elif data.shape[1] == 3:
-            res_string = " x (pix)  y (pix)  r (pix)\n"
-            fmt_string = "  {:5.0f}    {:5.0f}    {:4.2f}\n"
+            res_string = "   x      y      r\n"
+            fmt_string = "{:5.0f}  {:5.0f}  {:4.1f}\n"
         
         for row in data:
             res_string += fmt_string.format(*row)
@@ -143,10 +143,11 @@ class MESInterface(object):
     
     def execute_cb(self, _, name):
         """
-        A little method I wrote to manage callbacks from the check gui
+        A little method I wrote to manage callbacks for check_locations
         @param name:
             The name of the method to run
         """
+        self.canvas.delete_all_objects()
         if name == 'last_step':
             self.last_step()
         elif name == 'next_step':

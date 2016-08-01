@@ -85,7 +85,7 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         btn.add_callback('activated', lambda w: self.close())
         end.add_widget(btn)
         end.add_widget(Widgets.Label(''), stretch=True)
-        
+    
     
     def start(self):
         """
@@ -118,8 +118,8 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         One of the required LocalPlugin methods
         """
         self.canvas.ui_setActive(False)
-
-
+    
+    
     def resume(self):
         """
         Called when the plugin is refocused
@@ -129,8 +129,8 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         self.stack_guis(self.stack)
         self.canvas.ui_setActive(True)
         self.fv.showStatus("Calculate the offset values to align MOIRCS")
-
-
+    
+    
     def stop(self):
         """
         Called when the plugin is stopped
@@ -142,16 +142,16 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         except:
             pass
         self.canvas.ui_setActive(False)
-
-
+    
+    
     def redo(self):
         """
         Called whenever a new image is loaded
         One of the required LocalPlugin methods
         """
         pass
-
-
+    
+    
     def __str__(self):
         return type(self).__name__
 

@@ -101,13 +101,14 @@ class MESAnalyze(object):
         Respond to the 'Finish' button in step 4 by finishing up
         """
         self.canvas.delete_all_objects()
+        self.set_callbacks(step=None)
         if self.next_step != None:
             self.next_step()
         
         
     def set_active_cb(self, _, __, x, y, val):
         """
-        Respond to right click by deleting the datum nearest the cursor
+        Respond to right or left click by altering the datum nearest the cursor
         @param val:
             The new active value for the point - should be boolean
         @param x:
