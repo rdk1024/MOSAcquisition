@@ -19,8 +19,7 @@ class MESPlugin(GingaPlugin.LocalPlugin):
     MOS Acquisition software for aligning MOIRCS.
     """
     
-    title_font  = GwHelp.get_font('sansFont', 18)
-    header_font = GwHelp.get_font('sansFont', 14)
+    header_font = GwHelp.get_font('sansFont', 18)
     normal_font = GwHelp.get_font('sansFont', 12)
     body_font   = GwHelp.get_font('sansFont', 10)
     mono_font   = GwHelp.get_font('Monospace', 12)
@@ -44,7 +43,7 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         # which is necessary to draw on the image:
         self.dc = fv.get_draw_classes()
         self.canvas = self.dc.DrawingCanvas()
-        self.canvas.enable_draw(False)  # TODO: Why can't I close/reopen this plugin?
+        self.canvas.enable_draw(False)
         self.canvas.set_surface(self.fitsimage)
         self.canvas.register_for_cursor_drawing(self.fitsimage)
         self.canvas.name = type(self).__name__+'-canvas'
@@ -72,15 +71,15 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         
         # the rest is a stack of GUIs for each step, as decided by the subclass
         stk = Widgets.StackWidget()
-        self.stack_guis(stk, orientation)
+        #self.stack_guis(stk, orientation)
         box.add_widget(stk, stretch=True)
         self.stack = stk
-
+        
         # end is an HBox that comes at the very end, after the rest of the GUIs
         end = Widgets.HBox()
         end.set_spacing(2)
         out.add_widget(end)
-            
+        
         # throw in a close button at the very end, just in case
         btn = Widgets.Button("Close")
         btn.add_callback('activated', lambda w: self.close())
@@ -126,7 +125,8 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         Called when the plugin is refocused
         One of the required LocalPlugin methods
         """
-        # activate the GUI
+        # rebuild the GUI
+        self.stack_guis(self.stack)
         self.canvas.ui_setActive(True)
         self.fv.showStatus("Calculate the offset values to align MOIRCS")
 

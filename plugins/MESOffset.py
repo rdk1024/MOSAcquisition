@@ -228,6 +228,7 @@ class MESOffset(mosPlugin.MESPlugin):
         Get the GUIs from all the different departments of mesoffset, and stacks
         them together neatly in one gw.Widget
         """
+        stack.remove_all()
         all_guis = (self.mes_interface.gui_list(orientation) +
                     self.mes_locate.gui_list(orientation) +
                     self.mes_analyze.gui_list(orientation))
@@ -289,7 +290,7 @@ class MESOffset(mosPlugin.MESPlugin):
         self.open_fits(filename=self.rootname+"_star.fits",
                        next_step=self.mes_star)
     
-    def mes_star(self, *args):  # TODO: display values and give a chance to redo
+    def mes_star(self, *args):
         """ Call MESLocate in star mode on the current image """
         self.sbr_data = self.mes_locate.read_sbr_file(self.rootname+".sbr")
         self.mes_locate.start(self.sbr_data, 'star', self.interact1,
@@ -508,10 +509,9 @@ class MESOffset(mosPlugin.MESPlugin):
                     next_step()
             else:
                 self.mes_interface.log("No previous image found at "+
-                                       self.img_dir+out_filename+". Please "+
-                                       "change your working directory or "+
-                                       "rootname, or enable the 'Regenerate' "+
-                                       "option",
+                                       out_filename+". Please change your "+
+                                       "working directory or rootname, or "+
+                                       "enable the 'Regenerate' option",
                                        level='error')
         
         # otherwise, start the appropriate process in a new thread

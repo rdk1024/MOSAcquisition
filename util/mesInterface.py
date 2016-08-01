@@ -230,6 +230,8 @@ class MESInterface(object):
             A list of tuples with strings (names) and Widgets (guis)
         """
         # the interface is unique in that it has a tabwidget of similar guis
+        self.get_value = []
+        self.set_value = []
         tab = Widgets.TabWidget()
         tab.add_widget(self.make_gui_epar(0, orientation), "MESOffset 0")
         tab.add_widget(self.make_gui_epar(1, orientation), "MESOffset 1")
@@ -382,8 +384,20 @@ class MESInterface(object):
         txt.set_text("Look at the results below. If they seem correct, click "+
                      "'Continue' to proceed to the next step. If they seem "+
                      "inadequate, click 'Try Again', and you will be taken "+
-                     "back to the previous step to retake measurements.")
+                     "back to the previous step to retake measurements. If "+
+                     "you wish to edit the parameters for this process, click "+
+                     "'Start Over' to abort and return to the main menu.")
         exp.set_widget(txt)
+        
+        # put in a label to ask the question:
+        lbl = Widgets.Label("Are the results satisfactory?")
+        gui.add_widget(lbl)
+        
+        # now add in the textbox for the results
+        txt = Widgets.TextArea(wrap=False, editable=False)
+        txt.set_font(self.manager.mono_font)
+        gui.add_widget(txt)
+        self.results_textarea = txt
         
         # now make an HBox for the controls
         box = Widgets.HBox()
@@ -410,14 +424,6 @@ class MESInterface(object):
         
         # space the buttons
         box.add_widget(Widgets.Label(''), stretch=True)
-        
-        # now add in the textbox for the results TODO: make buttons always appear below text
-        frm = Widgets.Frame()
-        gui.add_widget(frm)
-        txt = Widgets.TextArea(wrap=False, editable=False)
-        txt.set_font(self.manager.mono_font)
-        frm.set_widget(txt)
-        self.results_textarea = txt
         
         # space appropriately and return
         gui.add_widget(Widgets.Label(''), stretch=True)
@@ -513,21 +519,25 @@ class MESInterface(object):
             # create a widget based on type
             if param['type'] == 'string':
                 wdg = Widgets.TextEntry(editable=True)
+                wdg.set_text('')
                 getters[name] = wdg.get_text
                 setters[name] = wdg.set_text
             elif param['type'] == 'number':
                 wdg = Widgets.SpinBox()
                 wdg.set_limits(0, 99999999)
+                wdg.set_value(0)
                 getters[name] = wdg.get_value
                 setters[name] = wdg.set_value
             elif param['type'] == 'choice':
                 wdg = Widgets.ComboBox()
                 for option in param['options']:
                     wdg.append_text(option)
+                wdg.set_index(0)
                 getters[name] = wdg.get_index
                 setters[name] = wdg.set_index
             elif param['type'] == 'boolean':
                 wdg = Widgets.CheckBox()
+                wdg.set_state(True)
                 getters[name] = wdg.get_state
                 setters[name] = wdg.set_state
             else:
@@ -546,7 +556,7 @@ class MESInterface(object):
                 prefix = format_str[:idx]
                 suffix = format_str[idx+2:]
                 if prefix:
-                    grd.add_widget(Widgets.Label(prefix, 'right'), i, 1)    #TODO: can I vertically align these
+                    grd.add_widget(Widgets.Label(prefix, 'right'), i, 1)
                 grd.add_widget(wdg, i, 2)
                 if suffix:
                     grd.add_widget(Widgets.Label(suffix, 'left'), i, 3)

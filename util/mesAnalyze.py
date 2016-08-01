@@ -137,7 +137,10 @@ class MESAnalyze(object):
         u, s, v = np.linalg.svd(p_i.T * p_f)
         rot_mat = u * v
         shift =  centroid[2:4] - centroid[0:2]*rot_mat
-        theta = np.mean([math.acos(rot_mat[0,0]), math.asin(rot_mat[1,0])])
+        try:
+            theta = np.mean([math.acos(rot_mat[0,0]), math.asin(rot_mat[1,0])])
+        except ValueError:
+            theta = 0
         self.transformation = (shift[0,0], shift[0,1], theta)
         
         # use its results to calculate some stuff
@@ -305,6 +308,20 @@ class MESAnalyze(object):
                      "Click 'Next' below when the data is satisfactory.")
         exp.set_widget(txt)
         
+        # now a framed vbox to put the plots in
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
+        box = Widgets.VBox()
+        box.set_spacing(3)
+        frm.set_widget(box)
+        
+        # add both plots to the frame
+        self.plots = []
+        for i in range(2):
+            self.plots.append(mosPlots.MOSPlot(logger=self.logger))
+            fig = Plot.PlotWidget(self.plots[i])
+            box.add_widget(fig)
+        
         # now make an HBox to hold the main controls
         box = Widgets.HBox()
         box.set_spacing(3)
@@ -318,20 +335,6 @@ class MESAnalyze(object):
         
         # put in a spacer
         box.add_widget(Widgets.Label(""), stretch=True)
-        
-        # now a framed vbox to put the plots in
-        frm = Widgets.Frame()
-        gui.add_widget(frm)
-        box = Widgets.VBox()
-        box.set_spacing(3)
-        frm.set_widget(box)
-        
-        # finally, add both plots in frames
-        self.plots = []
-        for i in range(2):
-            self.plots.append(mosPlots.MOSPlot(logger=self.logger))
-            fig = Plot.PlotWidget(self.plots[i])
-            box.add_widget(fig)
         
         return gui
     
@@ -360,17 +363,6 @@ class MESAnalyze(object):
                      "you are done.")
         exp.set_widget(txt)
         
-        # make a box to hold the one control
-        box = Widgets.HBox()
-        box.set_spacing(3)
-        gui.add_widget(box)
-        
-        # the only necessary button is this 
-        btn = Widgets.Button("Finish")
-        btn.add_callback('activated', self.finish_cb)
-        btn.set_tooltip("Close Ginga")
-        box.add_widget(btn, stretch=True)
-        
         # now make a frame for the results
         frm = Widgets.Frame()
         gui.add_widget(frm)
@@ -387,6 +379,17 @@ class MESAnalyze(object):
             txt.set_font(self.manager.header_font)
             box.add_widget(txt)
             self.final_displays[val] = txt
+        
+        # make a box to hold the one control
+        box = Widgets.HBox()
+        box.set_spacing(3)
+        gui.add_widget(box)
+        
+        # the only necessary button is this 
+        btn = Widgets.Button("Finish")
+        btn.add_callback('activated', self.finish_cb)
+        btn.set_tooltip("Close Ginga")
+        box.add_widget(btn, stretch=True)
         
         # space appropriately and return
         gui.add_widget(Widgets.Label(''), stretch=True)

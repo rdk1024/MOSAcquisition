@@ -415,7 +415,7 @@ class MESLocate(object):
             try:
                 cropped_data = src_image.cutout_adjust(x1,y1,x2,y2)[0]
             except Exception as e:
-                print x1, y1, x2, y2
+                print x1, y1, x2, y2    #TODO
                 import traceback
                 print(e)
                 traceback.print_exc()
@@ -593,8 +593,15 @@ class MESLocate(object):
                      "your location.\nRemember - bright areas are shown in "+
                      "white.")
         exp.set_widget(txt)
+        
+        # next, we need the zoomed-in images. This is the grid we put them in
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
+        grd = Widgets.GridBox()
+        frm.set_widget(grd)
+        self.viewer_grid = grd
 
-        # create a box to group the primary control buttons together
+        # finally, create a box to group the primary control buttons together
         box = Widgets.HBox()
         box.set_spacing(3)
         gui.add_widget(box)
@@ -620,19 +627,14 @@ class MESLocate(object):
         # the next button moves on to step 2
         btn = Widgets.Button("Next")
         btn.add_callback('activated', self.step2_cb)
-        btn.set_tooltip("Accept and proceed to step 2")
+        btn.set_tooltip("Accept and proceed to step 2 (right-click)")
         box.add_widget(btn)
         
         # put in a spacer
-        box.add_widget(Widgets.Label(""), stretch=True)
+        box.add_widget(Widgets.Label(''), stretch=True)
         
-        # lastly, we need the zoomed-in images. This is the grid we put them in
-        frm = Widgets.Frame()
-        gui.add_widget(frm, stretch=True)
-        grd = Widgets.GridBox()
-        frm.set_widget(grd)
-        self.viewer_grid = grd
-        
+        # space appropriately and return
+        gui.add_widget(Widgets.Label(''), stretch=True)
         return gui
         
         
@@ -661,6 +663,19 @@ class MESLocate(object):
                      "centroid has been found.")
         exp.set_widget(txt)
         
+        # create a CanvasView for step 2
+        viewer = Viewers.CanvasView(logger=self.logger)
+        viewer.set_desired_size(420, 420)
+        viewer.enable_autozoom('on')
+        viewer.enable_autocuts('on')
+        self.step2_viewer = viewer
+        
+        # put it in a ViewerWidget, and put that in the gui
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
+        pic = Viewers.GingaViewerWidget(viewer=viewer)
+        frm.set_widget(pic)
+        
         # now make an HBox to hold the primary controls
         box = Widgets.HBox()
         box.set_spacing(3)
@@ -687,7 +702,7 @@ class MESLocate(object):
         # the next button moves on to the next object
         btn = Widgets.Button("Next")
         btn.add_callback('activated', self.next_obj_cb)
-        btn.set_tooltip("Accept and proceed to the next object")
+        btn.set_tooltip("Accept and proceed to the next object (right-click)")
         box.add_widget(btn)
         
         # put in a spacer
@@ -719,20 +734,8 @@ class MESLocate(object):
         for text in selection_modes:
             com.append_text(text)
         com.add_callback('activated', self.choose_select_cb)
+        com.set_tooltip("Choose what happens when you click-drag")
         box.add_widget(com)
-        
-        # create a CanvasView for step 2
-        viewer = Viewers.CanvasView(logger=self.logger)
-        viewer.set_desired_size(420, 420)
-        viewer.enable_autozoom('on')
-        viewer.enable_autocuts('on')
-        self.step2_viewer = viewer
-        
-        # put it in a ViewerWidget, and put that in the gui
-        frm = Widgets.Frame()
-        gui.add_widget(frm)
-        pic = Viewers.GingaViewerWidget(viewer=viewer)
-        frm.set_widget(pic)
         
         # space appropriately and return
         gui.add_widget(Widgets.Label(''), stretch=True)
@@ -741,7 +744,7 @@ class MESLocate(object):
         
     
     @staticmethod
-    def create_viewer_list(n, logger=None, width=147, height=147):    # 147x147 is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
+    def create_viewer_list(n, logger=None, width=120, height=120):    # 147x147 is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
         """
         Create a list of n viewers with certain properties
         @param n:
