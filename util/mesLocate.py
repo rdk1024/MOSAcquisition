@@ -59,7 +59,7 @@ class MESLocate(object):
             A function to call when MESLocate is finished
         """
         # read the data
-        self.obj_list, self.obj0 = self.parse_data(initial_data)
+        self.obj_list, obj0 = self.parse_data(initial_data)
         self.obj_num = len(self.obj_list)
         
         # define some attributes
@@ -70,7 +70,7 @@ class MESLocate(object):
         self.drag_index = [-1]*self.obj_num     # index of the current drag for each object
         self.drag_start = None      # the place where we most recently began to drag
         self.obj_centroids = [None]*self.obj_num    # the new obj_list based on user input and calculations
-        self.square_size =  {'star':25, 'mask':60, 'starhole':25}[mode]  # the size of the search regions
+        self.square_size =  {'star':25, 'mask':60, 'starhole':20}[mode]  # the size of the search regions
         self.exp_obj_size = {'star':4,  'mask':20, 'starhole':4}[mode]  # the maximum expected radius of the objects
         self.interact = interact2    # whether we should interact in step 2
         self.next_step = next_step  # what to do when we're done
@@ -95,7 +95,7 @@ class MESLocate(object):
         
         # set the mouse controls and automatically start if this is starhole mode
         self.set_callbacks()
-        self.click1_cb(self.canvas, 1, *self.obj0)
+        self.click1_cb(self.canvas, 1, *obj0)
         self.manager.go_to_gui('find')
         if mode == 'starhole':
             self.step2_cb()
@@ -158,7 +158,7 @@ class MESLocate(object):
         self.manager.go_to_gui('centroid')
         self.set_callbacks(step=2)
         self.canvas.delete_all_objects()
-        self.select_point(self.click_history[self.click_index])
+        self.select_point(self.click_history[self.click_index], True)
         self.zoom_in_on_current_obj()
         self.mark_current_obj()
         
@@ -387,13 +387,15 @@ class MESLocate(object):
         self.set_callbacks(step=2, selection_mode=selection_modes[mode_idx])
     
     
-    def select_point(self, point):
+    def select_point(self, point, draw_circle_masks=False):
         """
         Sets a point in step 1 as the current location of object #0,
         draws squares where it thinks all the objects are accordingly,
         and updates all thumbnails
         @param point:
             An int tuple containing the location of object #0
+        @param draw_circle_masks:
+            Whether we should draw the automatic circular masks
         """
         # define some variables before iterationg through the objects
         x, y = point
@@ -408,6 +410,11 @@ class MESLocate(object):
             shapes.append(self.dc.SquareBox(x+dx, y+dy, sq_size, color=color))
             shapes.append(self.dc.Text(x+dx+sq_size, y+dy,
                                        str(i+1), color=color))
+            
+            # draw the circular mask if necessary
+            if draw_circle_masks:
+                if r <= sq_size:
+                    shapes.append(self.dc.Circle(x+dx, y+dy, r, color='white'))
 
             # then, update the little pictures
             x1, y1, x2, y2 = (x-sq_size+dx, y-sq_size+dy,
@@ -424,7 +431,7 @@ class MESLocate(object):
                         
     def draw_mask(self, xd1, yd1, xd2, yd2, kind):
         """
-        Draws the giant rectangles around an object when you crop it
+        Draw the giant rectangles around an object being cropped
         @param xd1, yd1, xd2, yd2:
             floats representing the coordinates of the upper-left-hand corner
             (1) and the bottom-right-hand corner (2) of the drag

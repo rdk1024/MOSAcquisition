@@ -478,7 +478,6 @@ class MESOffset(mosPlugin.MESPlugin):
     
     def res_viewer_3(self, *args):
         """ Call MESAnalyze on the data from mes_star and mes_hole """
-        self.hole_locations = self.mes_locate.output_data
         self.mes_analyze.start(self.star_locations, self.hole_locations,
                                next_step=self.end_mesoffset3)
     
