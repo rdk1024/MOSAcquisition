@@ -81,6 +81,7 @@ class MESLocate(object):
         else:
             method = 'minmax'
         self.fitsimage.get_settings().set(autocut_method=method)
+        self.canvas.delete_all_objects()
         
         # creates the list of thumbnails that will go in the GUI
         self.thumbnails = self.create_viewer_list(self.obj_num, self.logger)
@@ -414,6 +415,8 @@ class MESLocate(object):
             # draw the circular mask if necessary
             if draw_circle_masks:
                 if r <= sq_size:
+                    shapes.append(self.empty_circle(x+dx, y+dy, r, sq_size,
+                                                    self.dc))
                     shapes.append(self.dc.Circle(x+dx, y+dy, r, color='white'))
 
             # then, update the little pictures
@@ -945,7 +948,36 @@ class MESLocate(object):
             search_radius = search_radius/2
         
         return (x0 + x_cen - 0.5, y0 + y_cen - 0.5, radius)
-        
+    
+    
+    @staticmethod
+    def empty_circle(x, y, r, a, dc):
+        """
+        Create a ginga canvas mixin (whatever that is) composed of a black
+        filled square with a circle removed from the center
+        @param x:
+            The x coordinate of the center of the circle
+        @param y:
+            The y coordinate of the center of the circle
+        @param r:
+            The radius of the circle
+        @param a:
+            The apothem of the square around the circle
+        @param dc:
+            The drawing classes module
+        @returns:
+            A canvas.types.layer.CompoundObject, as described above
+        """
+        # the verticies of the polygon that will approximate this shape
+        vertices = [(x+a, y+a), (x+a, y-a), (x-a, y-a), (x-a, y+a), (x+a, y+a)]
+        # draw the circle
+        for theta in range(45, 406, 10):
+            vertices.append((x + r*math.cos(math.radians(theta)),
+                             y + r*math.sin(math.radians(theta))))
+        # and then fill in the outside
+        return dc.Polygon(vertices, color='black', fill=True, fillcolor='black')
+
+
 
 def tag(step, mod_1, mod_2=None):
     """

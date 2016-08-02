@@ -94,8 +94,8 @@ class MESAnalyze(object):
         self.set_callbacks(step=4)
         self.manager.go_to_gui('values')
         self.display_values()
-        
-        
+    
+    
     def finish_cb(self, *args):
         """
         Respond to the 'Finish' button in step 4 by finishing up
@@ -104,8 +104,8 @@ class MESAnalyze(object):
         self.set_callbacks(step=None)
         if self.next_step != None:
             self.next_step()
-        
-        
+    
+    
     def set_active_cb(self, _, __, x, y, val):
         """
         Respond to right or left click by altering the datum nearest the cursor

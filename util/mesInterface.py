@@ -131,7 +131,7 @@ class MESInterface(object):
             fmt_string = "{:5.0f}  {:5.0f}\n"
         elif data.shape[1] == 3:
             res_string = "   x      y      r\n"
-            fmt_string = "{:5.0f}  {:5.0f}  {:4.1f}\n"
+            fmt_string = "{:5.0f}  {:5.0f}  {:5.1f}\n"
         
         for row in data:
             res_string += fmt_string.format(*row)
