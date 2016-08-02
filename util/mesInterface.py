@@ -291,6 +291,12 @@ class MESInterface(object):
         self.set_value.append(setters)
         frm.set_widget(grd)
         
+        # create a box for the defined variables
+        frm = Widgets.Frame("Defined Variables")
+        gui.add_widget(frm)
+        box = build_dict_labels(self.manager.variables)
+        frm.set_widget(box)
+        
         # the go button will go in a box
         box = Widgets.HBox()
         box.set_spacing(3)
@@ -346,6 +352,12 @@ class MESInterface(object):
         self.get_value.append(getters)  # NOTE that these getters and setters
         self.set_value.append(setters)  # will have different indices than idx
         frm.set_widget(grd)
+        
+        # create a box for the defined variables
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
+        box = build_dict_labels(self.manager.variables)
+        frm.set_widget(box)
         
         # the go button will go in a box
         box = Widgets.HBox()
@@ -565,44 +577,61 @@ def build_control_layout(controls):
     return grd, getters, setters
 
 
+def build_dict_labels(dictionary):
+    """
+    Build a gui that displays the dictionary keys and values
+    @param dictionary:
+        A dict populated with str keys and str values
+    @returns:
+        A Widget object that displays the contents of the dictionary
+    """
+    grd = Widgets.GridBox(rows=len(dictionary), columns=2)
+    for i, key in enumerate(dictionary):
+        lbl1 = Widgets.Label("$"+key+":",     halign='right')
+        lbl2 = Widgets.Label(dictionary[key], halign='left')
+        grd.add_widget(lbl1, i, 0)
+        grd.add_widget(lbl2, i, 1)
+    return grd
+
+
 def process_filename(filename, variables):
-        """
-        Takes a filename and modifies it to account for any variables
-        @param filename:
-            The input filename to be processed
-        @param variables:
-            The dictionary of variable names to variable values
-        @returns:
-            The updated filename
-        @raises NameError:
-            If there is an undefined variable
-        """
-        print "in: ",filename
-        # scan the filename for dollar signs
-        while "$" in filename:
-            ds_idx = filename.find("$")
-            sl_idx = filename[ds_idx:].find("/")
-            if sl_idx == -1:
-                sl_idx = len(filename)
-            var_name = filename[ds_idx+1:sl_idx]
-            
-            # if it is a defined variable, replace it
-            if variables.has_key(var_name):
-                filename = (filename[:ds_idx] +
-                            variables[var_name] +
-                            filename[sl_idx:])
-            
-            # otherwise, raise an error
-            else:
-                err_msg = ("$"+var_name+" is not a defined variable. Defined "+
-                           "variables are:\n")
-                for key in variables:
-                    err_msg += "${}: {}\n".format(key, variables[key])
-                err_msg += "Please check your spelling and try again."
-                raise NameError(err_msg)
+    """
+    Take a filename and modifies it to account for any variables
+    @param filename:
+        The input filename to be processed
+    @param variables:
+        The dictionary of variable names to variable values
+    @returns:
+        The updated filename
+    @raises NameError:
+        If there is an undefined variable
+    """
+    print "in: ",filename
+    # scan the filename for dollar signs
+    while "$" in filename:
+        ds_idx = filename.find("$")
+        sl_idx = filename[ds_idx:].find("/")
+        if sl_idx == -1:
+            sl_idx = len(filename)
+        var_name = filename[ds_idx+1:sl_idx]
         
-        print "out:",filename
-        return filename
+        # if it is a defined variable, replace it
+        if variables.has_key(var_name):
+            filename = (filename[:ds_idx] +
+                        variables[var_name] +
+                        filename[sl_idx:])
+        
+        # otherwise, raise an error
+        else:
+            err_msg = ("$"+var_name+" is not a defined variable. Defined "+
+                       "variables are:\n")
+            for key in variables:
+                err_msg += "${}: {}\n".format(key, variables[key])
+            err_msg += "Please check your spelling and try again."
+            raise NameError(err_msg)
+    
+    print "out:",filename
+    return filename
 
 #END
 
