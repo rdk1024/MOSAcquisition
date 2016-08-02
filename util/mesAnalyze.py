@@ -91,15 +91,6 @@ class MESAnalyze(object):
         self.display_values()
     
     
-    def finish_cb(self, *args):
-        """
-        Respond to the 'Finish' button in step 4 by finishing up
-        """
-        self.manager.clear_canvas()
-        if self.next_step != None:
-            self.next_step()
-    
-    
     def set_active_cb(self, _, __, x, y, val):
         """
         Respond to right or left click by altering the datum nearest the cursor
@@ -114,6 +105,15 @@ class MESAnalyze(object):
         idx = np.argmin(distance_from_click)
         self.active[idx] = val
         self.update_plots()
+    
+    
+    def finish_cb(self, *args):
+        """
+        Respond to the 'Finish' button in step 4 by finishing up
+        """
+        self.manager.clear_canvas()
+        if self.next_step != None:
+            self.next_step()
     
     
     def update_plots(self):

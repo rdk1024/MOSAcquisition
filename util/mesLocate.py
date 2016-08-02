@@ -20,7 +20,7 @@ from numpy import ma
 
 
 # constants
-selection_modes = ("Automatic", "Star", "Mask")
+selection_modes = ("Automatic", "Crop", "Mask")
 colors = ('green','red','blue','yellow','magenta','cyan','orange')
 
 
@@ -102,19 +102,20 @@ class MESLocate(object):
         
         
         
-    def set_callbacks(self, step=1, selection_mode="Automatic"):
+    def set_callbacks(self, step=1, selection_mode=0, keep_objects=False):
         """
         Assign all necessary callbacks to the canvas for the current step
         @param step:
             The number of this step - 1 for finding and 2 for centroid-getting
         @param selection_mode:
-            Either 'Automatic', 'Star', or 'Mask'. It decides what happens
-            when we click and drag
+            0 for 'Automatic', 1 for 'Crop', or 2 for 'Mask'
+        @param keep_objects:
+            Whether the canvas should be left uncleared
         """
         canvas = self.canvas
         
         # clear all existing callbacks first
-        self.manager.clear_canvas()
+        self.manager.clear_canvas(keep_objects=keep_objects)
         
         # for step one, the only callbacks are for right-click and left-click
         if step == 1:
@@ -123,21 +124,83 @@ class MESLocate(object):
         
         # for step two, you need callbacks for left-drag and middle-drag, too
         elif step == 2:
-            if selection_mode == "Mask":
-                canvas.add_callback('cursor-down', self.start_select_mask_cb)
-                canvas.add_callback('cursor-up', self.end_select_mask_cb)
+            if selection_mode == 2:
+                canvas.add_callback('cursor-down', self.start_drag_cb, 'mask')
+                canvas.add_callback('cursor-up', self.end_drag_cb, 'mask')
             else:
-                canvas.add_callback('cursor-down', self.start_select_crop_cb)
-                canvas.add_callback('cursor-up', self.end_select_crop_cb)
-            if selection_mode == "Star":
-                canvas.add_callback('panset-down', self.start_select_crop_cb)
-                canvas.add_callback('panset-up', self.end_select_crop_cb)
+                canvas.add_callback('cursor-down', self.start_drag_cb, 'crop')
+                canvas.add_callback('cursor-up', self.end_drag_cb, 'crop')
+            if selection_mode == 1:
+                canvas.add_callback('panset-down', self.start_drag_cb, 'crop')
+                canvas.add_callback('panset-up', self.end_drag_cb, 'crop')
             else:
-                canvas.add_callback('panset-down', self.start_select_mask_cb)
-                canvas.add_callback('panset-up', self.end_select_mask_cb)
+                canvas.add_callback('panset-down', self.start_drag_cb, 'mask')
+                canvas.add_callback('panset-up', self.end_drag_cb, 'mask')
             canvas.add_callback('draw-up', self.next_obj_cb)
     
         
+    def click1_cb(self, _, __, x, y):
+        """
+        Respond to a left click on the screen in step 1
+        @param x:
+            The x coordinate of the click
+        @param y:
+            The y coordiante of the click
+        """
+        # increment the index
+        self.click_index += 1
+        self.color_index += 1
+        # if there are things saved ahead of this index (because of undo), clear them
+        if self.click_index < len(self.click_history):
+            self.click_history = self.click_history[:self.click_index]
+        self.click_history.append((x,y))
+        self.select_point(self.click_history[self.click_index])
+        return False
+    
+    
+    def set_position_cb(self, *args):
+        """
+        Respond to the spinboxes being used by essentially making a new click
+        """
+        self.canvas.delete_object_by_tag(tag(1, self.click_index))
+        self.color_index -= 1
+        self.click1_cb(None, None,
+                       self.spinboxes['X'].get_value(),
+                       self.spinboxes['Y'].get_value())
+    
+    
+    def undo1_cb(self, *args):
+        """
+        Respond to the undo button in step 1
+        by going back one click (if possible)
+        """
+        if self.click_index > 0:
+            self.canvas.delete_object_by_tag(tag(1, self.click_index))
+            self.click_index -= 1
+            self.color_index -= 1
+            self.canvas.delete_object_by_tag(tag(1, self.click_index))
+            self.select_point(self.click_history[self.click_index])
+    
+    
+    def redo1_cb(self, *args):
+        """
+        Respond to the redo button in step 1
+        by going forward one click (if possible)
+        """
+        if self.click_index < len(self.click_history)-1:
+            self.click_index += 1
+            self.color_index += 1
+            self.select_point(self.click_history[self.click_index])
+            
+            
+    def choose_select_cb(self, _, mode_idx):
+        """
+        Keep track of our selection mode as determined by the combobox
+        """
+        # update the callbacks to account for this new mode
+        self.set_callbacks(step=2, selection_mode=mode_idx, keep_objects=True)
+    
+    
     def step1_cb(self, *args):
         """
         Respond to back button by returning to step 1
@@ -204,88 +267,42 @@ class MESLocate(object):
         self.next_obj_cb()
     
     
-    def click1_cb(self, _, __, x, y):
-        """
-        Respond to a left click on the screen in step 1
-        @param x:
-            The x coordinate of the click
-        @param y:
-            The y coordiante of the click
-        """
-        # increment the index
-        self.click_index += 1
-        self.color_index += 1
-        # if there are things saved ahead of this index (because of undo), clear them
-        if self.click_index < len(self.click_history):
-            self.click_history = self.click_history[:self.click_index]
-        self.click_history.append((x,y))
-        self.select_point(self.click_history[self.click_index])
-        return False
-    
-    
-    def set_position_cb(self, *args):
-        """
-        Respond to the spinboxes being used by essentially making a new click
-        """
-        self.canvas.delete_object_by_tag(tag(1, self.click_index))
-        self.color_index -= 1
-        self.click1_cb(None, None,
-                       self.spinboxes['X'].get_value(),
-                       self.spinboxes['Y'].get_value())
-        
-        
-    def start_select_crop_cb(self, _, __, x, y):
-        """
-        Respond to the mouse starting a left-drag by starting to select a crop
-        @param x:
-            An int corresponding to the x coordinate of where the click happened
-        @param y:
-            An int corresponding to the y coordinate of where the click happened
-        @returns:
-            True, in order to cancel the panset callback that comes after it
-        """
-        # enable drawing and then start drawing
-        self.canvas.enable_draw(True)
-        self.canvas.set_drawtype(drawtype='rectangle', color='white',
-                                 fill=False)
-        self.canvas.draw_start(self.canvas, 1, x, y, self.fitsimage)
-        self.drag_start = (x,y)
-        return True
-        
-        
-    def start_select_mask_cb(self, _, __, x, y):
-        """
-        Respond to the mouse starting a middle-drag by starting to draw a mask
-        @param x:
-            An int corresponding to the x coordinate of where the click happened
-        @param y:
-            An int corresponding to the y coordinate of where the click happened
-        @returns:
-            True, in order to cancel the panset callback that comes after it
-        """
-        # enable drawing and then start drawing
-        self.canvas.enable_draw(True)
-        self.canvas.set_drawtype(drawtype='rectangle', color='white',
-                                 fill=True, fillcolor='black')
-        self.canvas.draw_start(self.canvas, 1, x, y, self.fitsimage)
-        self.drag_start = (x,y)
-        return True
-        
-        
-    def end_select_crop_cb(self, _, __, xf, yf):
+    def start_drag_cb(self, c, k, x, y, kind):
         """
         Respond to the mouse finishing a left-drag by finalizing crop selection
-        @param x:
-            An int corresponding to the x coordinate of where the click happened
-        @param y:
-            An int corresponding to the y coordinate of where the click happened
+        @param kind:
+            Either 'mask' or 'crop', depending on the mouse button and the
+            current selection mode
+        @returns:
+            True, in order to prevent the other panset callbacks from going off
+        """
+        # enable drawing and then start drawing
+        self.canvas.enable_draw(True)
+        fill = (kind == 'mask')
+        self.canvas.set_drawtype(drawtype='rectangle', color='white',
+                                 fill=fill, fillcolor='black')
+        self.canvas.draw_start(c, k, x, y, self.fitsimage)
+        self.drag_start = (x,y)
+        return True
+    
+    
+    def end_drag_cb(self, c, k, xf, yf, kind):
+        """
+        Respond to the mouse finishing a left-drag by finalizing crop selection
+        @param xf:
+            The final x coordinate of this drag
+        @param yf:
+            The final y coordinate of this drag
+        @param kind:
+            Either 'mask' or 'crop', depending on the mouse button and the
+            current selection mode
         """
         # if rectangle has area zero, ignore it
         if (xf,yf) == self.drag_start:
             return
             
         # finish the drawing, but make sure nothing is drawn; it won't be visible anyway
-        self.canvas.draw_stop(None, None, *self.drag_start, viewer=None)
+        self.canvas.draw_stop(c, k, *self.drag_start, viewer=None)
         self.canvas.enable_draw(False)
         # if anything is ahead of this in drag_history, clear it
         co = self.current_obj
@@ -300,72 +317,13 @@ class MESLocate(object):
                                       min(max(min(yi, yf), y1), y2),
                                       min(max(max(xi, xf), x1), x2),
                                       min(max(max(yi, yf), y1), y2),
-                                      'crop'))
+                                      kind))
         
         # shade in the outside areas and remark it
         self.draw_mask(*self.drag_history[self.current_obj][-1])
         self.mark_current_obj()
-        
-        
-    def end_select_mask_cb(self, _, __, xf, yf):
-        """
-        Respond to the mouse finishing a middle-drag by finalizing object mask
-        @param x:
-            An int corresponding to the x coordinate of where the click happened
-        @param y:
-            An int corresponding to the y coordinate of where the click happened
-        """
-        # if rectangle has area zero, ignore it
-        if (xf,yf) == self.drag_start:
-            return
-            
-        # finish the drawing, but make sure nothing is drawn; we need to specify the tag
-        self.canvas.draw_stop(None, None, *self.drag_start, viewer=None)
-        self.canvas.enable_draw(False)
-        # if anything is ahead of this in drag_history, clear it
-        co = self.current_obj
-        self.drag_index[co] += 1
-        if self.drag_index[co] < len(self.drag_history[co]):
-            self.drag_history[co] = self.drag_history[co][:self.drag_index[co]]
-        
-        # now save that mask (sorted and coerced in bounds)
-        x1, y1, x2, y2, r = self.get_current_box()
-        xi, yi = self.drag_start
-        self.drag_history[co].append((min(max(min(xi, xf), x1), x2),
-                                      min(max(min(yi, yf), y1), y2),
-                                      min(max(max(xi, xf), x1), x2),
-                                      min(max(max(yi, yf), y1), y2),
-                                      'mask'))
-                                      
-        # shade that puppy in and remark it
-        self.draw_mask(*self.drag_history[self.current_obj][-1])
-        self.mark_current_obj()
-        
-        
-    def undo1_cb(self, *args):
-        """
-        Respond to the undo button in step 1
-        by going back one click (if possible)
-        """
-        if self.click_index > 0:
-            self.canvas.delete_object_by_tag(tag(1, self.click_index))
-            self.click_index -= 1
-            self.color_index -= 1
-            self.canvas.delete_object_by_tag(tag(1, self.click_index))
-            self.select_point(self.click_history[self.click_index])
     
     
-    def redo1_cb(self, *args):
-        """
-        Respond to the redo button in step 1
-        by going forward one click (if possible)
-        """
-        if self.click_index < len(self.click_history)-1:
-            self.click_index += 1
-            self.color_index += 1
-            self.select_point(self.click_history[self.click_index])
-            
-            
     def undo2_cb(self, *args):
         """
         Respond to the undo button in step 2
@@ -388,14 +346,6 @@ class MESLocate(object):
             self.drag_index[co] += 1
             self.draw_mask(*self.drag_history[co][self.drag_index[co]])
             self.mark_current_obj()
-            
-            
-    def choose_select_cb(self, _, mode_idx):
-        """
-        Keep track of our selection mode as determined by the combobox
-        """
-        # update the callbacks to account for this new mode
-        self.set_callbacks(step=2, selection_mode=selection_modes[mode_idx])
     
     
     def select_point(self, point, draw_circle_masks=False):
