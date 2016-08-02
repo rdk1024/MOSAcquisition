@@ -300,7 +300,7 @@ class MESLocate(object):
         # if rectangle has area zero, ignore it
         if (xf,yf) == self.drag_start:
             return
-            
+        
         # finish the drawing, but make sure nothing is drawn; it won't be visible anyway
         self.canvas.draw_stop(c, k, *self.drag_start, viewer=None)
         self.canvas.enable_draw(False)

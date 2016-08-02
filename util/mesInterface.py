@@ -58,10 +58,17 @@ class MESInterface(object):
     def update_parameters(self, getters):
         """
         Read parameter values from getters and saves them in self.manager
+        Scan all strings for variables
         @param getters:
             The dictionary of getter methods for parameter values
         """
-        new_params = {key:get_val() for key, get_val in getters.items()}
+        new_params = {}
+        for key, get_val in getters.items():
+            if type(get_val()) in (str, unicode):
+                value = process_filename(get_val(), self.manager.variables)
+            else:
+                value = get_val()
+            new_params[key] = value
         self.manager.database.update(new_params)
     
     
@@ -211,8 +218,8 @@ class MESInterface(object):
         f.write(("dx = {:7,.2f} (pix) dy = {:7,.2f} (pix) "+
                  "rotate = {:7,.4f} (degree) \n").format(*values))
         f.close()
-        
-        
+    
+    
     def gui_list(self, orientation='vertical'):
         """
         Combine the GUIs necessary for the interface part of this plugin
@@ -554,8 +561,48 @@ def build_control_layout(controls):
                 grd.add_widget(Widgets.Label(suffix, 'left'), i, 3)
         else:
             grd.add_widget(wdg, i, 2)
-            
+    
     return grd, getters, setters
+
+
+def process_filename(filename, variables):
+        """
+        Takes a filename and modifies it to account for any variables
+        @param filename:
+            The input filename to be processed
+        @param variables:
+            The dictionary of variable names to variable values
+        @returns:
+            The updated filename
+        @raises NameError:
+            If there is an undefined variable
+        """
+        print "in: ",filename
+        # scan the filename for dollar signs
+        while "$" in filename:
+            ds_idx = filename.find("$")
+            sl_idx = filename[ds_idx:].find("/")
+            if sl_idx == -1:
+                sl_idx = len(filename)
+            var_name = filename[ds_idx+1:sl_idx]
+            
+            # if it is a defined variable, replace it
+            if variables.has_key(var_name):
+                filename = (filename[:ds_idx] +
+                            variables[var_name] +
+                            filename[sl_idx:])
+            
+            # otherwise, raise an error
+            else:
+                err_msg = ("$"+var_name+" is not a defined variable. Defined "+
+                           "variables are:\n")
+                for key in variables:
+                    err_msg += "${}: {}\n".format(key, variables[key])
+                err_msg += "Please check your spelling and try again."
+                raise NameError(err_msg)
+        
+        print "out:",filename
+        return filename
 
 #END
 

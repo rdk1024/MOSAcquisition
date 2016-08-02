@@ -28,32 +28,36 @@ class MESOffset(mosPlugin.MESPlugin):
     use as part of the MOS Acquisition software for aligning MOIRCS.
     """
     
-    # database folder location
-    DBS = "../../MCSRED2/DATABASE"
+    # variables
+    variables = {"DATABASE":"../../MCSRED2/DATABASE",
+                 "DATA":"/data/o16010",
+                 "WORK":"/data/work/o16010",
+                 "CHECKFIELD":"/data/work/o16010/checkfield"}
+    
     # main menu parameters
-    params_0 = [    # TODO: get rid of these defaults
+    params_0 = [
         {'name':'star_chip1',
-         'label':"Star Frame", 'type':'number', 'default':227463, 'format':"MCSA{}.fits",
+         'label':"Star Frame", 'type':'number', 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 star FITS image"},
         
         {'name':'rootname',
-         'label':"Root Name", 'type':'string', 'default':"sbr_elaisn1rev", 'format':"{}.sbr",
-         'desc':"The filename of the SBR file, which is used as rootname"},
+         'label':"Root Name", 'type':'string', 'format':"{}.sbr",
+         'desc':"The filename of the SBR file, without the extension"},
         
         {'name':'c_file',
-         'label':"Config File", 'type':'string', 'default':DBS+"/ana_apr16.cfg",
+         'label':"Config File", 'type':'string', 'default':"$DATABASE/ana_apr16.cfg",
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
-         'label':"Image Directory", 'type':'string', 'default':"RAW/",
+         'label':"Image Directory", 'type':'string', 'default':"$DATA/",
          'desc':"The directory in which the input FITS images can be found"},
         
         {'name':'recalc0',
-         'label':"Regenerate", 'type':'boolean', 'default':False,
+         'label':"Regenerate", 'type':'boolean',
          'desc':"Do you want to generate new FITS images from raw data?"},
         
         {'name':'interact0',
-         'label':"Interact", 'type':'boolean', 'default':False,
+         'label':"Interact", 'type':'boolean',
          'desc':"Do you want to interact with object position measurement?"},
         
         {'name':'exec_mode',
@@ -73,14 +77,14 @@ class MESOffset(mosPlugin.MESPlugin):
         
         {'name':'rootname',
          'label':"Root Name", 'type':'string', 'format':"{}.sbr",
-         'desc':"The filename of the SBR file, which is used as rootname"},
+         'desc':"The filename of the SBR file, without the extension"},
         
         {'name':'c_file',
-         'label':"Config File", 'type':'string',
+         'label':"Config File", 'type':'string', 'default':"$DATABASE/ana_apr16.cfg",
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
-         'label':"Image Directory", 'type':'string',
+         'label':"Image Directory", 'type':'string', 'default':"$DATA/",
          'desc':"The directory in which the raw FITS images can be found"},
         
         {'name':'recalc1',
@@ -119,14 +123,14 @@ class MESOffset(mosPlugin.MESPlugin):
         
         {'name':'rootname',
          'label':"Root Name", 'type':'string', 'format':"{}.sbr",
-         'desc':"The filename of the SBR file, which is used as rootname"},
+         'desc':"The filename of the SBR file, without the extension"},
         
         {'name':'c_file',
-         'label':"Config File", 'type':'string',
+         'label':"Config File", 'type':'string', 'default':"$DATABASE/ana_apr16.cfg",
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
-         'label':"Image Directory", 'type':'string',
+         'label':"Image Directory", 'type':'string', 'default':"$DATA/",
          'desc':"The directory in which the raw FITS images can be found"},
         
         {'name':'recalc3',
@@ -150,14 +154,14 @@ class MESOffset(mosPlugin.MESPlugin):
         
         {'name':'rootname',
          'label':"Root Name", 'type':'string', 'format':"{}.sbr",
-         'desc':"The filename of the SBR file, which is used as rootname"},
+         'desc':"The filename of the SBR file, without the extension"},
         
         {'name':'c_file',
-         'label':"Config File", 'type':'string',
+         'label':"Config File", 'type':'string', 'default':"$DATABASE/ana_apr16.cfg",
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
-         'label':"Image Directory", 'type':'string',
+         'label':"Image Directory", 'type':'string', 'default':"$DATA/",
          'desc':"The directory in which the raw FITS images can be found"},
         
         {'name':'recalc4',
@@ -361,9 +365,7 @@ class MESOffset(mosPlugin.MESPlugin):
         step is processing the starhole frames
         """
         # modify the database if necessary, and then absorb all values from the database
-        img_dir = self.database['img_dir']
-        if len(img_dir) <= 0 or img_dir[-1] != '/':
-            self.database['img_dir'] += '/'
+        self.database['img_dir'] = self.process_filename(self.database['img_dir'])
         if not hasattr(self, 'hole_locations'):
             self.mes_interface.log("No hole position data found; please run "+
                                    "MES Offset 1, or MES Offset 0 in 'Normal' "+
