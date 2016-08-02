@@ -8,7 +8,7 @@
 
 
 # standard imports
-import math#TODO
+import math
 
 # local imports
 from util import mosPlots
@@ -51,7 +51,7 @@ class MESAnalyze(object):
             The function to call when this process is done
         """
         # set attributes
-        self.data, self.active = self.parse_data(star_pos, hole_pos)
+        self.data, self.active = parse_data(star_pos, hole_pos)
         self.next_step = next_step
         
         # set the mouse controls
@@ -147,7 +147,7 @@ class MESAnalyze(object):
         yref = self.data[:, 1]
         xin  = self.data[:, 2]
         yin  = self.data[:, 3]
-        xcalc, ycalc = self.transform(xin, yin, self.transformation)
+        xcalc, ycalc = transform(xin, yin, self.transformation)
         xres = xcalc - xref
         yres = ycalc - yref
         
@@ -394,82 +394,48 @@ class MESAnalyze(object):
         # space appropriately and return
         gui.add_widget(Widgets.Label(''), stretch=True)
         return gui
+
+
+
+def parse_data(data1, data2):
+    """
+    Read the data and return it in a more useful format: a four-columned
+    numpy array with the nans removed
+    @param data1:
+        The first input array: the star locations and/or sizes (ref values)
+    @param data2:
+        The second input array: the hole locations and/or sizes (in values)
+    @returns:
+        A four-column array representing the star positions and hole
+        positions, and a 1-dimensional array of Trues
+    """
+    data = np.hstack((data2[:,:2], data1[:,:2]))
+    real_idx = np.logical_not(np.any(np.isnan(data), axis=1))
+    data = data[np.nonzero(real_idx)]
     
+    return data, np.ones(data.shape[0], dtype=bool)
+
+
+def transform(x, y, trans):
+    """
+    Applies the given transformation to the given points
+    @param x:
+        A numpy array of x positions
+    @param y:
+        A numpy array of y positions
+    @param trans:
+        A tuple of floats: (x_shift, y_shift, rotation in degrees)
+    @returns:
+        A tuple of the new x value array and the new y value array
+        or NaN, NaN if trans was None
+    """
+    if trans == None:
+        return float('NaN'), float('NaN')
     
-    
-    @staticmethod
-    def parse_data(data1, data2):
-        """
-        Read the data and return it in a more useful format: a four-columned
-        numpy array with the nans removed
-        @param data1:
-            The first input array: the star locations and/or sizes (ref values)
-        @param data2:
-            The second input array: the hole locations and/or sizes (in values)
-        @returns:
-            A four-column array representing the star positions and hole
-            positions, and a 1-dimensional array of Trues
-        """
-        data = np.hstack((data2[:,:2], data1[:,:2]))
-        real_idx = np.logical_not(np.any(np.isnan(data), axis=1))
-        data = data[np.nonzero(real_idx)]
-        
-        return data, np.ones(data.shape[0], dtype=bool)
-    
-    
-    @staticmethod
-    def get_transformation(filename):
-        """
-        Read the DBS file written by iraf.geomap and return the useful data within
-        @param filename:
-            The str name of the file in which the transformation info can be found
-        @returns:
-            A tuple of three floats: (x_shift, y_shift, rotation in degrees)
-            or None if no transformation was found
-        """
-        try:
-            dbs = open(filename, 'r')
-        except IOError:
-            try:
-                dbs = open("sbr_elaisn1rev_starmask.dbs", 'r')
-            except IOError:
-                return (0., 0., 0.)
-        
-        # now skip to and read the important bits
-        lines = dbs.readlines()
-        dbs.close()
-        try:
-            x_shift = float(lines[-21].split()[1])
-            y_shift = float(lines[-20].split()[1])
-            x_rot = float(lines[-17].split()[1])
-            y_rot = float(lines[-16].split()[1])
-        except IndexError:
-            return None
-        
-        return (x_shift, y_shift, (x_rot+y_rot)/2)
-        
-    
-    @staticmethod
-    def transform(x, y, trans):
-        """
-        Applies the given transformation to the given points
-        @param x:
-            A numpy array of x positions
-        @param y:
-            A numpy array of y positions
-        @param trans:
-            A tuple of floats: (x_shift, y_shift, rotation in degrees)
-        @returns:
-            A tuple of the new x value array and the new y value array
-            or NaN, NaN if trans was None
-        """
-        if trans == None:
-            return float('NaN'), float('NaN')
-        
-        xshift, yshift, thetaR = trans
-        newX = (x - xshift)*math.cos(thetaR) - (y - yshift)*math.sin(thetaR)
-        newY = (x - xshift)*math.sin(thetaR) + (y - yshift)*math.cos(thetaR)
-        return newX, newY
+    xshift, yshift, thetaR = trans
+    newX = (x - xshift)*math.cos(thetaR) - (y - yshift)*math.sin(thetaR)
+    newY = (x - xshift)*math.sin(thetaR) + (y - yshift)*math.cos(thetaR)
+    return newX, newY
 
 #END
 

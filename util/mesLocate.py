@@ -59,7 +59,7 @@ class MESLocate(object):
             A function to call when MESLocate is finished
         """
         # read the data
-        self.obj_list, obj0 = self.parse_data(initial_data)
+        self.obj_list, obj0 = parse_data(initial_data)
         self.obj_num = len(self.obj_list)
         
         # define some attributes
@@ -84,7 +84,7 @@ class MESLocate(object):
         self.canvas.delete_all_objects()
         
         # creates the list of thumbnails that will go in the GUI
-        self.thumbnails = self.create_viewer_list(self.obj_num, self.logger)
+        self.thumbnails = create_viewer_list(self.obj_num, self.logger)
         self.viewer_grid.remove_all()
         for row in range(int(math.ceil(self.obj_num/2.0))):
             for col in range(2):
@@ -414,8 +414,7 @@ class MESLocate(object):
             # draw the circular mask if necessary
             if draw_circle_masks:
                 if r <= sq_size:
-                    shapes.append(self.empty_circle(x+dx, y+dy, r, sq_size,
-                                                    self.dc))
+                    shapes.append(empty_circle(x+dx, y+dy, r, sq_size, self.dc))
                     shapes.append(self.dc.Circle(x+dx, y+dy, r, color='white'))
 
             # then, update the little pictures
@@ -490,11 +489,11 @@ class MESLocate(object):
         sq_size = self.square_size
         if obj == None:
             co = self.current_obj
-            obj = self.locate_obj(self.get_current_box(),
-                                  self.drag_history[co][:self.drag_index[co]+1],
-                                  self.fitsimage.get_image(),
-                                  min_search_radius=self.exp_obj_size,
-                                  viewer=self.step2_viewer)
+            obj = locate_obj(self.get_current_box(),
+                             self.drag_history[co][:self.drag_index[co]+1],
+                             self.fitsimage.get_image(),
+                             min_search_radius=self.exp_obj_size,
+                             viewer=self.step2_viewer)
         
         # if any of the coordinates are NaN, then a red x will be drawn in the middle
         if True in [math.isnan(x) for x in obj]:
@@ -742,33 +741,8 @@ class MESLocate(object):
         # space appropriately and return
         gui.add_widget(Widgets.Label(''), stretch=True)
         return gui
-        
-        
     
-    @staticmethod   # TODO: dynamic
-    def create_viewer_list(n, logger=None, width=120, height=120):    # 147x147 is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
-        """
-        Create a list of n viewers with certain properties
-        @param n:
-            An integer - the length of the desired list
-        @param width:
-            The desired width of each viewer
-        @param height:
-            The desired height of each veiwer
-        @param logger:
-            A Logger object to pass into the new Viewers
-        @returns:
-            A list of Viewers.CanvasView objects
-        """
-        output = []
-        for i in range(n):
-            viewer = Viewers.CanvasView(logger=logger)
-            viewer.set_desired_size(width, height)
-            viewer.enable_autozoom('on')
-            viewer.enable_autocuts('on')
-            output.append(viewer)
-        return output
-
+    
     
     @staticmethod
     def read_sbr_file(filename):
@@ -796,187 +770,207 @@ class MESLocate(object):
             vals = line.split(', ')
             if vals[0] == 'C':
                 sbrX, sbrY = float(vals[1]), float(vals[2])
-                array.append(MESLocate.imgXY_from_sbrXY(sbrX, sbrY))
+                array.append(imgXY_from_sbrXY(sbrX, sbrY))
             line = sbr.readline()
         
         sbr.close()
         return np.array(array)
 
 
-    @staticmethod
-    def imgXY_from_sbrXY(sbrX, sbrY):
-        """
-        Converts coordinates from the SBR file to coordinates
-        compatible with FITS files
-        @param sbr_coords:
-            A string or float tuple of x and y read from *.sbr
-        @returns:
-            A float tuple of x amd u that will work with the rest of Ginga
-        """
-        # I'm sorry; I have no idea what any of this math is.
-        fX = 1078.0 - float(sbrX)*17.57789
-        fY = 1857.0 + float(sbrY)*17.57789
-        fHoleX = 365.0 + (fX-300.0)
-        fHoleY = 2580.0 + (fY-2660.0)
-        return (fHoleX, fHoleY)
-        
-    
-    @staticmethod
-    def parse_data(data):
-        """
-        Reads the data and returns it in a more useful form
-        @param data:
-            A numpy array of two or three columns, representing x, y[, and r]
-        @returns:
-            A tuple containing a list of tuples of three floats representing
-            relative locations and radii of objects, and a single float tuple
-            (absolute location of first object)
-        """
-        obj_list = []
-        obj0 = None
-        
-        for row in data:
-            # for each line, get the important values and save them in obj_list
-            x, y = row[:2]
-            if len(row) >= 3:
-                r = row[2]
-            else:
-                r = float('NaN')
-            
-            # if this is the first one, put something in obj0
-            if obj0 == None:
-                obj0 = (x, y)
-                obj_list.append((0, 0, r))
-            else:
-                obj_list.append((x - obj0[0], y - obj0[1], r))
-            
-        return obj_list, obj0
-        
-    
-    @staticmethod
-    def locate_obj(bounds, masks, image, viewer=None,
-                   min_search_radius=None, thresh=3):
-        """
-        Finds the center of an object using center of mass calculation
-        @param bounds:
-            A tuple of floats x1, y1, x2, y2, r. The object should be within
-            this box
-        @param masks:
-            A list of tuples of the form (x1, y1, x2, y2, kind) where kind is either
-            'mask' or 'crop' and everything else is floats. Each tuple in masks
-            is one drag of the mouse that ommitted either its interior or its
-            exterior
-        @param image:
-            The AstroImage containing the data necessary for this calculation
-        @param viewer:
-            The viewer object that will display the new data, if desired
-        @param min_search_radius:
-            The smallest radius that this will search
-        @param thresh:
-            The number of standard deviations above the mean a data point must
-            be to be considered valid
-        @returns:
-            A tuple of two floats representing the actual location of the object
-            or a tuple of NaNs if no star could be found
-        """
-        # start by getting the raw data from the image matrix
-        raw, x0,y0,x1,y1 = image.cutout_adjust(*bounds[:4])
-        search_radius = bounds[4]
-        x_cen, y_cen = raw.shape[0]/2.0, raw.shape[1]/2.0
-        yx = np.indices(raw.shape)
-        x_arr, y_arr = yx[1], yx[0]
-        
-        # crop data to circle
-        mask_tot = np.hypot(x_arr - x_cen, y_arr - y_cen) > search_radius
-        
-        # mask data based on masks
-        for drag in masks:
-            x1, y1, x2, y2, kind = (int(drag[0]-bounds[0]), int(drag[1]-bounds[1]),
-                                    int(drag[2]-bounds[0]), int(drag[3]-bounds[1]),
-                                    drag[4])
-            mask = np.zeros(raw.shape, dtype=bool)
-            mask[y1:y2, x1:x2] = np.ones((y2-y1, x2-x1), dtype=bool)
-            if kind == 'crop':
-                mask = np.logical_not(mask)
-            mask_tot = np.logical_or(mask_tot, mask)
-        
-        # apply mask, calculate threshold, normalize, and coerce data positive
-        data = ma.masked_array(raw, mask=mask_tot)
-        threshold = thresh*ma.std(data) + ma.mean(data)
-        data = data - threshold
-        data = ma.clip(data, 0, float('inf'))
-        
-        # display the new data on the viewer, if necessary
-        if viewer != None:
-            viewer.get_settings().set(autocut_method='minmax')
-            viewer.set_data(data)
-        
-        # exit if the entire screen is masked
-        if np.all(mask_tot):
-            return (float('NaN'), float('NaN'), float('NaN'))
-        
-        # iterate over progressively smaller search radii
-        if min_search_radius == None:
-            min_search_radius = search_radius/2
-        has_not_executed_yet = True
-        while search_radius >= min_search_radius or has_not_executed_yet:
-            has_not_executed_yet = False
-            old_x_cen, old_y_cen = float('-inf'), float('-inf')
-            
-            # repeat the following until you hit an assymptote:
-            while np.hypot(x_cen-old_x_cen, y_cen-old_y_cen) >= 0.5:
-                # define an array for data constrained to its search radius
-                circle_mask = np.hypot(x_arr-x_cen, y_arr-y_cen) > search_radius
-                local_data = ma.masked_array(data, mask=circle_mask)
-                
-                # calculate some moments and stuff
-                mom1x = float(ma.sum(local_data*(x_arr)))
-                mom1y = float(ma.sum(local_data*(y_arr)))
-                mom0 = float(ma.sum(local_data))
-                area = float(ma.sum(np.sign(local_data)))
-                
-                # now try a center-of-mass calculation to find the size and centroid
-                try:
-                    old_x_cen = x_cen
-                    old_y_cen = y_cen
-                    x_cen = mom1x/mom0
-                    y_cen = mom1y/mom0
-                    radius = math.sqrt(area/math.pi)
-                except ZeroDivisionError:
-                    return (float('NaN'), float('NaN'), float('NaN'))
-            
-            search_radius = search_radius/2
-        
-        return (x0 + x_cen - 0.5, y0 + y_cen - 0.5, radius)
-    
-    
-    @staticmethod
-    def empty_circle(x, y, r, a, dc):
-        """
-        Create a ginga canvas mixin (whatever that is) composed of a black
-        filled square with a circle removed from the center
-        @param x:
-            The x coordinate of the center of the circle
-        @param y:
-            The y coordinate of the center of the circle
-        @param r:
-            The radius of the circle
-        @param a:
-            The apothem of the square around the circle
-        @param dc:
-            The drawing classes module
-        @returns:
-            A canvas.types.layer.CompoundObject, as described above
-        """
-        # the verticies of the polygon that will approximate this shape
-        vertices = [(x+a, y+a), (x+a, y-a), (x-a, y-a), (x-a, y+a), (x+a, y+a)]
-        # draw the circle
-        for theta in range(45, 406, 10):
-            vertices.append((x + r*math.cos(math.radians(theta)),
-                             y + r*math.sin(math.radians(theta))))
-        # and then fill in the outside
-        return dc.Polygon(vertices, color='black', fill=True, fillcolor='black')
 
+def imgXY_from_sbrXY(sbrX, sbrY):
+    """
+    Converts coordinates from the SBR file to coordinates
+    compatible with FITS files
+    @param sbr_coords:
+        A string or float tuple of x and y read from *.sbr
+    @returns:
+        A float tuple of x amd u that will work with the rest of Ginga
+    """
+    # I'm sorry; I have no idea what any of this math is.
+    fX = 1078.0 - float(sbrX)*17.57789
+    fY = 1857.0 + float(sbrY)*17.57789
+    fHoleX = 365.0 + (fX-300.0)
+    fHoleY = 2580.0 + (fY-2660.0)
+    return (fHoleX, fHoleY)
+
+
+def parse_data(data):
+    """
+    Reads the data and returns it in a more useful form
+    @param data:
+        A numpy array of two or three columns, representing x, y[, and r]
+    @returns:
+        A tuple containing a list of tuples of three floats representing
+        relative locations and radii of objects, and a single float tuple
+        (absolute location of first object)
+    """
+    obj_list = []
+    obj0 = None
+    
+    for row in data:
+        # for each line, get the important values and save them in obj_list
+        x, y = row[:2]
+        if len(row) >= 3:
+            r = row[2]
+        else:
+            r = float('NaN')
+        
+        # if this is the first one, put something in obj0
+        if obj0 == None:
+            obj0 = (x, y)
+            obj_list.append((0, 0, r))
+        else:
+            obj_list.append((x - obj0[0], y - obj0[1], r))
+        
+    return obj_list, obj0
+
+
+def create_viewer_list(n, logger=None, width=120, height=120):    # 147x147 is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
+    """
+    Create a list of n viewers with certain properties
+    @param n:
+        An integer - the length of the desired list
+    @param width:
+        The desired width of each viewer
+    @param height:
+        The desired height of each veiwer
+    @param logger:
+        A Logger object to pass into the new Viewers
+    @returns:
+        A list of Viewers.CanvasView objects
+    """
+    output = []
+    for i in range(n):
+        viewer = Viewers.CanvasView(logger=logger)
+        viewer.set_desired_size(width, height)
+        viewer.enable_autozoom('on')
+        viewer.enable_autocuts('on')
+        output.append(viewer)
+    return output
+
+
+def locate_obj(bounds, masks, image, viewer=None,
+               min_search_radius=None, thresh=3):
+    """
+    Finds the center of an object using center of mass calculation
+    @param bounds:
+        A tuple of floats x1, y1, x2, y2, r. The object should be within
+        this box
+    @param masks:
+        A list of tuples of the form (x1, y1, x2, y2, kind) where kind is either
+        'mask' or 'crop' and everything else is floats. Each tuple in masks
+        is one drag of the mouse that ommitted either its interior or its
+        exterior
+    @param image:
+        The AstroImage containing the data necessary for this calculation
+    @param viewer:
+        The viewer object that will display the new data, if desired
+    @param min_search_radius:
+        The smallest radius that this will search
+    @param thresh:
+        The number of standard deviations above the mean a data point must
+        be to be considered valid
+    @returns:
+        A tuple of two floats representing the actual location of the object
+        or a tuple of NaNs if no star could be found
+    """
+    # start by getting the raw data from the image matrix
+    raw, x0,y0,x1,y1 = image.cutout_adjust(*bounds[:4])
+    search_radius = bounds[4]
+    x_cen, y_cen = raw.shape[0]/2.0, raw.shape[1]/2.0
+    yx = np.indices(raw.shape)
+    x_arr, y_arr = yx[1], yx[0]
+    
+    # crop data to circle
+    mask_tot = np.hypot(x_arr - x_cen, y_arr - y_cen) > search_radius
+    
+    # mask data based on masks
+    for drag in masks:
+        x1, y1, x2, y2, kind = (int(drag[0]-bounds[0]), int(drag[1]-bounds[1]),
+                                int(drag[2]-bounds[0]), int(drag[3]-bounds[1]),
+                                drag[4])
+        mask = np.zeros(raw.shape, dtype=bool)
+        mask[y1:y2, x1:x2] = np.ones((y2-y1, x2-x1), dtype=bool)
+        if kind == 'crop':
+            mask = np.logical_not(mask)
+        mask_tot = np.logical_or(mask_tot, mask)
+    
+    # apply mask, calculate threshold, normalize, and coerce data positive
+    data = ma.masked_array(raw, mask=mask_tot)
+    threshold = thresh*ma.std(data) + ma.mean(data)
+    data = data - threshold
+    data = ma.clip(data, 0, float('inf'))
+    
+    # display the new data on the viewer, if necessary
+    if viewer != None:
+        viewer.get_settings().set(autocut_method='minmax')
+        viewer.set_data(data)
+    
+    # exit if the entire screen is masked
+    if np.all(mask_tot):
+        return (float('NaN'), float('NaN'), float('NaN'))
+    
+    # iterate over progressively smaller search radii
+    if min_search_radius == None:
+        min_search_radius = search_radius/2
+    has_not_executed_yet = True
+    while search_radius >= min_search_radius or has_not_executed_yet:
+        has_not_executed_yet = False
+        old_x_cen, old_y_cen = float('-inf'), float('-inf')
+        
+        # repeat the following until you hit an assymptote:
+        while np.hypot(x_cen-old_x_cen, y_cen-old_y_cen) >= 0.5:
+            # define an array for data constrained to its search radius
+            circle_mask = np.hypot(x_arr-x_cen, y_arr-y_cen) > search_radius
+            local_data = ma.masked_array(data, mask=circle_mask)
+            
+            # calculate some moments and stuff
+            mom1x = float(ma.sum(local_data*(x_arr)))
+            mom1y = float(ma.sum(local_data*(y_arr)))
+            mom0 = float(ma.sum(local_data))
+            area = float(ma.sum(np.sign(local_data)))
+            
+            # now try a center-of-mass calculation to find the size and centroid
+            try:
+                old_x_cen = x_cen
+                old_y_cen = y_cen
+                x_cen = mom1x/mom0
+                y_cen = mom1y/mom0
+                radius = math.sqrt(area/math.pi)
+            except ZeroDivisionError:
+                return (float('NaN'), float('NaN'), float('NaN'))
+        
+        search_radius = search_radius/2
+    
+    return (x0 + x_cen - 0.5, y0 + y_cen - 0.5, radius)
+
+
+def empty_circle(x, y, r, a, dc):
+    """
+    Create a ginga canvas mixin (whatever that is) composed of a black
+    filled square with a circle removed from the center
+    @param x:
+        The x coordinate of the center of the circle
+    @param y:
+        The y coordinate of the center of the circle
+    @param r:
+        The radius of the circle
+    @param a:
+        The apothem of the square around the circle
+    @param dc:
+        The drawing classes module
+    @returns:
+        A canvas.types.layer.CompoundObject, as described above
+    """
+    # the verticies of the polygon that will approximate this shape
+    vertices = [(x+a, y+a), (x+a, y-a), (x-a, y-a), (x-a, y+a), (x+a, y+a)]
+    # draw the circle
+    for theta in range(45, 406, 10):
+        vertices.append((x + r*math.cos(math.radians(theta)),
+                         y + r*math.sin(math.radians(theta))))
+    # and then fill in the outside
+    return dc.Polygon(vertices, color='black', fill=True, fillcolor='black')
 
 
 def tag(step, mod_1, mod_2=None):

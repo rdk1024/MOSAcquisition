@@ -279,7 +279,7 @@ class MESInterface(object):
         # create a grid to group the different controls
         frm = Widgets.Frame(name)
         gui.add_widget(frm)
-        grd, getters, setters = self.build_control_layout(params)
+        grd, getters, setters = build_control_layout(params)
         self.get_value.append(getters)
         self.set_value.append(setters)
         frm.set_widget(grd)
@@ -335,7 +335,7 @@ class MESInterface(object):
         # create a grid to group the different controls
         frm = Widgets.Frame()
         gui.add_widget(frm)
-        grd, getters, setters = self.build_control_layout(params)
+        grd, getters, setters = build_control_layout(params)
         self.get_value.append(getters)  # NOTE that these getters and setters
         self.set_value.append(setters)  # will have different indices than idx
         frm.set_widget(grd)
@@ -476,87 +476,86 @@ class MESInterface(object):
         # space appropriately and return
         gui.add_widget(Widgets.Label(''), stretch=True)
         return gui
+
+
+
+def build_control_layout(controls):
+    """
+    Build a grid full of labels on the left and input widgets on the right.
+    @param controls:
+        A list of dictionary where each dictionary has the keys 'name' (the
+        name of the parameter), 'type' (string, number, etc.), 'default'
+        (the starting value), 'desc' (the tooltip), possibly 'format' (puts
+        labels on either side of the input), and possibly 'options' (the
+        list of possible values, if type is 'combobox')
+    @returns:
+        A Widgets.Box containing controls for all of the layouts,
+        and a dictionary whose keys are parameter names and whose values
+        are functions to return those parameter values,
+        and a dictionary whose keys are parameter names and whose values
+        are functions to set those parameter values
+    """
+    grd = Widgets.GridBox(rows=len(controls), columns=4)
+    grd.set_column_spacing(0)
+    getters = {}
+    setters = {}
     
-    
-    
-    @staticmethod
-    def build_control_layout(controls):
-        """
-        Build a grid full of labels on the left and input widgets on the right.
-        @param controls:
-            A list of dictionary where each dictionary has the keys 'name' (the
-            name of the parameter), 'type' (string, number, etc.), 'default'
-            (the starting value), 'desc' (the tooltip), possibly 'format' (puts
-            labels on either side of the input), and possibly 'options' (the
-            list of possible values, if type is 'combobox')
-        @returns:
-            A Widgets.Box containing controls for all of the layouts,
-            and a dictionary whose keys are parameter names and whose values
-            are functions to return those parameter values,
-            and a dictionary whose keys are parameter names and whose values
-            are functions to set those parameter values
-        """
-        grd = Widgets.GridBox(rows=len(controls), columns=4)
-        grd.set_column_spacing(0)
-        getters = {}
-        setters = {}
+    # put each of the controls in a row on the grid
+    for i, param in enumerate(controls):
+        name = param['name']
+        # start by labelling the parameter
+        lbl = Widgets.Label(param['label']+":  ", halign='right')
+        lbl.set_tooltip(param['desc'])
+        grd.add_widget(lbl, i, 0)
         
-        # put each of the controls in a row on the grid
-        for i, param in enumerate(controls):
-            name = param['name']
-            # start by labelling the parameter
-            lbl = Widgets.Label(param['label']+":  ", halign='right')
-            lbl.set_tooltip(param['desc'])
-            grd.add_widget(lbl, i, 0)
+        # create a widget based on type
+        if param['type'] == 'string':
+            wdg = Widgets.TextEntry(editable=True)
+            wdg.set_text('')
+            getters[name] = wdg.get_text
+            setters[name] = wdg.set_text
+        elif param['type'] == 'number':
+            wdg = Widgets.SpinBox()
+            wdg.set_limits(0, 99999999)
+            wdg.set_value(0)
+            getters[name] = wdg.get_value
+            setters[name] = wdg.set_value
+        elif param['type'] == 'choice':
+            wdg = Widgets.ComboBox()
+            for option in param['options']:
+                wdg.append_text(option)
+            wdg.set_index(0)
+            getters[name] = wdg.get_index
+            setters[name] = wdg.set_index
+        elif param['type'] == 'boolean':
+            wdg = Widgets.CheckBox()
+            wdg.set_state(True)
+            getters[name] = wdg.get_state
+            setters[name] = wdg.set_state
+        else:
+            raise TypeError("{} is not a valid parameter type.".format(
+                                                            param['type']))
+        wdg.set_tooltip(param['desc'])
+        
+        # insert a default, if necessary
+        if param.has_key('default'):
+            setters[name](param['default'])
+        
+        # surround the widget with text, if necessary
+        if param.has_key('format'):
+            format_str = param['format']
+            idx = format_str.index('{}')
+            prefix = format_str[:idx]
+            suffix = format_str[idx+2:]
+            if prefix:
+                grd.add_widget(Widgets.Label(prefix, 'right'), i, 1)
+            grd.add_widget(wdg, i, 2)
+            if suffix:
+                grd.add_widget(Widgets.Label(suffix, 'left'), i, 3)
+        else:
+            grd.add_widget(wdg, i, 2)
             
-            # create a widget based on type
-            if param['type'] == 'string':
-                wdg = Widgets.TextEntry(editable=True)
-                wdg.set_text('')
-                getters[name] = wdg.get_text
-                setters[name] = wdg.set_text
-            elif param['type'] == 'number':
-                wdg = Widgets.SpinBox()
-                wdg.set_limits(0, 99999999)
-                wdg.set_value(0)
-                getters[name] = wdg.get_value
-                setters[name] = wdg.set_value
-            elif param['type'] == 'choice':
-                wdg = Widgets.ComboBox()
-                for option in param['options']:
-                    wdg.append_text(option)
-                wdg.set_index(0)
-                getters[name] = wdg.get_index
-                setters[name] = wdg.set_index
-            elif param['type'] == 'boolean':
-                wdg = Widgets.CheckBox()
-                wdg.set_state(True)
-                getters[name] = wdg.get_state
-                setters[name] = wdg.set_state
-            else:
-                raise TypeError("{} is not a valid parameter type.".format(
-                                                                param['type']))
-            wdg.set_tooltip(param['desc'])
-            
-            # insert a default, if necessary
-            if param.has_key('default'):
-                setters[name](param['default'])
-            
-            # surround the widget with text, if necessary
-            if param.has_key('format'):
-                format_str = param['format']
-                idx = format_str.index('{}')
-                prefix = format_str[:idx]
-                suffix = format_str[idx+2:]
-                if prefix:
-                    grd.add_widget(Widgets.Label(prefix, 'right'), i, 1)
-                grd.add_widget(wdg, i, 2)
-                if suffix:
-                    grd.add_widget(Widgets.Label(suffix, 'left'), i, 3)
-            else:
-                grd.add_widget(wdg, i, 2)
-                
-        return grd, getters, setters
+    return grd, getters, setters
 
 #END
 
