@@ -8,18 +8,10 @@
 
 
 # standard imports
-import math
-import sys
 from time import strftime
 
-# local imports
-
 # ginga imports
-from ginga.gw import Widgets, Viewers
-
-# third-party imports
-import numpy as np
-from numpy import ma
+from ginga.gw import Widgets
 
 
 

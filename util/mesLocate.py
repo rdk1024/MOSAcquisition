@@ -70,7 +70,7 @@ class MESLocate(object):
         self.drag_index = [-1]*self.obj_num     # index of the current drag for each object
         self.drag_start = None      # the place where we most recently began to drag
         self.obj_centroids = [None]*self.obj_num    # the new obj_list based on user input and calculations
-        self.square_size =  {'star':25, 'mask':60, 'starhole':20}[mode]  # the size of the search regions
+        self.square_size =  {'star':30, 'mask':60, 'starhole':20}[mode]  # the apothem of the search regions
         self.exp_obj_size = {'star':4,  'mask':20, 'starhole':4}[mode]  # the maximum expected radius of the objects
         self.interact = interact2    # whether we should interact in step 2
         self.next_step = next_step  # what to do when we're done
@@ -85,14 +85,13 @@ class MESLocate(object):
         
         # creates the list of thumbnails that will go in the GUI
         self.thumbnails = self.create_viewer_list(self.obj_num, self.logger)
+        self.viewer_grid.remove_all()
         for row in range(int(math.ceil(self.obj_num/2.0))):
             for col in range(2):
-                try:
-                    i = 2*row + col
+                i = 2*row + col
+                if i < len(self.thumbnails):
                     pic = Viewers.GingaViewerWidget(viewer=self.thumbnails[i])
                     self.viewer_grid.add_widget(pic, row, col)
-                except IndexError:
-                    pass
         
         # set the mouse controls and automatically start if this is starhole mode
         self.set_callbacks()
@@ -600,6 +599,7 @@ class MESLocate(object):
         frm = Widgets.Frame()
         gui.add_widget(frm)
         grd = Widgets.GridBox()
+        grd.set_spacing(3)
         frm.set_widget(grd)
         self.viewer_grid = grd
 
@@ -745,7 +745,7 @@ class MESLocate(object):
         
         
     
-    @staticmethod
+    @staticmethod   # TODO: dynamic
     def create_viewer_list(n, logger=None, width=120, height=120):    # 147x147 is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
         """
         Create a list of n viewers with certain properties
@@ -879,7 +879,7 @@ class MESLocate(object):
             A tuple of two floats representing the actual location of the object
             or a tuple of NaNs if no star could be found
         """
-        # start by getting the raw data from the image matrix TODO: draw circle mask
+        # start by getting the raw data from the image matrix
         raw, x0,y0,x1,y1 = image.cutout_adjust(*bounds[:4])
         search_radius = bounds[4]
         x_cen, y_cen = raw.shape[0]/2.0, raw.shape[1]/2.0

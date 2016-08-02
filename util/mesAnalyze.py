@@ -8,15 +8,13 @@
 
 
 # standard imports
-import math
-import os
-import sys
+import math#TODO
 
 # local imports
 from util import mosPlots
 
 # ginga imports
-from ginga.gw import Widgets, Viewers, Plot
+from ginga.gw import Widgets, Plot
 
 # third-party imports
 import numpy as np
@@ -321,6 +319,7 @@ class MESAnalyze(object):
         for i in range(2):
             self.plots.append(mosPlots.MOSPlot(logger=self.logger))
             fig = Plot.PlotWidget(self.plots[i])
+            fig.resize(300, 300)
             box.add_widget(fig)
         
         # now make an HBox to hold the main controls
