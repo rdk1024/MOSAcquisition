@@ -44,7 +44,11 @@ class MESInterface(object):
             The index for the process we are going to start - 0, 1, 2, or 3
         """
         self.log("Starting MES Offset {}...".format(idx))
-        self.update_parameters(self.get_value[idx])
+        try:
+            self.update_parameters(self.get_value[idx])
+        except NameError as e:
+            self.log(str(e), level='e')
+            return
         if idx == 0:
             self.manager.execute_mesoffset0()
         elif idx == 1:
@@ -61,6 +65,8 @@ class MESInterface(object):
         Scan all strings for variables
         @param getters:
             The dictionary of getter methods for parameter values
+        @raises NameError:
+            If one of the values contains an undefined variable
         """
         new_params = {}
         for key, get_val in getters.items():
@@ -107,10 +113,14 @@ class MESInterface(object):
         @param idx:
             The index for the process we must resume - 1 or 3
         """
-        if idx == 1:
-            self.update_parameters(self.get_value[4])
-        elif idx == 3:
-            self.update_parameters(self.get_value[5])
+        try:
+            if idx == 1:
+                self.update_parameters(self.get_value[4])
+            elif idx == 3:
+                self.update_parameters(self.get_value[5])
+        except NameError as e:
+            self.log(str(e), level='e')
+            return
         self.resume_mesoffset[idx]()
     
     
@@ -606,7 +616,6 @@ def process_filename(filename, variables):
     @raises NameError:
         If there is an undefined variable
     """
-    print "in: ",filename
     # scan the filename for dollar signs
     while "$" in filename:
         ds_idx = filename.find("$")
@@ -616,21 +625,19 @@ def process_filename(filename, variables):
         var_name = filename[ds_idx+1:sl_idx]
         
         # if it is a defined variable, replace it
-        if variables.has_key(var_name):
-            filename = (filename[:ds_idx] +
-                        variables[var_name] +
-                        filename[sl_idx:])
+        if variables.has_key(var_name.upper()):
+            filename = filename.replace("$"+var_name,
+                                        variables[var_name.upper()])
         
         # otherwise, raise an error
         else:
             err_msg = ("$"+var_name+" is not a defined variable. Defined "+
                        "variables are:\n")
             for key in variables:
-                err_msg += "${}: {}\n".format(key, variables[key])
+                err_msg += "    ${}: {}\n".format(key, variables[key])
             err_msg += "Please check your spelling and try again."
             raise NameError(err_msg)
     
-    print "out:",filename
     return filename
 
 #END
