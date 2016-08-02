@@ -74,10 +74,7 @@ class MESAnalyze(object):
         canvas = self.canvas
         
         # clear all existing callbacks first
-        for cb in ('cursor-down', 'cursor-up',
-                    'panset-down', 'panset-up',
-                    'draw-down', 'draw-up'):
-            canvas.clear_callback(cb)
+        self.manager.clear_canvas()
         
         # the only callbacks are for right-click and left-click
         if step == 3:
@@ -98,8 +95,7 @@ class MESAnalyze(object):
         """
         Respond to the 'Finish' button in step 4 by finishing up
         """
-        self.canvas.delete_all_objects()
-        self.set_callbacks(step=None)
+        self.manager.clear_canvas()
         if self.next_step != None:
             self.next_step()
     

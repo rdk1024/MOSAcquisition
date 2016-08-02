@@ -50,6 +50,18 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         
         
         
+    def clear_canvas(self, keep_objects=False, keep_callbacks=False):
+        """
+        Remove all elements and callbacks from self.canvas
+        """
+        if not keep_objects:
+            self.canvas.delete_all_objects()
+        if not keep_callbacks:
+            for button in ('cursor', 'panset', 'draw'):
+                for event in ('-up', '-down'):
+                    self.canvas.clear_callback(button+event)
+    
+    
     def build_gui(self, container):
         """
         Called when the plugin is invoked; sets up all the components of the GUI
@@ -95,7 +107,7 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         # stick our own canvas on top of the fitsimage canvas
         p_canvas = self.fitsimage.get_canvas()
         if not p_canvas.has_object(self.canvas):
-            p_canvas.add(self.canvas, tag='main-canvas')
+            p_canvas.add(self.canvas, tag='MOSA-canvas')
         
         # clear the canvas
         self.canvas.delete_all_objects()
@@ -138,10 +150,11 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         """
         p_canvas = self.fitsimage.get_canvas()
         try:
-            p_canvas.delete_object_by_tag('main-canvas')
+            p_canvas.delete_object_by_tag('MOSA-canvas')
         except:
             pass
         self.canvas.ui_setActive(False)
+        self.clear_canvas()
     
     
     def redo(self):

@@ -65,6 +65,7 @@ class MESLocate(object):
         # define some attributes
         self.click_history = []     # places we've clicked
         self.click_index = -1       # index of the last click
+        self.color_index = -1       # index of the current color
         self.current_obj = 0        # index of the current object
         self.drag_history = [[]]*self.obj_num   # places we've click-dragged*
         self.drag_index = [-1]*self.obj_num     # index of the current drag for each object
@@ -81,7 +82,6 @@ class MESLocate(object):
         else:
             method = 'minmax'
         self.fitsimage.get_settings().set(autocut_method=method)
-        self.canvas.delete_all_objects()
         
         # creates the list of thumbnails that will go in the GUI
         self.thumbnails = create_viewer_list(self.obj_num, self.logger)
@@ -114,9 +114,7 @@ class MESLocate(object):
         canvas = self.canvas
         
         # clear all existing callbacks first
-        for cb in ('cursor-down', 'cursor-up',
-                    'panset-down', 'panset-up', 'draw-up'):
-            canvas.clear_callback(cb)
+        self.manager.clear_canvas()
         
         # for step one, the only callbacks are for right-click and left-click
         if step == 1:
@@ -142,7 +140,7 @@ class MESLocate(object):
         
     def step1_cb(self, *args):
         """
-        Responds to back button by returning to step 1
+        Respond to back button by returning to step 1
         """
         self.manager.go_to_gui('find')
         self.set_callbacks(step=1)
@@ -152,12 +150,11 @@ class MESLocate(object):
     
     def step2_cb(self, *args):
         """
-        Responds to next button or right click by proceeding to the next step
+        Respond to next button or right click by proceeding to the next step
         """
         # set everything up for the first object of step 2
         self.manager.go_to_gui('centroid')
         self.set_callbacks(step=2)
-        self.canvas.delete_all_objects()
         self.select_point(self.click_history[self.click_index], True)
         self.zoom_in_on_current_obj()
         self.mark_current_obj()
@@ -169,7 +166,7 @@ class MESLocate(object):
         
     def prev_obj_cb(self, *args):
         """
-        Responds to back button in step 2 by going back to the last object
+        Respond to back button in step 2 by going back to the last object
         """
         # if there is no previous object, return to step 1
         if self.current_obj > 0:
@@ -182,7 +179,7 @@ class MESLocate(object):
     
     def next_obj_cb(self, *args):
         """
-        Responds to next button or right click by proceeding to the next object
+        Respond to next button or right click by proceeding to the next object
         """
         # if there is no next object, finish up
         self.current_obj += 1
@@ -201,7 +198,7 @@ class MESLocate(object):
     
     def skip_obj_cb(self, *args):
         """
-        Responds to the skip button by ignoring this star completely
+        Respond to the skip button by ignoring this star completely
         """
         self.mark_current_obj([float('NaN')]*3)
         self.next_obj_cb()
@@ -209,7 +206,7 @@ class MESLocate(object):
     
     def click1_cb(self, _, __, x, y):
         """
-        Responds to a left click on the screen in step 1
+        Respond to a left click on the screen in step 1
         @param x:
             The x coordinate of the click
         @param y:
@@ -217,17 +214,29 @@ class MESLocate(object):
         """
         # increment the index
         self.click_index += 1
+        self.color_index += 1
         # if there are things saved ahead of this index (because of undo), clear them
         if self.click_index < len(self.click_history):
             self.click_history = self.click_history[:self.click_index]
         self.click_history.append((x,y))
         self.select_point(self.click_history[self.click_index])
         return False
+    
+    
+    def set_position_cb(self, *args):
+        """
+        Respond to the spinboxes being used by essentially making a new click
+        """
+        self.canvas.delete_object_by_tag(tag(1, self.click_index))
+        self.color_index -= 1
+        self.click1_cb(None, None,
+                       self.spinboxes['X'].get_value(),
+                       self.spinboxes['Y'].get_value())
         
         
     def start_select_crop_cb(self, _, __, x, y):
         """
-        Responds to the mouse starting a left-drag by starting to select a crop
+        Respond to the mouse starting a left-drag by starting to select a crop
         @param x:
             An int corresponding to the x coordinate of where the click happened
         @param y:
@@ -246,7 +255,7 @@ class MESLocate(object):
         
     def start_select_mask_cb(self, _, __, x, y):
         """
-        Responds to the mouse starting a middle-drag by starting to draw a mask
+        Respond to the mouse starting a middle-drag by starting to draw a mask
         @param x:
             An int corresponding to the x coordinate of where the click happened
         @param y:
@@ -265,7 +274,7 @@ class MESLocate(object):
         
     def end_select_crop_cb(self, _, __, xf, yf):
         """
-        Responds to the mouse finishing a left-drag by finalizing crop selection
+        Respond to the mouse finishing a left-drag by finalizing crop selection
         @param x:
             An int corresponding to the x coordinate of where the click happened
         @param y:
@@ -300,7 +309,7 @@ class MESLocate(object):
         
     def end_select_mask_cb(self, _, __, xf, yf):
         """
-        Responds to the mouse finishing a middle-drag by finalizing object mask
+        Respond to the mouse finishing a middle-drag by finalizing object mask
         @param x:
             An int corresponding to the x coordinate of where the click happened
         @param y:
@@ -335,29 +344,31 @@ class MESLocate(object):
         
     def undo1_cb(self, *args):
         """
-        Responds to the undo button in step 1
+        Respond to the undo button in step 1
         by going back one click (if possible)
         """
         if self.click_index > 0:
             self.canvas.delete_object_by_tag(tag(1, self.click_index))
             self.click_index -= 1
+            self.color_index -= 1
             self.canvas.delete_object_by_tag(tag(1, self.click_index))
             self.select_point(self.click_history[self.click_index])
     
     
     def redo1_cb(self, *args):
         """
-        Responds to the redo button in step 1
+        Respond to the redo button in step 1
         by going forward one click (if possible)
         """
         if self.click_index < len(self.click_history)-1:
             self.click_index += 1
+            self.color_index += 1
             self.select_point(self.click_history[self.click_index])
             
             
     def undo2_cb(self, *args):
         """
-        Responds to the undo button in step 2
+        Respond to the undo button in step 2
         by going back one drag (if possible)
         """
         co = self.current_obj
@@ -369,7 +380,7 @@ class MESLocate(object):
     
     def redo2_cb(self, *args):
         """
-        Responds to the redo button in step 2
+        Respond to the redo button in step 2
         by going forward one drag (if possible)
         """
         co = self.current_obj
@@ -381,7 +392,7 @@ class MESLocate(object):
             
     def choose_select_cb(self, _, mode_idx):
         """
-        Keeps track of our selection mode as determined by the combobox
+        Keep track of our selection mode as determined by the combobox
         """
         # update the callbacks to account for this new mode
         self.set_callbacks(step=2, selection_mode=selection_modes[mode_idx])
@@ -389,18 +400,18 @@ class MESLocate(object):
     
     def select_point(self, point, draw_circle_masks=False):
         """
-        Sets a point in step 1 as the current location of object #0,
+        Set a point in step 1 as the current location of object #0,
         draws squares where it thinks all the objects are accordingly,
-        and updates all thumbnails
+        and updates all thumbnails and spinboxes
         @param point:
             An int tuple containing the location of object #0
         @param draw_circle_masks:
             Whether we should draw the automatic circular masks
         """
-        # define some variables before iterationg through the objects
+        # define some variables before iterating through the objects
         x, y = point
         src_image = self.fitsimage.get_image()
-        color = colors[self.click_index%len(colors)]   # cycles through all the colors
+        color = colors[self.color_index%len(colors)]   # cycles through all the colors
         shapes = []
         for i, viewer in enumerate(self.thumbnails):
             dx, dy, r = self.obj_list[i]
@@ -428,6 +439,12 @@ class MESLocate(object):
         # draw all the squares and numbers to the canvas as one object
         self.canvas.add(self.dc.CompoundObject(*shapes),
                         tag=tag(1, self.click_index))
+        
+        # update the spinboxes
+        if self.spinboxes['X'].get_value() != x:
+            self.spinboxes['X'].set_value(x)
+        if self.spinboxes['Y'].get_value() != y:
+            self.spinboxes['Y'].set_value(y)
                         
                         
     def draw_mask(self, xd1, yd1, xd2, yd2, kind):
@@ -520,7 +537,7 @@ class MESLocate(object):
         # fix up the canvas and clear callbacks
         self.fitsimage.zoom_fit()
         self.fitsimage.center_image()
-        self.set_callbacks(step=None)
+        self.manager.clear_canvas(keep_objects=True)
         
         # tell the manager to do whatever comes next
         self.output_data = np.array(self.obj_centroids)
@@ -602,7 +619,7 @@ class MESLocate(object):
         frm.set_widget(grd)
         self.viewer_grid = grd
 
-        # finally, create a box to group the primary control buttons together
+        # create a box to group the primary control buttons together
         box = Widgets.HBox()
         box.set_spacing(3)
         gui.add_widget(box)
@@ -633,6 +650,29 @@ class MESLocate(object):
         
         # put in a spacer
         box.add_widget(Widgets.Label(''), stretch=True)
+        
+        # now add a section for more precise control
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
+        box = Widgets.VBox()
+        box.set_spacing(3)
+        frm.set_widget(box)
+        
+        # put in spinboxes for easy precision-alignment
+        self.spinboxes = {}
+        for var in ("X", "Y"):
+            lbl = Widgets.Label(var+" position:")
+            box.add_widget(lbl)
+            row = Widgets.HBox()
+            box.add_widget(row)
+            
+            num = Widgets.SpinBox(dtype=float)
+            num.set_limits(0, 9999, 5)
+            num.add_callback('value-changed', self.set_position_cb)
+            num.set_tooltip("Use this to fine-tune the "+var+" value")
+            row.add_widget(num, stretch=True)
+            self.spinboxes[var] = num
+            row.add_widget(Widgets.Label(''), stretch=True)
         
         # space appropriately and return
         gui.add_widget(Widgets.Label(''), stretch=True)
@@ -724,9 +764,11 @@ class MESLocate(object):
         box.add_widget(Widgets.Label(""), stretch=True)
         
         # make a new box for a combobox+label combo
+        frm = Widgets.Frame()
+        gui.add_widget(frm)
         box = Widgets.VBox()
         box.set_spacing(3)
-        gui.add_widget(box)
+        frm.set_widget(box)
         lbl = Widgets.Label("Selection Mode:")
         box.add_widget(lbl)
         
