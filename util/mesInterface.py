@@ -47,7 +47,7 @@ class MESInterface(object):
         try:
             self.update_parameters(self.get_value[idx])
         except NameError as e:
-            self.log(str(e), level='e')
+            self.log("NameError: "+str(e), level='e')
             return
         if idx == 0:
             self.manager.execute_mesoffset0()
@@ -119,7 +119,7 @@ class MESInterface(object):
             elif idx == 3:
                 self.update_parameters(self.get_value[5])
         except NameError as e:
-            self.log(str(e), level='e')
+            self.log("NameError: "+str(e), level='e')
             return
         self.resume_mesoffset[idx]()
     
@@ -461,11 +461,13 @@ class MESInterface(object):
             A Widget object containing all necessary buttons, labels, etc.
         """
         # the only thing here is a gigantic text box
+        scr = Widgets.ScrollArea()
         txt = Widgets.TextArea(wrap=False, editable=False)
         txt.set_font(self.manager.body_font)
         self.log_textarea = txt
+        scr.set_widget(txt)
         
-        return txt
+        return scr
     
     
     def make_gui_err(self, orientation='vertical'):

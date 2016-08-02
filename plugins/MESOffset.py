@@ -52,14 +52,6 @@ class MESOffset(mosPlugin.MESPlugin):
          'label':"Image Directory", 'type':'string', 'default':"$DATA/",
          'desc':"The directory in which the input FITS images can be found"},
         
-        {'name':'recalc0',
-         'label':"Regenerate", 'type':'boolean',
-         'desc':"Do you want to generate new FITS images from raw data?"},
-        
-        {'name':'interact0',
-         'label':"Interact", 'type':'boolean',
-         'desc':"Do you want to interact with object position measurement?"},
-        
         {'name':'exec_mode',
          'label':"Execution Mode", 'type':'choice', 'options':["Normal","Fine"],
          'desc':"Choose 'Fine' to skip MES Offset 1"}
@@ -263,9 +255,6 @@ class MESOffset(mosPlugin.MESPlugin):
         self.database['starhole_chip1'] = self.star_chip1 + 6
         if len(self.img_dir) <= 0 or self.img_dir[-1] != '/':
             self.database['img_dir'] += '/'
-        for i in range(1,6):
-            self.database['recalc'+str(i)] = self.recalc0
-            self.database['interact'+str(i)] = self.interact0
         
         # set the defaults for all other menus
         for i in (1, 2, 3):
@@ -365,7 +354,9 @@ class MESOffset(mosPlugin.MESPlugin):
         step is processing the starhole frames
         """
         # modify the database if necessary, and then absorb all values from the database
-        self.database['img_dir'] = self.process_filename(self.database['img_dir'])
+        img_dir = self.database['img_dir']
+        if len(img_dir) <= 0 or img_dir[-1] != '/':
+            self.database['img_dir'] += '/'
         if not hasattr(self, 'hole_locations'):
             self.mes_interface.log("No hole position data found; please run "+
                                    "MES Offset 1, or MES Offset 0 in 'Normal' "+
@@ -485,7 +476,7 @@ class MESOffset(mosPlugin.MESPlugin):
     
     def end_mesoffset3(self, *args):
         """ Finish off the third, fine star-hole location with updated masks """
-        self.mes_interface.log("Done with MES Offset 3\n!")
+        self.mes_interface.log("Done with MES Offset 3!\n")
         self.mes_interface.write_to_logfile(self.rootname+"_log",
                                             "MES Offset 3",
                                             self.mes_analyze.offset)

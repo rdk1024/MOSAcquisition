@@ -50,9 +50,17 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         
         
         
-    def clear_canvas(self, keep_objects=False, keep_callbacks=False):
+    def clear_canvas(self, keep_objects=False,
+                           keep_callbacks=False,
+                           keep_zoom=False):
         """
-        Remove all elements and callbacks from self.canvas
+        Reset the ImageViewCanvas by deleting objects and callbacks
+        @param keep_objects:
+            If True, canvas objects will not be deleted
+        @param keep_callbacks:
+            If True, canvas callbacks will not be cleared
+        @param keep_zoom:
+            If True, fitsimage zoom level and position will not be reset
         """
         if not keep_objects:
             self.canvas.delete_all_objects()
@@ -60,6 +68,9 @@ class MESPlugin(GingaPlugin.LocalPlugin):
             for button in ('cursor', 'panset', 'draw'):
                 for event in ('-up', '-down'):
                     self.canvas.clear_callback(button+event)
+        if not keep_zoom:
+            self.fitsimage.zoom_fit()
+            self.fitsimage.center_image()
     
     
     def build_gui(self, container):
@@ -83,7 +94,7 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         
         # the rest is a stack of GUIs for each step, as decided by the subclass
         stk = Widgets.StackWidget()
-        #self.stack_guis(stk, orientation)
+        self.stack_guis(stk, orientation)
         box.add_widget(stk, stretch=True)
         self.stack = stk
         
@@ -137,8 +148,6 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         Called when the plugin is refocused
         One of the required LocalPlugin methods
         """
-        # rebuild the GUI
-        self.stack_guis(self.stack)
         self.canvas.ui_setActive(True)
         self.fv.showStatus("Calculate the offset values to align MOIRCS")
     

@@ -71,10 +71,14 @@ def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
     log("Processing star frames...")
     
     # open the star FITS, if you can
-    star_chip = []
-    for chip in (0, 1):
-        star_chip.append(fits.open("{}MCSA{:08d}.fits".format(
-                                            img_dir, star_num+chip))[0])
+    try:
+        star_chip = []
+        for chip in (0, 1):
+            star_chip.append(fits.open("{}MCSA{:08d}.fits".format(
+                                                img_dir, star_num+chip))[0])
+    except IOError as e:
+        raise IOError(str(e)+"\nPlease check your frame numbers and image "+
+                             "directory, or change Ginga's working directory.")
     
     # check header info
     for i in (0, 1):

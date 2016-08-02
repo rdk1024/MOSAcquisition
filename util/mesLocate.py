@@ -102,20 +102,20 @@ class MESLocate(object):
         
         
         
-    def set_callbacks(self, step=1, selection_mode=0, keep_objects=False):
+    def set_callbacks(self, step=1, selection_mode=0, clear=True):
         """
         Assign all necessary callbacks to the canvas for the current step
         @param step:
             The number of this step - 1 for finding and 2 for centroid-getting
         @param selection_mode:
             0 for 'Automatic', 1 for 'Crop', or 2 for 'Mask'
-        @param keep_objects:
-            Whether the canvas should be left uncleared
+        @param clear:
+            Whether the canvas should be completely cleared
         """
         canvas = self.canvas
         
         # clear all existing callbacks first
-        self.manager.clear_canvas(keep_objects=keep_objects)
+        self.manager.clear_canvas(keep_objects=not clear, keep_zoom=not clear)
         
         # for step one, the only callbacks are for right-click and left-click
         if step == 1:
@@ -198,7 +198,7 @@ class MESLocate(object):
         Keep track of our selection mode as determined by the combobox
         """
         # update the callbacks to account for this new mode
-        self.set_callbacks(step=2, selection_mode=mode_idx, keep_objects=True)
+        self.set_callbacks(step=2, selection_mode=mode_idx, clear=False)
     
     
     def step1_cb(self, *args):
@@ -207,8 +207,7 @@ class MESLocate(object):
         """
         self.manager.go_to_gui('find')
         self.set_callbacks(step=1)
-        self.fitsimage.center_image()
-        self.fitsimage.zoom_fit()
+        self.select_point(self.click_history[self.click_index])
     
     
     def step2_cb(self, *args):
@@ -485,8 +484,6 @@ class MESLocate(object):
         Finishes up and goes to the next step
         """
         # fix up the canvas and clear callbacks
-        self.fitsimage.zoom_fit()
-        self.fitsimage.center_image()
         self.manager.clear_canvas(keep_objects=True)
         
         # tell the manager to do whatever comes next
