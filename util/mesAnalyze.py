@@ -10,11 +10,9 @@
 # standard imports
 import math
 
-# local imports
-from util import mosPlots
-
 # ginga imports
 from ginga.gw import Widgets, Plot
+from ginga.util import plots
 
 # third-party imports
 import numpy as np
@@ -195,8 +193,8 @@ class MESAnalyze(object):
         yres = ycalc - yref
         
         # graph residual data on the plots
-        self.plots[0].residual(xref, xres, self.active, var_name="X")
-        self.plots[1].residual(yref, yres, self.active, var_name="Y")
+        plot_residual(self.plots[0], xref, xres, self.active, var_name="X")
+        plot_residual(self.plots[1], yref, yres, self.active, var_name="Y")
         
         # update the vectors on the canvas, as well
         for i in range(0, self.data.shape[0]):
@@ -364,7 +362,7 @@ class MESAnalyze(object):
         # add both plots to the frame
         self.plots = []
         for i in range(2):
-            self.plots.append(mosPlots.MOSPlot(logger=self.logger))  # TODO: get rid of this class, put calculations in mesAnalyze
+            self.plots.append(plots.Plot(logger=self.logger))
             fig = Plot.PlotWidget(self.plots[i], width=300, height=300)
             box.add_widget(fig)
         self.plots[0].fig.canvas.mpl_connect("button_press_event",
@@ -493,6 +491,57 @@ def transform(x, y, trans):
     newX = (x - xshift)*math.cos(thetaR) - (y - yshift)*math.sin(thetaR)
     newY = (x - xshift)*math.sin(thetaR) + (y - yshift)*math.cos(thetaR)
     return newX, newY
+
+
+def plot_residual(plot, z_observe, z_residual, active, var_name=""):
+    """
+    Plot the residual of this data against the real value.
+    Residual is defined as the difference between the calculated value of
+    zref and the observed value of zref.
+    @param plot:
+        A ginga.util.plots.Plot object, onto which to draw the graph
+    @param z_observe:
+        A numpy array of the observed values of this variable
+    @param z_residual:
+        A numpy array of the residuals for this variable
+    @param active:
+        A numpy array representing which data are active, and which are not
+    @param var_name:
+        The name of this variable, if it has one
+    """
+    # separate the active and inactive data
+    inactive = np.logical_not(active)
+    active_x = z_observe[np.nonzero(active)]
+    active_y = z_residual[np.nonzero(active)]
+    inactive_x = z_observe[np.nonzero(inactive)]
+    inactive_y = z_residual[np.nonzero(inactive)]
+    
+    # then plot reference values by residual values
+    try:
+        plot.clear()
+    except AttributeError:
+        plot.add_axis()
+    plot.plot(active_x, active_y,
+              linestyle='None', marker='+', color='blue')
+    plot.plot(inactive_x, inactive_y,
+              linestyle='None', marker='x', color='grey',
+              xtitle="{0} Position (pixels)".format(var_name),
+              ytitle="{0} Residual (pixels)".format(var_name),
+              title="{0} Residual by {0}-axis".format(var_name))
+    plot.xdata = z_observe
+    plot.ydata = z_residual
+    
+    # shade in regions y > 1 and y < -1
+    xlimits = plot.get_axis().get_xlim()
+    ylimits = plot.get_axis().get_ylim()
+    plot.get_axis().fill_between(xlimits, 1, ylimits[1]+1,
+                                 color='red', alpha=0.3)
+    plot.get_axis().fill_between(xlimits, -1, ylimits[0]-1,
+                                 color='red', alpha=0.3)
+    plot.get_axis().set_xlim(left=xlimits[0], right=xlimits[1])
+    plot.get_axis().set_ylim(bottom=ylimits[0], top=ylimits[1])
+    
+    plot.draw()
 
 #END
 
