@@ -72,7 +72,7 @@ class MESInterface(object):
         new_params = {}
         for key, get_val in getters.items():
             if type(get_val()) in (str, unicode):
-                value = process_filename(get_val(), self.manager.variables)
+                value = process_filename(get_val(), self.manager.VARIABLES)
             else:
                 value = get_val()
             new_params[key] = value
@@ -137,7 +137,7 @@ class MESInterface(object):
         self.resume_mesoffset[idx]()
     
     
-    def check_locations(self, data, last_step=None, next_step=None):
+    def check(self, data, last_step=None, next_step=None):
         """
         Go to the 'check' GUI and let the user review their data, and decide
         whether they want to remeasure those locations or move on
@@ -160,12 +160,13 @@ class MESInterface(object):
         self.results_textarea.set_text(res_string)
         self.last_step = last_step
         self.next_step = next_step
+        self.set_callbacks(right_click=next_step)
         self.manager.go_to_gui('check')
     
     
     def execute_cb(self, _, name):
         """
-        A little method I wrote to manage callbacks for check_locations
+        A little method I wrote to manage callbacks for check
         @param name:
             The name of the method to run
         """
@@ -174,6 +175,21 @@ class MESInterface(object):
             self.last_step()
         elif name == 'next_step':
             self.next_step()
+    
+    
+    def set_callbacks(self, left_click=None, right_click=None):
+        """
+        Set some basic callbacks
+        @param left_click:
+            The function to run when the user left clicks
+        @param right_click:
+            Guess.
+        """
+        self.manager.clear_canvas(keep_objects=True)
+        if left_click != None:
+            self.canvas.set_callback('cursor-up', left_click)
+        if right_click != None:
+            self.canvas.set_callback('draw-up', right_click)
     
     
     def set_defaults(self, page_num):
@@ -216,31 +232,12 @@ class MESInterface(object):
             self.log_textarea.append_text("ERROR: "+text+"\n", autoscroll=True)
             self.err_textarea.set_text(text)
             self.manager.go_to_gui('error')
+            self.set_callbacks(right_click=self.return_to_menu_cb)
         else:
             self.logger.critical(text.strip())
             self.log_textarea.append_text("CRIT: "+text+"\n", autoscroll=True)
             self.err_textarea.set_text("CRITICAL!\n"+text)
             self.manager.go_to_gui('error')
-    
-    
-    def write_to_logfile(self, filename, header, values):
-        """
-        Write args to a log file
-        @param filename:
-            The name of the log file
-        @param header:
-            The string that will serve as the first line of this log file entry
-        @param args:
-            The tuple of float values to be logged in the form (dx, dy, rotate)
-        """
-        # write the informaton to the file
-        f = open(filename, 'a')
-        f.write("="*50+"\n")
-        f.write(header+"\n")
-        f.write(strftime("%a %b %d %H:%M:%S %Z %Y\n"))
-        f.write(("dx = {:7,.2f} (pix) dy = {:7,.2f} (pix) "+
-                 "rotate = {:7,.4f} (degree) \n").format(*values))
-        f.close()
     
     
     def gui_list(self, orientation='vertical'):
@@ -265,7 +262,7 @@ class MESInterface(object):
         return [('epar',   self.parameter_tabs),
                 ('wait 1', self.make_gui_wait(1, orientation)),
                 ('wait 3', self.make_gui_wait(3, orientation)),
-                ('check',  self.make_gui_check(orientation)),
+                ('check',  self.make_gui_look(orientation)),
                 ('log',    self.make_gui_log(orientation)),
                 ('error',  self.make_gui_err(orientation))]
         
@@ -289,7 +286,7 @@ class MESInterface(object):
         exp = Widgets.Expander(title="Instructions")
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.manager.normal_font)
+        txt.set_font(self.manager.NORMAL_FONT)
         txt.set_text("Use the widgets below to specify the parameters for "+
                      name+". Hover over each one to get a description of "+
                      "what it means. When you are finished, press the 'Go!' "+
@@ -298,13 +295,13 @@ class MESInterface(object):
         
         # chose the params
         if idx == 0:
-            params = self.manager.params_0
+            params = self.manager.PARAMS_0
         elif idx == 1:
-            params = self.manager.params_1
+            params = self.manager.PARAMS_1
         elif idx == 2:
-            params = self.manager.params_2
+            params = self.manager.PARAMS_2
         elif idx == 3:
-            params = self.manager.params_3
+            params = self.manager.PARAMS_3
 
         # create a grid to group the different controls
         frm = Widgets.Frame(name)
@@ -317,7 +314,7 @@ class MESInterface(object):
         # create a box for the defined variables
         frm = Widgets.Frame("Defined Variables")
         gui.add_widget(frm)
-        box = build_dict_labels(self.manager.variables)
+        box = build_dict_labels(self.manager.VARIABLES)
         frm.set_widget(box)
         
         # the go button will go in a box
@@ -355,7 +352,7 @@ class MESInterface(object):
         exp = Widgets.Expander(title="Instructions")
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.manager.normal_font)
+        txt.set_font(self.manager.NORMAL_FONT)
         txt.set_text("Verify parameters in order to continue "+name+", using "+
                      "the widgets below. When you are finished and the "+
                      "specified files are ready for analysis, press the 'Go!' "+
@@ -364,9 +361,9 @@ class MESInterface(object):
         
         # chose the params
         if idx == 1:
-            params = self.manager.params_1p5
+            params = self.manager.PARAMS_1p5
         elif idx == 3:
-            params = self.manager.params_3p5
+            params = self.manager.PARAMS_3p5
         
         # create a grid to group the different controls
         frm = Widgets.Frame()
@@ -379,7 +376,7 @@ class MESInterface(object):
         # create a box for the defined variables
         frm = Widgets.Frame()
         gui.add_widget(frm)
-        box = build_dict_labels(self.manager.variables)
+        box = build_dict_labels(self.manager.VARIABLES)
         frm.set_widget(box)
         
         # the go button will go in a box
@@ -399,7 +396,7 @@ class MESInterface(object):
         return gui
     
     
-    def make_gui_check(self, orientation='vertical'):
+    def make_gui_look(self, orientation='vertical'):
         """
         Construct a GUI for checking results
         @param orientaiton:
@@ -415,7 +412,7 @@ class MESInterface(object):
         exp = Widgets.Expander(title="Instructions")
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.manager.normal_font)
+        txt.set_font(self.manager.NORMAL_FONT)
         txt.set_text("Look at the results below. If they seem correct, click "+
                      "'Continue' to proceed to the next step. If they seem "+
                      "inadequate, click 'Try Again', and you will be taken "+
@@ -430,7 +427,7 @@ class MESInterface(object):
         
         # now add in the textbox for the results
         txt = Widgets.TextArea(wrap=False, editable=False)
-        txt.set_font(self.manager.mono_font)
+        txt.set_font(self.manager.MONO_FONT)
         gui.add_widget(txt)
         self.results_textarea = txt
         
@@ -476,7 +473,7 @@ class MESInterface(object):
         # the only thing here is a gigantic text box
         scr = Widgets.ScrollArea()
         txt = Widgets.TextArea(wrap=False, editable=False)
-        txt.set_font(self.manager.body_font)
+        txt.set_font(self.manager.BODY_FONT)
         self.log_textarea = txt
         scr.set_widget(txt)
         
@@ -497,12 +494,12 @@ class MESInterface(object):
         
         # start with a label to tell the user why they are here
         lbl = Widgets.Label("Sumimasen! :(")
-        lbl.set_font(self.manager.header_font)
+        lbl.set_font(self.manager.HEADER_FONT)
         gui.add_widget(lbl)
         
         # now for the error box itself
         txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.manager.body_font)
+        txt.set_font(self.manager.BODY_FONT)
         gui.add_widget(txt)
         self.err_textarea = txt
         
@@ -520,6 +517,28 @@ class MESInterface(object):
         # space appropriately and return
         gui.add_widget(Widgets.Label(''), stretch=True)
         return gui
+    
+    
+    
+    @staticmethod
+    def write_to_logfile(filename, header, values):
+        """
+        Write args to a log file
+        @param filename:
+            The name of the log file
+        @param header:
+            The string that will serve as the first line of this log file entry
+        @param args:
+            The tuple of float values to be logged in the form (dx, dy, rotate)
+        """
+        # write the informaton to the file
+        f = open(filename, 'a')
+        f.write("="*50+"\n")
+        f.write(header+"\n")
+        f.write(strftime("%a %b %d %H:%M:%S %Z %Y\n"))
+        f.write(("dx = {:7,.2f} (pix) dy = {:7,.2f} (pix) "+
+                 "rotate = {:7,.4f} (degree) \n").format(*values))
+        f.close()
 
 
 
@@ -577,8 +596,7 @@ def build_control_layout(controls):
             getters[name] = wdg.get_state
             setters[name] = wdg.set_state
         else:
-            raise TypeError("{} is not a valid parameter type.".format(
-                                                            param['type']))
+            raise TypeError("{} is not a valid par-type.".format(param['type']))
         wdg.set_tooltip(param['desc'])
         
         # insert a default, if necessary

@@ -20,8 +20,8 @@ from numpy import ma
 
 
 # constants
-selection_modes = ("Automatic", "Crop", "Mask")
-colors = ('green','red','blue','yellow','magenta','cyan','orange')
+SELECTION_MODES = ("Automatic", "Crop", "Mask")
+BOX_COLORS = ('green','red','blue','yellow','magenta','cyan','orange')
 
 
 
@@ -368,7 +368,7 @@ class MESLocate(object):
         # define some variables before iterating through the objects
         x, y = point
         src_image = self.fitsimage.get_image()
-        color = colors[self.color_index%len(colors)]   # cycles through all the colors
+        color = BOX_COLORS[self.color_index%len(BOX_COLORS)]   # cycles through all the colors
         shapes = []
         for i, viewer in enumerate(self.thumbnails):
             dx, dy, r = self.obj_arr[i]
@@ -557,7 +557,7 @@ class MESLocate(object):
         exp = Widgets.Expander(title="Instructions")
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.manager.normal_font)
+        txt.set_font(self.manager.NORMAL_FONT)
         txt.set_text("Left click on the object closest to the box labeled "+
                      "'1'. The other objects should appear in the boxes "+
                      "below. Click again to select another position. Click "+
@@ -650,7 +650,7 @@ class MESLocate(object):
         exp = Widgets.Expander(title="Instructions")
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.manager.normal_font)
+        txt.set_font(self.manager.NORMAL_FONT)
         txt.set_text("Help the computer find the centroid of this object. "+
                      "Click and drag to include or exclude regions; "+
                      "left-click will crop to selection and middle-click will "+
@@ -661,7 +661,7 @@ class MESLocate(object):
         
         # create a label to display the current object index 
         lbl = Widgets.Label()
-        lbl.set_font(self.manager.header_font)
+        lbl.set_font(self.manager.HEADER_FONT)
         gui.add_widget(lbl)
         self.obj_count_label = lbl
         
@@ -735,7 +735,7 @@ class MESLocate(object):
         
         # this is the combobox of selection options
         com = Widgets.ComboBox()
-        for text in selection_modes:
+        for text in SELECTION_MODES:
             com.append_text(text)
         com.add_callback('activated', self.choose_select_cb)
         com.set_tooltip("Choose what happens when you click-drag")

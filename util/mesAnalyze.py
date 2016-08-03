@@ -20,7 +20,7 @@ import numpy as np
 
 
 # constants
-value_names = (("dX","pix"), ("dY","pix"), ("dPA",u"\u00B0"))
+VALUE_NAMES = (("dX","pix"), ("dY","pix"), ("dPA",u"\u00B0"))
 
 
 
@@ -345,7 +345,7 @@ class MESAnalyze(object):
         exp = Widgets.Expander(title="Instructions")
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.manager.normal_font)
+        txt.set_font(self.manager.NORMAL_FONT)
         txt.set_text("Look at the graphs. Remove any data with residuals "+
                      "greater than 1.0 or less than -1.0. Delete points by "+
                      "right clicking, and restore them by left-clicking. "+
@@ -403,7 +403,7 @@ class MESAnalyze(object):
         exp = Widgets.Expander(title="Instructions")
         gui.add_widget(exp)
         txt = Widgets.TextArea(wrap=True, editable=False)
-        txt.set_font(self.manager.normal_font)
+        txt.set_font(self.manager.NORMAL_FONT)
         txt.set_text("Enter the numbers you see below into the ANA window. dx "+
                      "and dy values are in pixels, and rotation value is in "+
                      "degrees. Values of less than 0.5 pixels and 0.01 "+
@@ -420,18 +420,18 @@ class MESAnalyze(object):
         
         # make the three TextAreas to hold the final values
         self.final_displays = {}
-        for i, (val, unit) in enumerate(value_names):
+        for i, (val, unit) in enumerate(VALUE_NAMES):
             lbl = Widgets.Label(val+" =", halign='right')
-            lbl.set_font(self.manager.header_font)
+            lbl.set_font(self.manager.HEADER_FONT)
             grd.add_widget(lbl, i, 0)
             
             txt = Widgets.TextArea(editable=False)
-            txt.set_font(self.manager.header_font)
+            txt.set_font(self.manager.HEADER_FONT)
             grd.add_widget(txt, i, 1)
             self.final_displays[val] = txt
             
             lbl = Widgets.Label(unit, halign='left')
-            lbl.set_font(self.manager.header_font)
+            lbl.set_font(self.manager.HEADER_FONT)
             grd.add_widget(lbl, i, 2)
         
         # make a box to hold the one control

@@ -17,7 +17,13 @@ from scipy.ndimage.filters import gaussian_filter
 
 
 # constants
-dir_mcsred = "../../MCSRED2/"
+DIR_MCSRED = "../../MCSRED2/"
+NO_SUCH_FILE_ERR = ("Please check your frame numbers and image directory, or "+
+                        "change Ginga's working directory.")
+WRONG_CHIP_ERR =   ("{} should be data from chip {}, but is from chip {}. Try "+
+                        "a different frame number.")
+LOW_ELEV_WARN =   (u"{}MCSA{:08d}.fits has low elevation of {:.1f}\u00B0; the "+
+                        "mosaicing database may not be applicable here.")
 
 
 
@@ -55,7 +61,7 @@ def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
     @param back_num:
         The integer in the background image chip1 filename
     @param c_file:
-        The location of the cfg file that contains parameters for makemosaic
+        The location of the cfg file that contains parameters for make_mosaic
     @param img_dir:
         The string prefix to all raw image filenames
     @param output_filename:
@@ -74,34 +80,23 @@ def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
     """
     log("Processing star frames...")
     
-    # open the star FITS, if you can
+    # open the star FITS and check header info
     star_chip = []
-    for chip in (0, 1):
-        star_chip.append(open_fits("{}MCSA{:08d}.fits".format(
-                                            img_dir, star_num+chip))[0])
-    
-    # check header info
     for i in (0, 1):
-        if star_chip[i].header['DET-ID'] != i+1:
-            raise ValueError(("{}MCSA{:08d}.fits should be data from chip {}, "+
-                              "but is from chip {}. Try a different frame "+
-                              "number.").format(img_dir, star_num, i+1,
-                                                star_chip[i].header['DET-ID'])
-                             )
+        star_chip.append(open_fits("{}MCSA{:08d}.fits".format(
+                                            img_dir, star_num+i), i+1))
         if star_chip[i].header['ALTITUDE'] < 45.0:
-            log((u"{}MCSA{:08d}.fits has low elevation of {:.1f}\u00B0; "+
-                  "the mosaicing database may not be applicable here.").format(
-                                            img_dir, star_num+i,
-                                            star_chip[i].header['ALTITUDE']),
+            log(LOW_ELEV_WARN.format(img_dir, star_num+i,
+                                     star_chip[i].header['ALTITUDE']),
                 level='warning')
     
     # subtract the background frames from the star frames
     log("Subtracting images...")
     if back_num != 0:
         back_chip = []
-        for chip in (0,1):
+        for i in (0, 1):
             back_chip.append(open_fits("{}MCSA{:08d}.fits".format(
-                                                img_dir, back_num+chip))[0])
+                                                img_dir, back_num+i), i+1))
         
         dif_data = [star_chip[i].data - back_chip[i].data for i in (0,1)]
     
@@ -109,7 +104,7 @@ def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
         dif_data = [star_chip[i].data for i in (0,1)]
     
     # mosaic the chips together
-    mosaic_hdu = makemosaic(dif_data, star_chip[0].header, c_file, log=log)
+    mosaic_hdu = make_mosaic(dif_data, c_file, log=log)
     
     # apply gaussian blur
     log("Blurring...")
@@ -131,7 +126,7 @@ def process_mask_fits(mask_num, c_file, img_dir, output_filename,
     @param mask_num:
         The number in the filename of the mask chip1 FITS image
     @param c_file:
-        The location of the cfg file that controls makemosaic
+        The location of the cfg file that controls make_mosaic
     @param img_dir:
         The prefix for all raw image filenames
     @param output_filename:
@@ -151,11 +146,10 @@ def process_mask_fits(mask_num, c_file, img_dir, output_filename,
     mask_chip = []
     for chip in (0, 1):
         mask_chip.append(open_fits("{}MCSA{:08d}.fits".format(
-                                            img_dir, mask_num+chip))[0])
+                                            img_dir, mask_num+chip), chip+1))
     
     # mosaic the reformatted results to a file
-    mosaic_hdu = makemosaic([mask_chip[0].data, mask_chip[1].data],
-                            mask_chip[0].header, c_file, log=log)
+    mosaic_hdu = make_mosaic([hdu.data for hdu in mask_chip], c_file, log=log)
     mosaic_hdu.writeto(output_filename, clobber=True)
     
     # and you're done! go ahead to the next step
@@ -163,26 +157,36 @@ def process_mask_fits(mask_num, c_file, img_dir, output_filename,
         next_step()
 
 
-def open_fits(filename):
+def open_fits(filename, chipnum):
     """
-    Exactly the same thing as astropy.fits.open, but it throws more descriptive
-    error messages!
+    It's like astropy.fits.open, but with better error handling
+    @param filename:
+        The name of the FITS file to be opened ('***.fits')
+    @param chipnum:
+        The desired value of the DET-ID header card
+    @returns:
+        An astropy HDU object -- the first in the FITS file
+    @raises IOError:
+        if the file cannot be found
+    @raises ValueError:
+        if the DET-ID is not chipnum
     """
     try:
-        return fits.open(filename)
+        hdu = fits.open(filename)[0]
     except IOError as e:
-        raise IOError(str(e)+"\nPlease check your frame numbers and image "+
-                             "directory, or change Ginga's working directory.")
+        raise IOError(str(e)+"\n"+NO_SUCH_FILE_ERR)
+    if hdu.header['DET-ID'] != chipnum:
+        raise ValueError(WRONG_CHIP_ERR.format(filename, chipnum,
+                                               hdu.header['DET-ID']))
+    return hdu
 
 
-def makemosaic(input_data, input_header, c_file, log=nothing):
+def make_mosaic(input_data, c_file, log=nothing):
     """
     Correct the images for distortion, and then combine the two FITS images by
     rotating and stacking them vertically. Also do something to the header
     @param input_data:
         A sequence of two numpy 2D arrays to mosaic together
-    @param input_header:
-        The HDU header on which the output image's header will be based
     @param c_file:
         The location of the configuration .cfg file that manages distortion-
         correction
@@ -199,7 +203,7 @@ def makemosaic(input_data, input_header, c_file, log=nothing):
     line = cfg.readline()
     while line != '':
         if line[0] != '#':
-            config.append(line.split()[-1].replace('dir_mcsred$',dir_mcsred))
+            config.append(line.split()[-1].replace('dir_mcsred$',DIR_MCSRED))
         line = cfg.readline()
     cfg.close()
     
@@ -223,7 +227,7 @@ def makemosaic(input_data, input_header, c_file, log=nothing):
     log("Combining the chips...")
     mosaic_data = np.rot90(np.hstack(cropped_data), k=3)
     
-    return fits.PrimaryHDU(data=mosaic_data, header=input_header)
+    return fits.PrimaryHDU(data=mosaic_data)
 
 
 def transform(input_arr, dbs_filename, gmp_filename):

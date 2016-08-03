@@ -29,13 +29,13 @@ class MESOffset(mosPlugin.MESPlugin):
     """
     
     # variables
-    variables = {"DATABASE":"../../MCSRED2/DATABASE",
+    VARIABLES = {"DATABASE":"../../MCSRED2/DATABASE",
                  "DATA":"/data/o16010",
                  "WORK":"/data/work/o16010",
                  "CHECKFIELD":"/data/work/o16010/checkfield"}
     
     # main menu parameters
-    params_0 = [
+    PARAMS_0 = [
         {'name':'star_chip1',
          'label':"Star Frame", 'type':'number', 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 star FITS image"},
@@ -58,7 +58,7 @@ class MESOffset(mosPlugin.MESPlugin):
     ]
     
     # mesoffset1 parameters
-    params_1 = [
+    PARAMS_1 = [
         {'name':'star_chip1',
          'label':"Star Frame", 'type':'number', 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 star FITS image"},
@@ -89,7 +89,7 @@ class MESOffset(mosPlugin.MESPlugin):
     ]
     
     # mesoffset1.5 parameters
-    params_1p5 = [
+    PARAMS_1p5 = [
         {'name':'mask_chip1',
          'label':"Mask Frame", 'type':'number', 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 mask FITS image"},
@@ -104,7 +104,7 @@ class MESOffset(mosPlugin.MESPlugin):
     ]
     
     # mesoffset2 parameters
-    params_2 = [
+    PARAMS_2 = [
         {'name':'starhole_chip1',
          'label':"Star-Hole Frame", 'type':'number', 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 star-hole FITS image"},
@@ -135,7 +135,7 @@ class MESOffset(mosPlugin.MESPlugin):
     ]
     
     # mesoffset3 parameters
-    params_3 = [
+    PARAMS_3 = [
         {'name':'mask_chip1',
          'label':"Mask Frame", 'type':'number', 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 mask FITS image"},
@@ -166,7 +166,7 @@ class MESOffset(mosPlugin.MESPlugin):
     ]
     
     # mesoffset3.5 parameters
-    params_3p5 = [
+    PARAMS_3p5 = [
         {'name':'starhole_chip1',
          'label':"Star-Hole Frame", 'type':'number', 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 star-hole FITS image"},
@@ -300,9 +300,9 @@ class MESOffset(mosPlugin.MESPlugin):
     def check_mes_star(self, *args):
         """ Review the results from mes_star and give a chance to retry """
         self.star_locations = self.mes_locate.output_data[:,:2]
-        self.mes_interface.check_locations(self.star_locations,
-                                           last_step=self.mes_star,
-                                           next_step=self.wait_for_masks)
+        self.mes_interface.check(self.star_locations,
+                                 last_step=self.mes_star,
+                                 next_step=self.wait_for_masks)
     
     def wait_for_masks(self, *args):
         """ Save data from mes_locate and wait for user input """
@@ -328,9 +328,9 @@ class MESOffset(mosPlugin.MESPlugin):
     def check_mes_hole(self, *args):
         """ Review the results from mes_hole and offer a chance to retry """
         self.hole_locations = self.mes_locate.output_data
-        self.mes_interface.check_locations(self.hole_locations,
-                                           last_step=self.mes_hole,
-                                           next_step=self.res_viewer_1)
+        self.mes_interface.check(self.hole_locations,
+                                 last_step=self.mes_hole,
+                                 next_step=self.res_viewer_1)
     
     def res_viewer_1(self, *args):
         """ Call MESAnalyze on the data from mes_star and mes_hole """
@@ -384,9 +384,9 @@ class MESOffset(mosPlugin.MESPlugin):
     def check_mes_starhole(self, *args):
         """ Review the results from mes_hole and offer a chance to retry """
         self.star_locations = self.mes_locate.output_data[:,:2]
-        self.mes_interface.check_locations(self.star_locations,
-                                           last_step=self.mes_starhole,
-                                           next_step=self.res_viewer_2)
+        self.mes_interface.check(self.star_locations,
+                                 last_step=self.mes_starhole,
+                                 next_step=self.res_viewer_2)
     
     def res_viewer_2(self, *args):
         """ Call MESAnalyze on the data from mes_star and mes_starhole """
@@ -435,9 +435,9 @@ class MESOffset(mosPlugin.MESPlugin):
     def check_mes_hole_again(self, *args):
         """ Review the results from mes_hole and offer a chance to retry """
         self.hole_locations = self.mes_locate.output_data
-        self.mes_interface.check_locations(self.hole_locations,
-                                           last_step=self.mes_hole_again,
-                                           next_step=self.wait_for_starhole)
+        self.mes_interface.check(self.hole_locations,
+                                 last_step=self.mes_hole_again,
+                                 next_step=self.wait_for_starhole)
     
     def wait_for_starhole(self, *args):
         """ Save mes locate data and wait for user input """
@@ -466,9 +466,9 @@ class MESOffset(mosPlugin.MESPlugin):
     def check_mes_starhole_again(self, *args):
         """ Review the results from mes_starhole and offer a chance to retry """
         self.star_locations = self.mes_locate.output_data[:,:2]
-        self.mes_interface.check_locations(self.star_locations,
-                                           last_step=self.mes_starhole_again,
-                                           next_step=self.res_viewer_3)
+        self.mes_interface.check(self.star_locations,
+                                 last_step=self.mes_starhole_again,
+                                 next_step=self.res_viewer_3)
     
     def res_viewer_3(self, *args):
         """ Call MESAnalyze on the data from mes_star and mes_hole """

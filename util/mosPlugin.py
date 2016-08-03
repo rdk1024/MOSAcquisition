@@ -19,10 +19,10 @@ class MESPlugin(GingaPlugin.LocalPlugin):
     MOS Acquisition software for aligning MOIRCS.
     """
     
-    header_font = GwHelp.get_font('sansFont', 18)
-    normal_font = GwHelp.get_font('sansFont', 12)
-    body_font   = GwHelp.get_font('sansFont', 10)
-    mono_font   = GwHelp.get_font('Monospace', 12)
+    HEADER_FONT = GwHelp.get_font('sansFont', 18)
+    NORMAL_FONT = GwHelp.get_font('sansFont', 12)
+    BODY_FONT   = GwHelp.get_font('sansFont', 10)
+    MONO_FONT   = GwHelp.get_font('Monospace', 12)
     
     
     
