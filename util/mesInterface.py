@@ -598,6 +598,7 @@ def build_dict_labels(dictionary):
         A Widget object that displays the contents of the dictionary
     """
     grd = Widgets.GridBox(rows=len(dictionary), columns=2)
+    grd.set_spacing(3)
     for i, key in enumerate(dictionary):
         lbl1 = Widgets.Label("$"+key+":",     halign='right')
         lbl2 = Widgets.Label(dictionary[key], halign='left')

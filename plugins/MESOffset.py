@@ -42,7 +42,7 @@ class MESOffset(mosPlugin.MESPlugin):
         
         {'name':'rootname',
          'label':"Root Name", 'type':'string', 'format':"{}.sbr",
-         'desc':"The filename of the SBR file, without the extension"},
+         'desc':"The filename of the mask definition SBR file"},
         
         {'name':'c_file',
          'label':"Config File", 'type':'string', 'default':"$DATABASE/ana_apr16.cfg",
@@ -69,7 +69,7 @@ class MESOffset(mosPlugin.MESPlugin):
         
         {'name':'rootname',
          'label':"Root Name", 'type':'string', 'format':"{}.sbr",
-         'desc':"The filename of the SBR file, without the extension"},
+         'desc':"The filename of the mask definition SBR file"},
         
         {'name':'c_file',
          'label':"Config File", 'type':'string', 'default':"$DATABASE/ana_apr16.cfg",
@@ -115,7 +115,7 @@ class MESOffset(mosPlugin.MESPlugin):
         
         {'name':'rootname',
          'label':"Root Name", 'type':'string', 'format':"{}.sbr",
-         'desc':"The filename of the SBR file, without the extension"},
+         'desc':"The filename of the mask definition SBR file"},
         
         {'name':'c_file',
          'label':"Config File", 'type':'string', 'default':"$DATABASE/ana_apr16.cfg",
@@ -146,7 +146,7 @@ class MESOffset(mosPlugin.MESPlugin):
         
         {'name':'rootname',
          'label':"Root Name", 'type':'string', 'format':"{}.sbr",
-         'desc':"The filename of the SBR file, without the extension"},
+         'desc':"The filename of the mask definition SBR file"},
         
         {'name':'c_file',
          'label':"Config File", 'type':'string', 'default':"$DATABASE/ana_apr16.cfg",
@@ -399,6 +399,7 @@ class MESOffset(mosPlugin.MESPlugin):
         self.mes_interface.write_to_logfile(self.rootname+"_log",
                                             "MES Offset 2",
                                             self.mes_analyze.offset)
+        self.database['mask_chip1'] = self.starhole_chip1+4
         self.mes_interface.go_to_mesoffset(3)
     
     

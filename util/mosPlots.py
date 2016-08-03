@@ -54,6 +54,8 @@ class MOSPlot(plots.Plot):
                   xtitle="{0} Position (pixels)".format(var_name),
                   ytitle="{0} Residual (pixels)".format(var_name),
                   title="{0} Residual by {0}-axis".format(var_name))
+        self.xdata = z_observe
+        self.ydata = z_residual
         
         # shade in regions y > 1 and y < -1
         xlimits = self.get_axis().get_xlim()

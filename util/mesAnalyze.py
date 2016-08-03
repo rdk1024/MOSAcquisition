@@ -21,6 +21,11 @@ import numpy as np
 
 
 
+# constants
+value_names = (("dX","pix"), ("dY","pix"), ("dPA",u"\u00B0"))
+
+
+
 class MESAnalyze(object):
     """
     A class that graphs some data about some objects' positions and
@@ -93,17 +98,59 @@ class MESAnalyze(object):
     
     def set_active_cb(self, _, __, x, y, val):
         """
-        Respond to right or left click by altering the datum nearest the cursor
-        @param val:
-            The new active value for the point - should be boolean
+        Respond to a right or left click on the main ImageViewer by altering the
+        datum nearest the cursor
         @param x:
             The x coordinate of the click
         @param y:
             The y coordinate of the click
+        @param val:
+            The new active value for the point - should be boolean
         """
         distance_from_click = np.hypot(self.data[:,0] - x, self.data[:,1] - y)
         idx = np.argmin(distance_from_click)
         self.active[idx] = val
+        self.update_plots()
+    
+    
+    def toggle_active_x_cb(self, e):
+        """ Redirect to toggle_active_cb """
+        self.toggle_active_cb(e, self.plots[0])
+    
+    
+    def toggle_active_y_cb(self, e):
+        """ Redirect to toggle_active_cb """
+        self.toggle_active_cb(e, self.plots[1])
+    
+    
+    def toggle_active_cb(self, event, plt):
+        """
+        Respond to right or left click on one of the plots by altering the datum
+        nearest the cursor
+        @param event:
+            The matplotlib.backend_bases.MouseEvent instance containing all
+            important information
+        @param plt:
+            The MOSPlot that got clicked on
+        """
+        # first check that the click was on a plot
+        x_click, y_click = event.xdata, event.ydata
+        if x_click == None or y_click == None:
+            return
+        
+        # extract some info from plt and use it to calculate distances
+        fig, x_arr, y_arr = plt.get_data()
+        (left, bottom), (right, top) = plt.get_axis().viewLim.get_points()
+        dx = (x_arr - x_click) * fig.get_figwidth() / (right - left)
+        dy = (y_arr - y_click) * fig.get_figheight() / (top - bottom)
+        distance_from_click = np.hypot(dx, dy)
+        
+        # adjust self.active accordinly
+        idx = np.argmin(distance_from_click)
+        if event.button == 1:
+            self.active[idx] = True
+        elif event.button == 3:
+            self.active[idx] = False
         self.update_plots()
     
     
@@ -175,8 +222,12 @@ class MESAnalyze(object):
         # first calculate the endpoints of the vector
         startX = xref
         startY = yref
-        endX = startX + 300*xres
-        endY = startY + 300*yres
+        if not math.isnan(xres) and not math.isnan(yres):
+            endX = startX + 300*xres
+            endY = startY + 300*yres
+        else:
+            endX = startX
+            endY = startY
         magnitude = math.hypot(xres, yres)
         
         # determine the color based on activity and magnitude
@@ -229,9 +280,9 @@ class MESAnalyze(object):
             thetaD = 0
         
         # then display all values
-        self.final_displays["dx"].set_text("{:,.2f} pix".format(dx))
-        self.final_displays["dy"].set_text("{:,.2f} pix".format(dy))
-        self.final_displays["Rotate"].set_text(u"{:,.4f} \u00B0".format(thetaD))
+        self.final_displays["dX"].set_text("{:,.2f}".format(dx))
+        self.final_displays["dY"].set_text("{:,.2f}".format(dy))
+        self.final_displays["dPA"].set_text(u"{:,.4f}".format(thetaD))
         self.offset = (dx, dy, thetaD)
 
         
@@ -313,10 +364,13 @@ class MESAnalyze(object):
         # add both plots to the frame
         self.plots = []
         for i in range(2):
-            self.plots.append(mosPlots.MOSPlot(logger=self.logger))
-            fig = Plot.PlotWidget(self.plots[i])
-            fig.resize(300, 300)
+            self.plots.append(mosPlots.MOSPlot(logger=self.logger))  # TODO: get rid of this class, put calculations in mesAnalyze
+            fig = Plot.PlotWidget(self.plots[i], width=300, height=300)
             box.add_widget(fig)
+        self.plots[0].fig.canvas.mpl_connect("button_press_event",
+                                             self.toggle_active_x_cb)
+        self.plots[1].fig.canvas.mpl_connect("button_press_event",
+                                             self.toggle_active_y_cb)
         
         # now make an HBox to hold the main controls
         box = Widgets.HBox()
@@ -362,19 +416,25 @@ class MESAnalyze(object):
         # now make a frame for the results
         frm = Widgets.Frame()
         gui.add_widget(frm)
-        box = Widgets.VBox()
-        box.set_spacing(3)
-        frm.set_widget(box)
+        grd = Widgets.GridBox(3, 3)
+        grd.set_spacing(3)
+        frm.set_widget(grd)
         
         # make the three TextAreas to hold the final values
         self.final_displays = {}
-        for val in ("dx", "dy", "Rotate"):
-            lbl = Widgets.Label(val+" =")
-            box.add_widget(lbl)
+        for i, (val, unit) in enumerate(value_names):
+            lbl = Widgets.Label(val+" =", halign='right')
+            lbl.set_font(self.manager.header_font)
+            grd.add_widget(lbl, i, 0)
+            
             txt = Widgets.TextArea(editable=False)
             txt.set_font(self.manager.header_font)
-            box.add_widget(txt)
+            grd.add_widget(txt, i, 1)
             self.final_displays[val] = txt
+            
+            lbl = Widgets.Label(unit, halign='left')
+            lbl.set_font(self.manager.header_font)
+            grd.add_widget(lbl, i, 2)
         
         # make a box to hold the one control
         box = Widgets.HBox()
@@ -385,7 +445,8 @@ class MESAnalyze(object):
         btn = Widgets.Button("Finish")
         btn.add_callback('activated', self.finish_cb)
         btn.set_tooltip("Close Ginga")
-        box.add_widget(btn, stretch=True)
+        box.add_widget(btn)
+        box.add_widget(Widgets.Label(''), stretch=True)
         
         # space appropriately and return
         gui.add_widget(Widgets.Label(''), stretch=True)
