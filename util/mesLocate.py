@@ -440,12 +440,12 @@ class MESLocate(object):
         Set the position and zoom level on fitsimage such that the user can
         only see the object at index self.current_obj. Also locates and marks it
         """
-        # get the bounding box that must be zoomed to
         x1, y1, x2, y2, r = self.get_current_box()
-        
-        # then move and zoom
         self.fitsimage.set_pan((x1+x2)/2, (y1+y2)/2)
         self.fitsimage.zoom_to(360.0/self.square_size)
+        self.obj_count_label.set_text("Hole {} out of {}".format(
+                                            self.current_obj+1, self.obj_num))
+        self.mark_current_obj()
     
     
     def mark_current_obj(self, obj=None):
@@ -658,6 +658,12 @@ class MESLocate(object):
                      "below. Click 'Next' below or right-click when the "+
                      "centroid has been found.")
         exp.set_widget(txt)
+        
+        # create a label to display the current object index 
+        lbl = Widgets.Label()
+        lbl.set_font(self.manager.header_font)
+        gui.add_widget(lbl)
+        self.obj_count_label = lbl
         
         # create a CanvasView for step 2
         viewer = Viewers.CanvasView(logger=self.logger)
