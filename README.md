@@ -4,21 +4,22 @@ system for Subaru Telecope.
 
 ## Installation
 ### Dependencies
-This package requires a Python interpreter. It also makes use of numpy, astropy,
-ginga, and pyraf. To install those packages, simply call  
-`$ pip install numpy astropy ginga pyraf`  
+This package requires a Python interpreter. It also makes use of astropy,
+ginga, matplotlib, numpy, and pyraf. To install those packages, simply call  
+`$ pip install astropy ginga matplotlib numpy pyraf`  
 It also requires much of the existing MOIRCS Acquisition software, which is not
 on the internet as far as I know, so if you don't work for Subaru, ha ha, too
 bad.
 
 ### File Locations
 The folders in this repository must be merged with the corresponding files in
-the user's `.ginga` folder (might be invisible); `plugins` merges with
-`plugins`, and `util` merges with `util`.
+the user's `.ginga` folder, which should either be at `/.ginga` or `~/.ginga`,
+and might be invisible; `plugins` merges with `plugins`, and `util` merges with
+`util`.
 
 ## Usage
-Once this plugin has been installed as specified above, one can run it the
-simple command:  
+Once this plugin has been installed as specified above, navigate to the
+directory with your .sbr mask definition file and start ginga with the command    
 `$ ginga --plugins=MESOffset`  
 This should launch Ginga with the MESOffset plugin loaded. Click on 'Operation'
 and then 'MESOffset' to begin the process. From there, enter any information it
