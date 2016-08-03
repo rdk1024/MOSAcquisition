@@ -89,11 +89,11 @@ def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
                                                 star_chip[i].header['DET-ID'])
                              )
         if star_chip[i].header['ALTITUDE'] < 45.0:
-            log((u"WARN: {}MCSA{:08d}.fits has low elevation of {:.1f}\u00B0; "+
+            log((u"{}MCSA{:08d}.fits has low elevation of {:.1f}\u00B0; "+
                   "the mosaicing database may not be applicable here.").format(
                                             img_dir, star_num+i,
-                                            star_chip[i].header['ALTITUDE'])
-                )
+                                            star_chip[i].header['ALTITUDE']),
+                level='warning')
     
     # subtract the background frames from the star frames
     log("Subtracting images...")

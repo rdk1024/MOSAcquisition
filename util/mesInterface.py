@@ -34,6 +34,7 @@ class MESInterface(object):
         self.get_value = []         # getter methods for all parameters
         self.set_value = []         # setter methods for all parameters
         self.resume_mesoffset = {}  # intermediate functions to call after waiting
+        self.waiting_for = 0        # the last 'wait' gui we were at
         
     
     
@@ -85,6 +86,7 @@ class MESInterface(object):
         @param idx:
             The index of the process we want parameters for
         """
+        self.waiting_for = 0
         self.set_defaults(idx)
         self.parameter_tabs.set_index(idx)
         self.manager.go_to_gui('epar')
@@ -99,12 +101,23 @@ class MESInterface(object):
         @param next_step:
             The function to be called when the 'Go!' button is pressed
         """
+        self.waiting_for = idx
         if idx == 1:
             self.set_defaults(4)
         elif idx == 3:
             self.set_defaults(5)
         self.manager.go_to_gui('wait '+str(idx))
         self.resume_mesoffset[idx] = next_step
+    
+    
+    def return_to_menu_cb(self, *args):
+        """
+        Go back to the last parameter menu you were at - either 'epar' or 'wait'
+        """
+        if self.waiting_for:
+            self.manager.go_to_gui('wait '+str(self.waiting_for))
+        else:
+            self.manager.go_to_gui('epar')
     
     
     def resume_process_cb(self, _, idx):
@@ -434,8 +447,8 @@ class MESInterface(object):
         
         # the Start Over button goes to the main menu
         btn = Widgets.Button("Start Over")
-        btn.add_callback('activated', lambda w: self.manager.go_to_gui('epar'))
-        btn.set_tooltip("Return to the main menu to edit your parameters")
+        btn.add_callback('activated', self.return_to_menu_cb)
+        btn.set_tooltip("Return to the menu to edit your parameters")
         box.add_widget(btn)
         
         # the Continue button goes to the next step
@@ -499,7 +512,7 @@ class MESInterface(object):
         
         # in it is a back button
         btn = Widgets.Button("Return to Menu")
-        btn.add_callback('activated', lambda w: self.manager.go_to_gui('epar'))
+        btn.add_callback('activated', self.return_to_menu_cb)
         btn.set_tooltip("Correct the error and try again")
         box.add_widget(btn)
         box.add_widget(Widgets.Label(''), stretch=True)
@@ -597,13 +610,14 @@ def build_dict_labels(dictionary):
     @returns:
         A Widget object that displays the contents of the dictionary
     """
-    grd = Widgets.GridBox(rows=len(dictionary), columns=2)
+    grd = Widgets.GridBox(rows=len(dictionary), columns=3)
     grd.set_spacing(3)
     for i, key in enumerate(dictionary):
-        lbl1 = Widgets.Label("$"+key+":",     halign='right')
+        lbl1 = Widgets.Label("$"+key+":  ",     halign='left')
         lbl2 = Widgets.Label(dictionary[key], halign='left')
         grd.add_widget(lbl1, i, 0)
         grd.add_widget(lbl2, i, 1)
+        grd.add_widget(Widgets.Label(''), i, 2, stretch=True)
     return grd
 
 

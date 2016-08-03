@@ -81,7 +81,7 @@ class MESOffset(mosPlugin.MESPlugin):
         
         {'name':'recalc1',
          'label':"Regenerate Star", 'type':'boolean',
-         'desc':"Do you want to generate new mosaiced star images?"},
+         'desc':"Do you want to generate new composite star images?"},
         
         {'name':'interact1',
          'label':"Interact Star", 'type':'boolean',
@@ -96,7 +96,7 @@ class MESOffset(mosPlugin.MESPlugin):
         
         {'name':'recalc2',
          'label':"Regenerate", 'type':'boolean',
-         'desc':"Do you want to generate new mosaiced mask images?"},
+         'desc':"Do you want to generate new composite mask images?"},
         
         {'name':'interact2',
          'label':"Interact", 'type':'boolean',
@@ -127,7 +127,7 @@ class MESOffset(mosPlugin.MESPlugin):
         
         {'name':'recalc3',
          'label':"Regenerate", 'type':'boolean',
-         'desc':"Do you want to generate new mosaiced star-hole images?"},
+         'desc':"Do you want to generate new composite star-hole images?"},
         
         {'name':'interact3',
          'label':"Interact", 'type':'boolean',
@@ -158,7 +158,7 @@ class MESOffset(mosPlugin.MESPlugin):
         
         {'name':'recalc4',
          'label':"Regenerate Mask", 'type':'boolean',
-         'desc':"Do you want to generate new mosaiced mask images?"},
+         'desc':"Do you want to generate new composite mask images?"},
         
         {'name':'interact4',
          'label':"Interact Mask", 'type':'boolean',
@@ -173,7 +173,7 @@ class MESOffset(mosPlugin.MESPlugin):
         
         {'name':'recalc5',
          'label':"Regenerate", 'type':'boolean',
-         'desc':"Do you want to generate new mosaiced star-hole images?"},
+         'desc':"Do you want to generate new composite star-hole images?"},
         
         {'name':'interact5',
          'label':"Interact", 'type':'boolean',
