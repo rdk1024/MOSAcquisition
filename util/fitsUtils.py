@@ -75,14 +75,10 @@ def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
     log("Processing star frames...")
     
     # open the star FITS, if you can
-    try:
-        star_chip = []
-        for chip in (0, 1):
-            star_chip.append(fits.open("{}MCSA{:08d}.fits".format(
-                                                img_dir, star_num+chip))[0])
-    except IOError as e:
-        raise IOError(str(e)+"\nPlease check your frame numbers and image "+
-                             "directory, or change Ginga's working directory.")
+    star_chip = []
+    for chip in (0, 1):
+        star_chip.append(open_fits("{}MCSA{:08d}.fits".format(
+                                            img_dir, star_num+chip))[0])
     
     # check header info
     for i in (0, 1):
@@ -104,7 +100,7 @@ def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
     if back_num != 0:
         back_chip = []
         for chip in (0,1):
-            back_chip.append(fits.open("{}MCSA{:08d}.fits".format(
+            back_chip.append(open_fits("{}MCSA{:08d}.fits".format(
                                                 img_dir, back_num+chip))[0])
         
         dif_data = [star_chip[i].data - back_chip[i].data for i in (0,1)]
@@ -154,7 +150,7 @@ def process_mask_fits(mask_num, c_file, img_dir, output_filename,
     # load the files
     mask_chip = []
     for chip in (0, 1):
-        mask_chip.append(fits.open("{}MCSA{:08d}.fits".format(
+        mask_chip.append(open_fits("{}MCSA{:08d}.fits".format(
                                             img_dir, mask_num+chip))[0])
     
     # mosaic the reformatted results to a file
@@ -165,6 +161,18 @@ def process_mask_fits(mask_num, c_file, img_dir, output_filename,
     # and you're done! go ahead to the next step
     if next_step != None:
         next_step()
+
+
+def open_fits(filename):
+    """
+    Exactly the same thing as astropy.fits.open, but it throws more descriptive
+    error messages!
+    """
+    try:
+        return fits.open(filename)
+    except IOError as e:
+        raise IOError(str(e)+"\nPlease check your frame numbers and image "+
+                             "directory, or change Ginga's working directory.")
 
 
 def makemosaic(input_data, input_header, c_file, log=nothing):
@@ -196,10 +204,11 @@ def makemosaic(input_data, input_header, c_file, log=nothing):
     cfg.close()
     
     # correct for distortion and apply mask
-    log("Correcting for distortion...")
     # XXX: stuff I haven't figured out how to do wiothout IRAF yet :XXX #
+    log("Correcting for distortion...")
     correct_data = [transform(input_data[0], config[2], config[3]),
                     transform(input_data[1], config[4], config[5])]
+    log("Correcting some more for distortion...")
     shifted_data = [transform(correct_data[0], config[8], config[9]),
                     transform(correct_data[1], config[10], config[11])]
     log("Masking bad pixels...")
