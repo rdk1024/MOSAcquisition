@@ -16,6 +16,10 @@ import numpy as np
 from scipy.ndimage.filters import gaussian_filter
 
 
+# constants
+dir_mcsred = "../../MCSRED2/"
+
+
 
 def nothing(*args, **kwargs):
     """A placeholder function for log"""
@@ -187,7 +191,7 @@ def makemosaic(input_data, input_header, c_file, log=nothing):
     line = cfg.readline()
     while line != '':
         if line[0] != '#':
-            config.append(line.split()[-1])
+            config.append(line.split()[-1].replace('dir_mcsred$',dir_mcsred))
         line = cfg.readline()
     cfg.close()
     
@@ -236,6 +240,7 @@ def transform(input_arr, dbs_filename, gmp_filename):
     if os.path.exists('tempout.fits'):
         os.remove('tempout.fits')
     fits.PrimaryHDU(data=input_arr).writeto("tempin.fits", clobber=True)
+    print dbs_filename
     geotran('tempin.fits', 'tempout.fits', dbs_filename, gmp_filename,
             verbose='no')
     output = fits.open('tempout.fits')[0].data

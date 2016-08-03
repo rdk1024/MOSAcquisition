@@ -264,7 +264,7 @@ class MESOffset(mosPlugin.MESPlugin):
         if self.exec_mode == 0:
             self.mes_interface.go_to_mesoffset(1)
         else:
-            self.mes_interface.go_to_mesoffset(2)
+            self.mes_interface.go_to_mesoffset(3)
     
     
     ### ----- MESOFFSET1 FUNCTIONS ----- ###
@@ -359,8 +359,8 @@ class MESOffset(mosPlugin.MESPlugin):
             self.database['img_dir'] += '/'
         if not hasattr(self, 'hole_locations'):
             self.mes_interface.log("No hole position data found; please run "+
-                                   "MES Offset 1, or MES Offset 0 in 'Normal' "+
-                                   "mode.", level='error')
+                                   "literally any MESOffset besides 2.",
+                                   level='error')
             return
         self.__dict__.update(self.database)
         

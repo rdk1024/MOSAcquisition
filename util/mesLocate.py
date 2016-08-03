@@ -59,8 +59,8 @@ class MESLocate(object):
             A function to call when MESLocate is finished
         """
         # read the data
-        self.obj_list, obj0 = parse_data(initial_data)
-        self.obj_num = len(self.obj_list)
+        self.obj_arr, obj0 = parse_data(initial_data)
+        self.obj_num = self.obj_arr.shape[0]
         
         # define some attributes
         self.click_history = []     # places we've clicked
@@ -70,20 +70,28 @@ class MESLocate(object):
         self.drag_history = [[]]*self.obj_num   # places we've click-dragged*
         self.drag_index = [-1]*self.obj_num     # index of the current drag for each object
         self.drag_start = None      # the place where we most recently began to drag
-        self.obj_centroids = [None]*self.obj_num    # the new obj_list based on user input and calculations
+        self.obj_centroids = np.zeros(self.obj_arr.shape)    # the new obj_arr based on user input and calculations
         self.square_size =  {'star':30, 'mask':60, 'starhole':20}[mode]  # the apothem of the search regions
         self.exp_obj_size = {'star':4,  'mask':20, 'starhole':4}[mode]  # the maximum expected radius of the objects
         self.interact = interact2    # whether we should interact in step 2
         self.next_step = next_step  # what to do when we're done
         
-        # set the autocut to make things easier to see
+        # set some values based on mode
         if mode == 'star':
-            method = 'stddev'
-        else:
-            method = 'minmax'
-        self.fitsimage.get_settings().set(autocut_method=method)
+            autocut_method = 'stddev'   # fitsimage autocut method
+            self.exp_obj_size = 4       # the maximum expected radius of objects
+            self.square_size = 30       # the apothem of the search regions
+        elif mode == 'mask':
+            autocut_method = 'minmax'
+            self.exp_obj_size = 20
+            self.square_size = 60
+        elif mode == 'starhole':
+            autocut_method = 'minmax'
+            self.exp_obj_size = 4
+            self.square_size = np.amax(self.obj_arr[:,2])
         
         # creates the list of thumbnails that will go in the GUI
+        self.fitsimage.get_settings().set(autocut_method=autocut_method)
         self.thumbnails = create_viewer_list(self.obj_num, self.logger)
         self.viewer_grid.remove_all()
         for row in range(int(math.ceil(self.obj_num/2.0))):
@@ -363,7 +371,7 @@ class MESLocate(object):
         color = colors[self.color_index%len(colors)]   # cycles through all the colors
         shapes = []
         for i, viewer in enumerate(self.thumbnails):
-            dx, dy, r = self.obj_list[i]
+            dx, dy, r = self.obj_arr[i]
             sq_size = self.square_size
         
             # first, draw squares and numbers
@@ -513,7 +521,7 @@ class MESLocate(object):
             The float bounds and radius of the current box
         """
         xf, yf = self.click_history[self.click_index]
-        dx, dy, r = self.obj_list[self.current_obj]
+        dx, dy, r = self.obj_arr[self.current_obj]
         s = self.square_size
         if math.isnan(r):
             r = 1.42*s
@@ -790,9 +798,9 @@ def parse_data(data):
     @param data:
         A numpy array of two or three columns, representing x, y[, and r]
     @returns:
-        A tuple containing a list of tuples of three floats representing
-        relative locations and radii of objects, and a single float tuple
-        (absolute location of first object)
+        A numpy array of three columns of floats representing relative locations
+        and radii of objects,
+        and a single float tuple (absolute location of first object)
     """
     obj_list = []
     obj0 = None
@@ -808,11 +816,11 @@ def parse_data(data):
         # if this is the first one, put something in obj0
         if obj0 == None:
             obj0 = (x, y)
-            obj_list.append((0, 0, r))
+            obj_list.append([0, 0, r])
         else:
-            obj_list.append((x - obj0[0], y - obj0[1], r))
+            obj_list.append([x - obj0[0], y - obj0[1], r])
         
-    return obj_list, obj0
+    return np.array(obj_list), obj0
 
 
 def create_viewer_list(n, logger=None, width=120, height=120):    # 147x147 is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
