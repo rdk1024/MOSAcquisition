@@ -243,27 +243,45 @@ def transform(input_arr, dbs_filename, gmp_filename):
         The filename of the IRAF 'database file'. Not to be confused with an
         SQLBase .dbs file, or a .db database file.
     @param gmp_filename:
-        The filename inside the filename that tells IRAF which part of the dbs
+        The filename inside the filename that tells me which part of the dbs
         file to look at. Because using integers was too easy, so why not just
         use filenames with an extention that doesn't exist to index through a
-        file. Rather, the .gmp file extension does exist, and serves a log of
+        file. Rather, the .gmp file extension does exist, and serves a lot of
         purposes, but none of them have anything to do with IRAF or image
         transformations. WHYYYYYY?
     @returns:
         The corrected numpy array
     """
-    from pyraf.iraf import geotran
+    #start by parsing the cfg file for the few pieces of useful information contained within
+    f = open(dbs_filename, 'r')
+    lines = f.readlines()
+    line_no = len(lines) - lines[::-1].index('begin\t'+gmp_filename+'\n') - 1
+    num_lines = int(lines[line_no+15].split()[-1])   # XXX: this is always 11, isn't it?
+    xorder = int(float(lines[line_no+17].split()[0]))
+    yorder = int(float(lines[line_no+18].split()[0]))
+    xsize  = int(float(lines[line_no+21].split()[0]))
+    ysize  = int(float(lines[line_no+23].split()[0]))
+    C = np.zeros((2, yorder, xorder))
+    for i in range(num_lines-8):
+        words = lines[line_no+24+i].split()
+        C[0, i/xorder, i%xorder] = float(words[1])
+        C[1, i/xorder, i%xorder] = float(words[0])
     
-    if os.path.exists('tempout.fits'):
-        os.remove('tempout.fits')
-    fits.PrimaryHDU(data=input_arr).writeto("tempin.fits", clobber=True)
-    print dbs_filename
-    geotran('tempin.fits', 'tempout.fits', dbs_filename, gmp_filename,
-            verbose='no')
-    output = fits.open('tempout.fits')[0].data
-    os.remove('tempin.fits')
-    os.remove('tempout.fits')
-    return output
+    # now do the transformation
+    y, x = np.indices((ysize, xsize))
+    Y = np.zeros((ysize, xsize))
+    X = np.zeros((ysize, xsize))
+    for b in range(0, yorder):
+        for a in range(0, xorder):
+            Pab = np.power(y+1, b) * np.power(x+1, a)
+            Y += C[0,b,a] * Pab
+            X += C[1,b,a] * Pab
+    Y = (Y-1).round().astype(int).clip(0, input_arr.shape[0]-1) # TODO: antialiasing
+    X = (X-1).round().astype(int).clip(0, input_arr.shape[1]-1)
+    output_arr = input_arr[Y, X]
+    
+    return output_arr
+
 
 
 def apply_mask(input_arr, pl_filename, mask_val=0):
