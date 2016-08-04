@@ -28,12 +28,6 @@ class MESOffset(mosPlugin.MESPlugin):
     use as part of the MOS Acquisition software for aligning MOIRCS.
     """
     
-    # variables
-    VARIABLES = {"DATABASE":"../../MCSRED2/DATABASE",
-                 "DATA":"/data/o16010",
-                 "WORK":"/data/work/o16010",
-                 "CHECKFIELD":"/data/work/o16010/checkfield"}
-    
     # main menu parameters
     PARAMS_0 = [
         {'name':'star_chip1',

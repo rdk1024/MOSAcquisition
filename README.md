@@ -6,16 +6,17 @@ system for Subaru Telecope.
 ### Dependencies
 This package requires a Python interpreter. It also makes use of astropy,
 ginga, matplotlib, numpy, and pyraf. To install those packages, simply call  
-`$ pip install astropy ginga matplotlib numpy pyraf`  
-It also requires much of the existing MOIRCS Acquisition software, which is not
-on the internet as far as I know, so if you don't work for Subaru, ha ha, too
-bad.
+`$ pip install astropy ginga matplotlib numpy pyraf`
 
 ### File Locations
 The folders in this repository must be merged with the corresponding files in
 the user's `.ginga` folder, which should either be at `/.ginga` or `~/.ginga`,
 and might be invisible; `plugins` merges with `plugins`, and `util` merges with
 `util`.
+
+The `mesoffset_directories.txt` document must also be put into
+`moircs01/MCSRED2/`. `moircs01/` is the folder containing `MOS_log/`, which is
+the folder containing the folders containing your SBR files.
 
 ## Usage
 Once this plugin has been installed as specified above, navigate to the

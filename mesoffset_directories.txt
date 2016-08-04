@@ -1,0 +1,5 @@
+DIR_MCSRED      ../../MCSRED2/
+DATABASE        ../../MCSRED2/DATABASE
+CONFIG          ana_apr16.cfg
+DATA            /data/o16010
+WORK            /data/work/o16010/

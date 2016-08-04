@@ -35,6 +35,7 @@ class MESInterface(object):
         self.set_value = []         # setter methods for all parameters
         self.resume_mesoffset = {}  # intermediate functions to call after waiting
         self.waiting_for = 0        # the last 'wait' gui we were at
+        self.variables = read_variables()    # defined variables
         
     
     
@@ -72,7 +73,7 @@ class MESInterface(object):
         new_params = {}
         for key, get_val in getters.items():
             if type(get_val()) in (str, unicode):
-                value = process_filename(get_val(), self.manager.VARIABLES)
+                value = process_filename(get_val(), self.variables)
             else:
                 value = get_val()
             new_params[key] = value
@@ -314,7 +315,7 @@ class MESInterface(object):
         # create a box for the defined variables
         frm = Widgets.Frame("Defined Variables")
         gui.add_widget(frm)
-        box = build_dict_labels(self.manager.VARIABLES)
+        box = build_dict_labels(self.variables)
         frm.set_widget(box)
         
         # the go button will go in a box
@@ -376,7 +377,7 @@ class MESInterface(object):
         # create a box for the defined variables
         frm = Widgets.Frame()
         gui.add_widget(frm)
-        box = build_dict_labels(self.manager.VARIABLES)
+        box = build_dict_labels(self.variables)
         frm.set_widget(box)
         
         # the go button will go in a box
@@ -540,6 +541,23 @@ class MESInterface(object):
                  "rotate = {:7,.4f} (degree) \n").format(*values))
         f.close()
 
+
+
+def read_variables():
+    """
+    Get the defined variable dictionary from mesoffset_directories.txt
+    @returns:
+        A dictionary where keys are variable names, and values are values
+    """
+    output = {}
+    f = open("../../MCSRED2/mesoffset_directories.txt", 'r')
+    line = f.readline()
+    while line != "":
+        words = line.split()
+        output[words[0]] = words[1]
+        line = f.readline()
+    f.close()
+    return output
 
 
 def build_control_layout(controls):
