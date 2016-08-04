@@ -550,13 +550,16 @@ def read_variables():
         A dictionary where keys are variable names, and values are values
     """
     output = {}
-    f = open("../../MCSRED2/mesoffset_directories.txt", 'r')
-    line = f.readline()
-    while line != "":
-        words = line.split()
-        output[words[0]] = words[1]
+    try:
+        f = open("../../MCSRED2/mesoffset_directories.txt", 'r')
         line = f.readline()
-    f.close()
+        while line != "":
+            words = line.split()
+            output[words[0]] = words[1]
+            line = f.readline()
+        f.close()
+    except IOError:
+        output["DATABASE"] = "../../MCSRED2/DATABASE"
     return output
 
 

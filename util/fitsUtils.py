@@ -18,8 +18,9 @@ from scipy.ndimage.filters import gaussian_filter
 
 # constants
 DIR_MCSRED = "../../MCSRED2/"
-NO_SUCH_FILE_ERR = ("Please check your frame numbers and image directory, or "+
-                        "change Ginga's working directory.")
+NO_SUCH_FILE_ERR = ("No such file or directory: {}\nPlease check your frame "+
+                        "numbers and image directory, or run Ginga from a "+
+                        "different directory.")
 WRONG_CHIP_ERR =   ("{} should be data from chip {}, but is from chip {}. Try "+
                         "a different frame number.")
 LOW_ELEV_WARN =   (u"{}MCSA{:08d}.fits has low elevation of {:.1f}\u00B0; the "+
@@ -174,7 +175,10 @@ def open_fits(filename, chipnum):
     try:
         hdu = fits.open(filename)[0]
     except IOError as e:
-        raise IOError(str(e)+"\n"+NO_SUCH_FILE_ERR)
+        if len(filename) >= 1 and filename[0] in ('/'):
+            raise IOError(NO_SUCH_FILE_ERR.format(filename))
+        else:
+            raise IOError(NO_SUCH_FILE_ERR.format(os.getcwd()+"/"+filename))
     if hdu.header['DET-ID'] != chipnum:
         raise ValueError(WRONG_CHIP_ERR.format(filename, chipnum,
                                                hdu.header['DET-ID']))
