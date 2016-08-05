@@ -476,7 +476,7 @@ class MESInterface(object):
         # now add in the textbox for the results
         txt = Widgets.TextArea(wrap=False, editable=False)
         txt.set_font(self.manager.MONO_FONT)
-        gui.add_widget(txt)
+        gui.add_widget(txt, stretch=True)
         self.results_textarea = txt
         
         # now make an HBox for the controls
@@ -562,7 +562,7 @@ class MESInterface(object):
         # now for the error box itself
         txt = Widgets.TextArea(wrap=True, editable=False)
         txt.set_font(self.manager.BODY_FONT)
-        gui.add_widget(txt)
+        gui.add_widget(txt, stretch=True)
         self.err_textarea = txt
         
         # finish off with a box of important controls at the end

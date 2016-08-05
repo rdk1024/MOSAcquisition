@@ -219,10 +219,10 @@ def make_mosaic(input_data, c_file, terminate, log=nothing):
     
     # combine and rotate the images
     log("Combining the chips...")
-    mosaic_data = np.rot90(np.sum(mosaic_data, axis=0), k=3)
+    mosaic_arr = np.rot90(np.sum(mosaic_data, axis=0), k=3)
     if terminate.is_set():  return
     
-    return mosaic_data
+    return mosaic_arr
 
 
 def open_fits(filename, chipnum):

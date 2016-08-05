@@ -427,10 +427,10 @@ class MESAnalyze(object):
             
             txt = Widgets.TextArea(editable=False)
             txt.set_font(self.manager.HEADER_FONT)
-            grd.add_widget(txt, i, 1)
+            grd.add_widget(txt, i, 1, stretch=True)
             self.final_displays[val] = txt
             
-            lbl = Widgets.Label(unit, halign='left')
+            lbl = Widgets.Label(unit+"\t", halign='left')
             lbl.set_font(self.manager.HEADER_FONT)
             grd.add_widget(lbl, i, 2)
         

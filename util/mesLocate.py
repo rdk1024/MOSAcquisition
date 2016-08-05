@@ -342,6 +342,31 @@ class MESLocate(object):
         self.mark_current_obj()
     
     
+    def viewer_redirect_cb(self, _, button, xv, yv, direction):
+        """
+        Respond to a click on the step2_viewer by adjusting x and y for the
+        position of the viewer, and then making the canvas react as though it
+        had been clicked on.
+        @param button:
+            The key code representing the mouse configuration (1 for cursor,
+            2 for panset, and 4 for draw)
+        @param xv:
+            The x coordinate of the click relative to the viewer
+        @param yv:
+            The y coordinate of the click relative to the viewer
+        @param direction:
+            The direction of the event ('up' or 'down')
+        """
+        x0, y0, x1, y1, r = self.get_current_box()
+        xf, yf = xv+int(x0), yv+int(y0)
+        if button%2 == 1:
+            self.canvas.make_callback('cursor-'+direction, button, xf, yf)
+        if button%4/2 == 1:
+            self.canvas.make_callback('panset-'+direction, button, xf, yf)
+        if button%8/4 == 1:
+            self.canvas.make_callback('draw-'+direction,   button, xf, yf)
+    
+    
     def undo2_cb(self, *args):
         """
         Respond to the undo button in step 2
@@ -461,8 +486,8 @@ class MESLocate(object):
         """
         x1, y1, x2, y2, r = self.get_current_box()
         self.fitsimage.set_pan((x1+x2)/2, (y1+y2)/2)
-        self.fitsimage.zoom_to(360.0/self.square_size)
-        self.obj_count_label.set_text("Hole {} out of {}".format(
+        self.fitsimage.zoom_to(350.0/self.square_size)
+        self.obj_count_label.set_text("Object {} out of {}".format(
                                             self.current_obj+1, self.obj_num))
         self.mark_current_obj()
     
@@ -694,6 +719,8 @@ class MESLocate(object):
         viewer.set_desired_size(420, 420)
         viewer.enable_autozoom('on')
         viewer.enable_autocuts('on')
+        viewer.add_callback('button-press', self.viewer_redirect_cb, 'down')
+        viewer.add_callback('button-release', self.viewer_redirect_cb, 'up')
         self.step2_viewer = viewer
         
         # put it in a ViewerWidget, and put that in the gui
@@ -914,11 +941,11 @@ def locate_obj(bounds, masks, image, viewer=None,
     
     # mask data based on masks
     for drag in masks:
-        x1, y1, x2, y2, kind = (int(drag[0]-bounds[0]), int(drag[1]-bounds[1]),
-                                int(drag[2]-bounds[0]), int(drag[3]-bounds[1]),
+        x1, y1, x2, y2, kind = (int(drag[0])-int(x0)+1, int(drag[1])-int(y0)+1,
+                                int(drag[2])-int(x0)+1, int(drag[3])-int(y0)+1,
                                 drag[4])
         mask = np.zeros(raw.shape, dtype=bool)
-        mask[y1:y2, x1:x2] = np.ones((y2-y1, x2-x1), dtype=bool)
+        mask[y1:y2, x1:x2] = True
         if kind == 'crop':
             mask = np.logical_not(mask)
         mask_tot = np.logical_or(mask_tot, mask)
