@@ -17,7 +17,7 @@ from scipy.ndimage.filters import gaussian_filter
 
 
 # constants
-DIR_MCSRED = "../../MCSRED2/"
+DIR_MCSRED = '../../MCSRED2/'
 NO_SUCH_FILE_ERR = ("No such file or directory: {}\nPlease check your frame "+
                         "numbers and image directory, or run Ginga from a "+
                         "different directory.")
@@ -216,7 +216,7 @@ def make_mosaic(input_data, c_file, log=nothing):
     log("Correcting for distortion...")
     correct_data = [transform(input_data[0], config[2], config[3]),
                     transform(input_data[1], config[4], config[5])]
-    log("Correcting some more for distortion...")
+    log("Correcting for more distortion...")
     shifted_data = [transform(correct_data[0], config[8], config[9]),
                     transform(correct_data[1], config[10], config[11])]
     log("Masking bad pixels...")
@@ -224,12 +224,9 @@ def make_mosaic(input_data, c_file, log=nothing):
                    apply_mask(shifted_data[1], config[13])]
     # XXX: stuff I haven't figured out how to do wiothout IRAF yet :XXX #
     
-    # crop images
-    cropped_data = [masked_data[0][:, 0:1818], masked_data[1][:, -1818:-1]] # XXX is it okay for me to hardcode the 1818?
-    
     # combine and rotate the images
     log("Combining the chips...")
-    mosaic_data = np.rot90(np.hstack(cropped_data), k=3)
+    mosaic_data = np.rot90(np.sum(masked_data, axis=0), k=3)
     
     return fits.PrimaryHDU(data=mosaic_data)
 

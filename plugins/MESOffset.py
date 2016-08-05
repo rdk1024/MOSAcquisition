@@ -31,146 +31,146 @@ class MESOffset(mosPlugin.MESPlugin):
     # main menu parameters
     PARAMS_0 = [
         {'name':'star_chip1',
-         'label':"Star Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'label':"Star Frame", 'type':int, 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 star FITS image"},
         
         {'name':'rootname',
-         'label':"Root Name", 'type':'string', 'format':"{}.sbr",
+         'label':"Root Name", 'type':str, 'format':"{}.sbr",
          'desc':"The filename of the mask definition SBR file"},
         
         {'name':'c_file',
-         'label':"Config File", 'type':'string', 'default':"$DATABASE/ana_apr16.cfg",
+         'label':"Config File", 'type':str, 'default':"$DATABASE/ana_apr16.cfg",
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
-         'label':"Image Directory", 'type':'string', 'default':"$DATA/",
+         'label':"Image Directory", 'type':str, 'default':"$DATA/",
          'desc':"The directory in which the input FITS images can be found"},
         
         {'name':'exec_mode',
-         'label':"Execution Mode", 'type':'choice', 'options':["Normal","Fine"],
+         'label':"Execution Mode", 'type':int, 'options':["Normal","Fine"],
          'desc':"Choose 'Fine' to skip MES Offset 1"}
     ]
     
     # mesoffset1 parameters
     PARAMS_1 = [
         {'name':'star_chip1',
-         'label':"Star Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'label':"Star Frame", 'type':int, 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 star FITS image"},
         
         {'name':'sky_chip1',
-         'label':"Sky Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'label':"Sky Frame", 'type':int, 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 sky FITS image"},
         
         {'name':'rootname',
-         'label':"Root Name", 'type':'string', 'format':"{}.sbr",
+         'label':"Root Name", 'type':str, 'format':"{}.sbr",
          'desc':"The filename of the mask definition SBR file"},
         
         {'name':'c_file',
-         'label':"Config File", 'type':'string', 'default':"$DATABASE/ana_apr16.cfg",
+         'label':"Config File", 'type':str, 'default':"$DATABASE/ana_apr16.cfg",
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
-         'label':"Image Directory", 'type':'string', 'default':"$DATA/",
+         'label':"Image Directory", 'type':str, 'default':"$DATA/",
          'desc':"The directory in which the raw FITS images can be found"},
         
         {'name':'recalc1',
-         'label':"Regenerate Star", 'type':'boolean',
+         'label':"Regenerate Star", 'type':bool,
          'desc':"Do you want to generate new composite star images?"},
         
         {'name':'interact1',
-         'label':"Interact Star", 'type':'boolean',
+         'label':"Interact Star", 'type':bool,
          'desc':"Do you want to interact with star position measurement?"}
     ]
     
     # mesoffset1.5 parameters
     PARAMS_1p5 = [
         {'name':'mask_chip1',
-         'label':"Mask Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'label':"Mask Frame", 'type':int, 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 mask FITS image"},
         
         {'name':'recalc2',
-         'label':"Regenerate", 'type':'boolean',
+         'label':"Regenerate", 'type':bool,
          'desc':"Do you want to generate new composite mask images?"},
         
         {'name':'interact2',
-         'label':"Interact", 'type':'boolean',
+         'label':"Interact", 'type':bool,
          'desc':"Do you want to interact with hole position measurement?"}
     ]
     
     # mesoffset2 parameters
     PARAMS_2 = [
         {'name':'starhole_chip1',
-         'label':"Star-Hole Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'label':"Star-Hole Frame", 'type':int, 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 star-hole FITS image"},
         
         {'name':'mask_chip1',
-         'label':"Mask Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'label':"Mask Frame", 'type':int, 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 mask FITS image"},
         
         {'name':'rootname',
-         'label':"Root Name", 'type':'string', 'format':"{}.sbr",
+         'label':"Root Name", 'type':str, 'format':"{}.sbr",
          'desc':"The filename of the mask definition SBR file"},
         
         {'name':'c_file',
-         'label':"Config File", 'type':'string', 'default':"$DATABASE/ana_apr16.cfg",
+         'label':"Config File", 'type':str, 'default':"$DATABASE/ana_apr16.cfg",
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
-         'label':"Image Directory", 'type':'string', 'default':"$DATA/",
+         'label':"Image Directory", 'type':str, 'default':"$DATA/",
          'desc':"The directory in which the raw FITS images can be found"},
         
         {'name':'recalc3',
-         'label':"Regenerate", 'type':'boolean',
+         'label':"Regenerate", 'type':bool,
          'desc':"Do you want to generate new composite star-hole images?"},
         
         {'name':'interact3',
-         'label':"Interact", 'type':'boolean',
+         'label':"Interact", 'type':bool,
          'desc':"Do you want to interact with star position measurement?"}
     ]
     
     # mesoffset3 parameters
     PARAMS_3 = [
         {'name':'mask_chip1',
-         'label':"Mask Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'label':"Mask Frame", 'type':int, 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 mask FITS image"},
         
         {'name':'sky_chip1',
-         'label':"Sky Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'label':"Sky Frame", 'type':int, 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 sky FITS image"},
         
         {'name':'rootname',
-         'label':"Root Name", 'type':'string', 'format':"{}.sbr",
+         'label':"Root Name", 'type':str, 'format':"{}.sbr",
          'desc':"The filename of the mask definition SBR file"},
         
         {'name':'c_file',
-         'label':"Config File", 'type':'string', 'default':"$DATABASE/ana_apr16.cfg",
+         'label':"Config File", 'type':str, 'default':"$DATABASE/ana_apr16.cfg",
          'desc':"The location of the MCSRED configuration file"},
         
         {'name':'img_dir',
-         'label':"Image Directory", 'type':'string', 'default':"$DATA/",
+         'label':"Image Directory", 'type':str, 'default':"$DATA/",
          'desc':"The directory in which the raw FITS images can be found"},
         
         {'name':'recalc4',
-         'label':"Regenerate Mask", 'type':'boolean',
+         'label':"Regenerate Mask", 'type':bool,
          'desc':"Do you want to generate new composite mask images?"},
         
         {'name':'interact4',
-         'label':"Interact Mask", 'type':'boolean',
+         'label':"Interact Mask", 'type':bool,
          'desc':"Do you want to interact with hole position measurement?"}
     ]
     
     # mesoffset3.5 parameters
     PARAMS_3p5 = [
         {'name':'starhole_chip1',
-         'label':"Star-Hole Frame", 'type':'number', 'format':"MCSA{}.fits",
+         'label':"Star-Hole Frame", 'type':int, 'format':"MCSA{}.fits",
          'desc':"The frame number for the chip1 star-hole FITS image"},
         
         {'name':'recalc5',
-         'label':"Regenerate", 'type':'boolean',
+         'label':"Regenerate", 'type':bool,
          'desc':"Do you want to generate new composite star-hole images?"},
         
         {'name':'interact5',
-         'label':"Interact", 'type':'boolean',
+         'label':"Interact", 'type':bool,
          'desc':"Do you want to interact with star position measurement?"}
     ]
     
@@ -542,6 +542,8 @@ class MESOffset(mosPlugin.MESPlugin):
         """
         Respond to an image being loaded by executing whatever function
         """
+        if self.fitsimage.get_image() == None:  # I don't know why this callback sometimes
+            return                              # executes for no reason, so I just ignore it.
         if self.image_set_next_step != None:
             self.image_set_next_step()
         self.image_set_next_step = None

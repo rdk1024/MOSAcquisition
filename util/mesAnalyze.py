@@ -380,10 +380,10 @@ class MESAnalyze(object):
         btn.add_callback('activated', self.step4_cb)
         btn.set_tooltip("Get the MES Offset values!")
         box.add_widget(btn)
+        box.add_widget(Widgets.Label(''), stretch=True)
         
-        # put in a spacer
-        box.add_widget(Widgets.Label(""), stretch=True)
-        
+        # space appropriately and return
+        gui.add_widget(Widgets.Label(''), stretch=True)
         return gui
     
     

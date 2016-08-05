@@ -8,10 +8,19 @@
 
 
 # standard imports
+import os
 from time import strftime
 
 # ginga imports
 from ginga.gw import Widgets
+from ginga.misc.Callback import CallbackError
+
+
+
+# constants
+DIR_MCSRED = '../../MCSRED2/'
+PAR_FILENAME = 'mesoffset_parameters.txt'
+VAR_FILENAME = 'mesoffset_directories.txt'
 
 
 
@@ -34,44 +43,53 @@ class MESInterface(object):
         self.get_value = []         # getter methods for all parameters
         self.set_value = []         # setter methods for all parameters
         self.resume_mesoffset = {}  # intermediate functions to call after waiting
-        self.waiting_for = 0        # the last 'wait' gui we were at
-        self.variables = read_variables()    # defined variables
-        
+        self.last_wait_gui = 0      # the last 'wait' gui we were at
+        self.variables = read_variables()   # defined variables
     
     
-    def start_process_cb(self, _, idx):
+    
+    def start_process_cb(self, *args):
         """
         Take the parameters from the gui and begin mesoffset{idx}
-        @param idx:
-            The index for the process we are going to start - 0, 1, 2, or 3
         """
-        self.log("Starting MES Offset {}...".format(idx))
+        proc_num = self.parameter_tabs.get_index()
+        self.log("Starting MES Offset {}...".format(proc_num))
         try:
-            self.update_parameters(self.get_value[idx])
+            self.update_parameters(self.get_value[proc_num])
         except NameError as e:
             self.log("NameError: "+str(e), level='e')
             return
-        if idx == 0:
+        if proc_num == 0:
             self.manager.execute_mesoffset0()
-        elif idx == 1:
+        elif proc_num == 1:
             self.manager.begin_mesoffset1()
-        elif idx == 2:
+        elif proc_num == 2:
             self.manager.begin_mesoffset2()
-        elif idx == 3:
+        elif proc_num == 3:
             self.manager.begin_mesoffset3()
     
     
     def update_parameters(self, getters):
         """
-        Read parameter values from getters and saves them in self.manager
+        Read parameter values from getters and save them in self.manager, as
+        well as in MCSRED2/mesoffset.par
         Scan all strings for variables
         @param getters:
             The dictionary of getter methods for parameter values
         @raises NameError:
             If one of the values contains an undefined variable
         """
+        # if DIR_MCSRED is a directory, write to the parameter file in it
+        if os.path.isdir(DIR_MCSRED):
+            par_file = open(DIR_MCSRED+PAR_FILENAME, 'w')
+        else:
+            par_file = None
+        
+        # now cycle through getters and update the file and manager
         new_params = {}
         for key, get_val in getters.items():
+            if par_file != None:
+                par_file.write('{},{}\n'.format(key,get_val()))
             if type(get_val()) in (str, unicode):
                 value = process_filename(get_val(), self.variables)
             else:
@@ -87,10 +105,10 @@ class MESInterface(object):
         @param idx:
             The index of the process we want parameters for
         """
-        self.waiting_for = 0
+        self.last_wait_gui = 0
         self.set_defaults(idx)
         self.parameter_tabs.set_index(idx)
-        self.manager.go_to_gui('epar')
+        self.go_to_gui('epar')
     
     
     def wait(self, idx, next_step=None):
@@ -102,12 +120,12 @@ class MESInterface(object):
         @param next_step:
             The function to be called when the 'Go!' button is pressed
         """
-        self.waiting_for = idx
+        self.last_wait_gui = idx
         if idx == 1:
             self.set_defaults(4)
         elif idx == 3:
             self.set_defaults(5)
-        self.manager.go_to_gui('wait '+str(idx))
+        self.go_to_gui('wait '+str(idx))
         self.resume_mesoffset[idx] = next_step
     
     
@@ -115,27 +133,25 @@ class MESInterface(object):
         """
         Go back to the last parameter menu you were at - either 'epar' or 'wait'
         """
-        if self.waiting_for:
-            self.manager.go_to_gui('wait '+str(self.waiting_for))
+        if self.last_wait_gui:
+            self.go_to_gui('wait '+str(self.last_wait_gui))
         else:
-            self.manager.go_to_gui('epar')
+            self.go_to_gui('epar')
     
     
-    def resume_process_cb(self, _, idx):
+    def resume_process_cb(self, *args):
         """
-        Take the parameters from the intermediate gui and resume
-        @param idx:
-            The index for the process we must resume - 1 or 3
+        Take the parameters from the waiting gui and resume the current process
         """
         try:
-            if idx == 1:
+            if self.last_wait_gui == 1:
                 self.update_parameters(self.get_value[4])
-            elif idx == 3:
+            elif self.last_wait_gui == 3:
                 self.update_parameters(self.get_value[5])
         except NameError as e:
             self.log("NameError: "+str(e), level='e')
             return
-        self.resume_mesoffset[idx]()
+        self.resume_mesoffset[self.last_wait_gui]()
     
     
     def check(self, data, last_step=None, next_step=None):
@@ -161,21 +177,36 @@ class MESInterface(object):
         self.results_textarea.set_text(res_string)
         self.last_step = last_step
         self.next_step = next_step
-        self.set_callbacks(right_click=next_step)
-        self.manager.go_to_gui('check')
+        self.go_to_gui('check')
     
     
-    def execute_cb(self, _, name):
+    def retake_measurements_cb(self, *args):
         """
-        A little method I wrote to manage callbacks for check
-        @param name:
-            The name of the method to run
+        Execute self.last_step
         """
-        self.canvas.delete_all_objects()
-        if name == 'last_step':
-            self.last_step()
-        elif name == 'next_step':
-            self.next_step()
+        self.manager.clear_canvas()
+        self.last_step()
+    
+    
+    def use_measurements_cb(self, *args):
+        """
+        Execute self.next_step
+        """
+        self.manager.clear_canvas()
+        self.next_step()
+    
+    
+    def go_to_gui(self, gui_name):
+        """
+        Go to the appropriate GUI, and set appropriate callbacks
+        @param gui_name:
+            The string identifier for this GUI
+        """
+        if gui_name == 'check':
+            self.set_callbacks(right_click=self.use_measurements_cb)
+        if gui_name == 'error':
+            self.set_callbacks(right_click=self.return_to_menu_cb)
+        self.manager.go_to_gui(gui_name)
     
     
     def set_callbacks(self, left_click=None, right_click=None):
@@ -185,12 +216,16 @@ class MESInterface(object):
             The function to run when the user left clicks
         @param right_click:
             Guess.
+        @param enter:
+            The function to run when the user hits return
         """
         self.manager.clear_canvas(keep_objects=True)
+        self.canvas.clear_callback('cursor-up')
         if left_click != None:
-            self.canvas.set_callback('cursor-up', left_click)
+            self.canvas.add_callback('cursor-up', left_click)
+        self.canvas.clear_callback('draw-up')
         if right_click != None:
-            self.canvas.set_callback('draw-up', right_click)
+            self.canvas.add_callback('draw-up', right_click)
     
     
     def set_defaults(self, page_num):
@@ -232,13 +267,12 @@ class MESInterface(object):
             self.logger.error(text.strip())
             self.log_textarea.append_text("ERROR: "+text+"\n", autoscroll=True)
             self.err_textarea.set_text(text)
-            self.manager.go_to_gui('error')
-            self.set_callbacks(right_click=self.return_to_menu_cb)
+            self.go_to_gui('error')
         else:
             self.logger.critical(text.strip())
             self.log_textarea.append_text("CRIT: "+text+"\n", autoscroll=True)
             self.err_textarea.set_text("CRITICAL!\n"+text)
-            self.manager.go_to_gui('error')
+            self.go_to_gui('error')
     
     
     def gui_list(self, orientation='vertical'):
@@ -307,7 +341,8 @@ class MESInterface(object):
         # create a grid to group the different controls
         frm = Widgets.Frame(name)
         gui.add_widget(frm)
-        grd, getters, setters = build_control_layout(params)
+        grd, getters, setters = build_control_layout(params,
+                                                     self.start_process_cb)
         self.get_value.append(getters)
         self.set_value.append(setters)
         frm.set_widget(grd)
@@ -325,7 +360,7 @@ class MESInterface(object):
         
         # the go button is important
         btn = Widgets.Button("Go!")
-        btn.add_callback('activated', self.start_process_cb, idx)
+        btn.add_callback('activated', self.start_process_cb)
         btn.set_tooltip("Start "+name+" with the given parameters")
         box.add_widget(btn)
         box.add_widget(Widgets.Label(''), stretch=True)
@@ -369,7 +404,8 @@ class MESInterface(object):
         # create a grid to group the different controls
         frm = Widgets.Frame()
         gui.add_widget(frm)
-        grd, getters, setters = build_control_layout(params)
+        grd, getters, setters = build_control_layout(params,
+                                                     self.resume_process_cb)
         self.get_value.append(getters)  # NOTE that these getters and setters
         self.set_value.append(setters)  # will have different indices than idx
         frm.set_widget(grd)
@@ -387,7 +423,7 @@ class MESInterface(object):
         
         # the go button is important
         btn = Widgets.Button("Go!")
-        btn.add_callback('activated', self.resume_process_cb, idx)
+        btn.add_callback('activated', self.resume_process_cb)
         btn.set_tooltip("Continue "+name+" with the given parameters")
         box.add_widget(btn)
         box.add_widget(Widgets.Label(''), stretch=True)
@@ -439,7 +475,7 @@ class MESInterface(object):
         
         # the Try Again button goes to the last step
         btn = Widgets.Button("Try Again")
-        btn.add_callback('activated', self.execute_cb, 'last_step')
+        btn.add_callback('activated', self.retake_measurements_cb)
         btn.set_tooltip("Go back and take these measurements again")
         box.add_widget(btn)
         
@@ -451,7 +487,7 @@ class MESInterface(object):
         
         # the Continue button goes to the next step
         btn = Widgets.Button("Continue")
-        btn.add_callback('activated', self.execute_cb, 'next_step')
+        btn.add_callback('activated', self.use_measurements_cb)
         btn.set_tooltip("Proceed to the next part of the process")
         box.add_widget(btn)
         
@@ -543,35 +579,17 @@ class MESInterface(object):
 
 
 
-def read_variables():
-    """
-    Get the defined variable dictionary from mesoffset_directories.txt
-    @returns:
-        A dictionary where keys are variable names, and values are values
-    """
-    output = {}
-    try:
-        f = open("../../MCSRED2/mesoffset_directories.txt", 'r')
-        line = f.readline()
-        while line != "":
-            words = line.split()
-            output[words[0]] = words[1]
-            line = f.readline()
-        f.close()
-    except IOError:
-        output["DATABASE"] = "../../MCSRED2/DATABASE"
-    return output
-
-
-def build_control_layout(controls):
+def build_control_layout(controls, callback=None):
     """
     Build a grid full of labels on the left and input widgets on the right.
     @param controls:
         A list of dictionary where each dictionary has the keys 'name' (the
-        name of the parameter), 'type' (string, number, etc.), 'default'
+        name of the parameter), 'type' (str, in, etc.), 'default'
         (the starting value), 'desc' (the tooltip), possibly 'format' (puts
         labels on either side of the input), and possibly 'options' (the
         list of possible values, if type is 'combobox')
+    @param callback:
+        The function, if any, to be called when 'enter' is pressed
     @returns:
         A Widgets.Box containing controls for all of the layouts,
         and a dictionary whose keys are parameter names and whose values
@@ -583,6 +601,7 @@ def build_control_layout(controls):
     grd.set_column_spacing(0)
     getters = {}
     setters = {}
+    old_pars = read_parameters()
     
     # put each of the controls in a row on the grid
     for i, param in enumerate(controls):
@@ -593,36 +612,44 @@ def build_control_layout(controls):
         grd.add_widget(lbl, i, 0)
         
         # create a widget based on type
-        if param['type'] == 'string':
-            wdg = Widgets.TextEntry(editable=True)
-            wdg.set_text('')
-            getters[name] = wdg.get_text
-            setters[name] = wdg.set_text
-        elif param['type'] == 'number':
-            wdg = Widgets.SpinBox()
-            wdg.set_limits(0, 99999999)
-            wdg.set_value(0)
-            getters[name] = wdg.get_value
-            setters[name] = wdg.set_value
-        elif param['type'] == 'choice':
+        if param.has_key('options'):
             wdg = Widgets.ComboBox()
             for option in param['options']:
                 wdg.append_text(option)
             wdg.set_index(0)
             getters[name] = wdg.get_index
             setters[name] = wdg.set_index
-        elif param['type'] == 'boolean':
+        elif param['type'] == int:
+            wdg = Widgets.SpinBox()
+            wdg.set_limits(0, 99999999)
+            wdg.set_value(0)
+            getters[name] = wdg.get_value
+            setters[name] = wdg.set_value
+        elif param['type'] == str:
+            wdg = Widgets.TextEntry(editable=True)
+            wdg.set_text('')
+            getters[name] = wdg.get_text
+            setters[name] = wdg.set_text
+        elif param['type'] == bool:
             wdg = Widgets.CheckBox()
             wdg.set_state(True)
             getters[name] = wdg.get_state
             setters[name] = wdg.set_state
         else:
             raise TypeError("{} is not a valid par-type.".format(param['type']))
-        wdg.set_tooltip(param['desc'])
         
-        # insert a default, if necessary
-        if param.has_key('default'):
+        # apply the description, default, and callback
+        wdg.set_tooltip(param['desc'])
+        if old_pars != None and old_pars.has_key(param['name']):
+            old_value = param['type'](old_pars[param['name']])
+            setters[param['name']](old_value)
+        elif param.has_key('default'):
             setters[name](param['default'])
+        if callback != None:
+            try:
+                wdg.add_callback('activated', callback)
+            except CallbackError:
+                pass
         
         # surround the widget with text, if necessary
         if param.has_key('format'):
@@ -660,18 +687,21 @@ def build_dict_labels(dictionary):
     return grd
 
 
-def process_filename(filename, variables):
+def process_filename(filename, variables=None):
     """
     Take a filename and modifies it to account for any variables
     @param filename:
         The input filename to be processed
     @param variables:
-        The dictionary of variable names to variable values
+        The dictionary of defined variable names to values
     @returns:
         The updated filename
     @raises NameError:
         If there is an undefined variable
     """
+    if variables == None:
+        variables = read_variables()
+    
     # scan the filename for dollar signs
     while "$" in filename:
         ds_idx = filename.find("$")
@@ -695,6 +725,48 @@ def process_filename(filename, variables):
             raise NameError(err_msg)
     
     return filename
+
+
+def read_parameters():
+    """
+    Get the last parameters that were used for mesoffset
+    @returns:
+        A dictionary where keys are parameter names, and values are values,
+        or None if the file could not be found or was in the wrong format.
+    """
+    try:
+        output = {}
+        par_file = open(DIR_MCSRED+PAR_FILENAME, 'r')
+        line = par_file.readline().strip()
+        while line != "":
+            idx = line.index(',')
+            output[line[:idx]] = line[idx+1:]
+            line = par_file.readline().strip()
+        return output
+    except IOError:
+        return None # TODO: make this a catch-all once I know this works
+    except ValueError:
+        return None
+
+
+def read_variables():
+    """
+    Get the defined variable dictionary from mesoffset_directories.txt
+    @returns:
+        A dictionary where keys are variable names, and values are values
+    """
+    output = {}
+    try:
+        var_file = open(DIR_MCSRED+VAR_FILENAME, 'r')
+        line = var_file.readline()
+        while line != "":
+            words = line.split()
+            output[words[0]] = words[1]
+            line = var_file.readline()
+        var_file.close()
+    except IOError:
+        output["DATABASE"] = "../../MCSRED2/DATABASE"
+    return output
 
 #END
 
