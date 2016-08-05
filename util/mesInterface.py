@@ -652,7 +652,9 @@ def build_control_layout(controls, callback=None):
             setters[name] = wdg.set_value
         elif param['type'] == str:
             wdg = Widgets.TextEntry(editable=True)
-            wdg.set_text('')
+            wdg.set_text("")
+            if callback != None:
+                wdg.add_callback('activated', callback)
             getters[name] = wdg.get_text
             setters[name] = wdg.set_text
         elif param['type'] == bool:
@@ -663,7 +665,7 @@ def build_control_layout(controls, callback=None):
         else:
             raise TypeError("{} is not a valid par-type.".format(param['type']))
         
-        # apply the description, default, and callback
+        # apply the description and default
         wdg.set_tooltip(param['desc'])
         if old_pars != None and old_pars.has_key(param['name']):
             try:
@@ -673,11 +675,6 @@ def build_control_layout(controls, callback=None):
                 pass
         elif param.has_key('default'):
             setters[name](param['default'])
-        if callback != None:
-            try:
-                wdg.add_callback('activated', callback)
-            except CallbackError:
-                pass
         
         # surround the widget with text, if necessary
         if param.has_key('format'):

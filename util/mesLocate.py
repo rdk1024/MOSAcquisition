@@ -67,8 +67,8 @@ class MESLocate(object):
         self.click_index = -1       # index of the last click
         self.color_index = -1       # index of the current color
         self.current_obj = 0        # index of the current object
-        self.drag_history = [[]]*self.obj_num   # places we've click-dragged*
-        self.drag_index = [-1]*self.obj_num     # index of the current drag for each object
+        self.drag_history = [[]]    # places we've click-dragged*
+        self.drag_index = [-1]      # index of the current drag for each object
         self.drag_start = None      # the place where we most recently began to drag
         self.obj_centroids = np.zeros(self.obj_arr.shape)    # the new obj_arr based on user input and calculations
         self.square_size =  {'star':30, 'mask':60, 'starhole':20}[mode]  # the apothem of the search regions
@@ -158,11 +158,17 @@ class MESLocate(object):
         # increment the index
         self.click_index += 1
         self.color_index += 1
+        
         # if there are things saved ahead of this index (because of undo), clear them
         if self.click_index < len(self.click_history):
             self.click_history = self.click_history[:self.click_index]
         self.click_history.append((x,y))
         self.select_point(self.click_history[self.click_index])
+        
+        # also clear step2 variables
+        self.current_obj = 0
+        self.drag_history = [[]]*self.obj_num
+        self.drag_index = [-1]*self.obj_num
         return False
     
     
@@ -228,6 +234,11 @@ class MESLocate(object):
         self.select_point(self.click_history[self.click_index], True)
         self.zoom_in_on_current_obj()
         self.mark_current_obj()
+        
+        # in the event that there are masks here (because of the Back button)...
+        for i in range(self.obj_num):
+            for j in range(self.drag_index[i]+1):
+                self.draw_mask(*self.drag_history[i][j], obj_idx=i, drag_idx=j)
         
         # if interaction is turned off, immediately go to the next object
         if not self.interact:
@@ -402,9 +413,9 @@ class MESLocate(object):
             self.spinboxes['X'].set_value(x)
         if self.spinboxes['Y'].get_value() != y:
             self.spinboxes['Y'].set_value(y)
-                        
-                        
-    def draw_mask(self, xd1, yd1, xd2, yd2, kind):
+    
+    
+    def draw_mask(self, xd1, yd1, xd2, yd2, kind, obj_idx=None, drag_idx=None):
         """
         Draw the giant rectangles around an object being cropped
         @param xd1, yd1, xd2, yd2:
@@ -412,10 +423,20 @@ class MESLocate(object):
             (1) and the bottom-right-hand corner (2) of the drag
         @param kind:
             A string - either 'mask' for an ommission or 'crop' for an inclusion
+        @param obj_idx, drag_idx:
+            The indices of the object and drag (to use in the tag)
         """
+        # use current values for the indices if they are None
+        if obj_idx == None:
+            obj_idx = self.current_obj
+        if drag_idx == None:
+            drag_idx = self.drag_index[obj_idx]
+        t = tag(2, obj_idx, drag_idx)
+        
+        # draw whichever kind of mask it is
         if kind == 'crop':
             # calculate the coordinates of the drag and the outer box
-            xb1, yb1, xb2, yb2, r = self.get_current_box()
+            xb1, yb1, xb2, yb2, r = self.get_current_box(idx=obj_idx)
             kwargs = {'color':'black', 'fill':True, 'fillcolor':'black'}
             
             # then draw the thing as a CompoundObject
@@ -426,15 +447,13 @@ class MESLocate(object):
                                 self.dc.Rectangle(xd2, yd1, xb2, yd2, **kwargs),
                                 self.dc.Rectangle(xd1, yd1, xd2, yd2,
                                                   color='white')),
-                            tag=tag(2, self.current_obj,
-                                    self.drag_index[self.current_obj]))
+                            tag=t)
         elif kind == 'mask':
             self.canvas.add(self.dc.Rectangle(xd1, yd1, xd2, yd2, color='white',
                                               fill=True, fillcolor='black'),
-                            tag=tag(2, self.current_obj,
-                                    self.drag_index[self.current_obj]))
-        
-        
+                            tag=t)
+    
+    
     def zoom_in_on_current_obj(self):
         """
         Set the position and zoom level on fitsimage such that the user can
@@ -512,16 +531,21 @@ class MESLocate(object):
             return 1
         
     
-    def get_current_box(self):
+    def get_current_box(self, idx=None):
         """
         Calculates the bounds of the box surrounding the current object
         @precondition:
             This method only works in step 2
+        @param idx:
+            The object index at the instant that we need the box (defaults to
+            self.current_obj)
         @returns x1, y1, x2, y2, r:
             The float bounds and radius of the current box
         """
+        if idx == None:
+            idx = self.current_obj
         xf, yf = self.click_history[self.click_index]
-        dx, dy, r = self.obj_arr[self.current_obj]
+        dx, dy, r = self.obj_arr[idx]
         s = self.square_size
         if math.isnan(r):
             r = 1.42*s

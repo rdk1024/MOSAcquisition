@@ -181,8 +181,7 @@ def make_mosaic(input_data, c_file, terminate, log=nothing):
     @param log:
         A function that takes a single string argument and records it somehow
     @returns:
-        An astropy HDU object consisting of the new data and the updated header
-        or None if it terminates prematurely
+        A mosaiced numpy array comprising data from the two input_data arrays
     """
     # read MSCRED c_file
     cfg = open(c_file, 'r')
