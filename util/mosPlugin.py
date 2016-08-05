@@ -164,6 +164,10 @@ class MESPlugin(GingaPlugin.LocalPlugin):
             pass
         self.canvas.ui_setActive(False)
         self.clear_canvas()
+        
+        # call the termination event, if you have one
+        if hasattr(self, 'terminate'):
+            self.terminate.set()
     
     
     def redo(self):

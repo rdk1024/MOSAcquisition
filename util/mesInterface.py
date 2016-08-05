@@ -55,7 +55,7 @@ class MESInterface(object):
         proc_num = self.parameter_tabs.get_index()
         self.log("Starting MES Offset {}...".format(proc_num))
         try:
-            self.update_parameters(self.get_value[proc_num])
+            self.update_parameters(self.get_value[proc_num], proc_num == 0)
         except NameError as e:
             self.log("NameError: "+str(e), level='e')
             return
@@ -69,18 +69,20 @@ class MESInterface(object):
             self.manager.begin_mesoffset3()
     
     
-    def update_parameters(self, getters):
+    def update_parameters(self, getters, write_to_file=False):
         """
         Read parameter values from getters and save them in self.manager, as
         well as in MCSRED2/mesoffset.par
         Scan all strings for variables
         @param getters:
             The dictionary of getter methods for parameter values
+        @param write_to_file:
+            Whether we should write these parameters to the .par file
         @raises NameError:
             If one of the values contains an undefined variable
         """
         # if DIR_MCSRED is a directory, write to the parameter file in it
-        if os.path.isdir(DIR_MCSRED):
+        if write_to_file and os.path.isdir(DIR_MCSRED):
             par_file = open(DIR_MCSRED+PAR_FILENAME, 'w')
         else:
             par_file = None
@@ -88,12 +90,11 @@ class MESInterface(object):
         # now cycle through getters and update the file and manager
         new_params = {}
         for key, get_val in getters.items():
+            value = get_val()
             if par_file != None:
-                par_file.write('{},{}\n'.format(key,get_val()))
-            if type(get_val()) in (str, unicode):
-                value = process_filename(get_val(), self.variables)
-            else:
-                value = get_val()
+                par_file.write('{},{}\n'.format(key,value))
+            if type(value) in (str, unicode):
+                value = process_filename(value, self.variables)
             new_params[key] = value
         self.manager.database.update(new_params)
     
@@ -273,6 +274,16 @@ class MESInterface(object):
             self.log_textarea.append_text("CRIT: "+text+"\n", autoscroll=True)
             self.err_textarea.set_text("CRITICAL!\n"+text)
             self.go_to_gui('error')
+    
+    
+    def terminate_process_cb(self, *args):
+        """
+        Stop the process currently connected to self.manager.terminate,
+        wait for the process to receive the signal, and then go to the main menu
+        """
+        if hasattr(self.manager, 'terminate'):
+            if self.manager.terminate != None:
+                self.manager.terminate.set()
     
     
     def gui_list(self, orientation='vertical'):
@@ -507,14 +518,28 @@ class MESInterface(object):
         @returns:
             A Widget object containing all necessary buttons, labels, etc.
         """
-        # the only thing here is a gigantic text box
+        # there is a box with a single button
+        gui = Widgets.Box(orientation=orientation)
+        gui.set_spacing(4)
+        
+        # the 'log' is a gigantic text box
         scr = Widgets.ScrollArea()
+        gui.add_widget(scr, stretch=True)
         txt = Widgets.TextArea(wrap=False, editable=False)
         txt.set_font(self.manager.BODY_FONT)
         self.log_textarea = txt
         scr.set_widget(txt)
         
-        return scr
+        # underneath it is a 'Stop' button TODO: does this ruin the textbox size?
+        box = Widgets.HBox()
+        gui.add_widget(box)
+        btn = Widgets.Button("Stop")
+        btn.set_tooltip("Terminate the current process")
+        btn.add_callback('activated', self.terminate_process_cb)
+        box.add_widget(btn)
+        box.add_widget(Widgets.Label(''), stretch=True)
+        
+        return gui
     
     
     def make_gui_err(self, orientation='vertical'):
@@ -620,7 +645,7 @@ def build_control_layout(controls, callback=None):
             getters[name] = wdg.get_index
             setters[name] = wdg.set_index
         elif param['type'] == int:
-            wdg = Widgets.SpinBox()
+            wdg = Widgets.SpinBox(dtype=int)
             wdg.set_limits(0, 99999999)
             wdg.set_value(0)
             getters[name] = wdg.get_value
@@ -641,8 +666,11 @@ def build_control_layout(controls, callback=None):
         # apply the description, default, and callback
         wdg.set_tooltip(param['desc'])
         if old_pars != None and old_pars.has_key(param['name']):
-            old_value = param['type'](old_pars[param['name']])
-            setters[param['name']](old_value)
+            try:
+                old_value = param['type'](old_pars[param['name']])
+                setters[param['name']](old_value)
+            except ValueError:
+                pass
         elif param.has_key('default'):
             setters[name](param['default'])
         if callback != None:
@@ -743,10 +771,8 @@ def read_parameters():
             output[line[:idx]] = line[idx+1:]
             line = par_file.readline().strip()
         return output
-    except IOError:
-        return None # TODO: make this a catch-all once I know this works
-    except ValueError:
-        return None
+    except Exception as e:
+        pass
 
 
 def read_variables():

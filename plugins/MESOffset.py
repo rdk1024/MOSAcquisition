@@ -8,6 +8,7 @@
 
 # standard imports
 import os
+import threading
 
 # local imports
 from util import fitsUtils
@@ -492,6 +493,9 @@ class MESOffset(mosPlugin.MESPlugin):
             Whether new images should even be processed
         @param next_step:
             The function to be called when this is done
+        @returns:
+            A threading.Event object to be used if the user ever decides to
+            terminate the task
         @raises IOError:
             If the specified images cannot be found
         """
@@ -514,6 +518,7 @@ class MESOffset(mosPlugin.MESPlugin):
             self.go_to_gui('log')
             c, i = self.c_file, self.img_dir
             f = out_filename
+            e = threading.Event()
             l = self.mes_interface.log
             if mode == 'star':
                 n1, n2 = int(self.star_chip1), int(self.sky_chip1)
@@ -521,9 +526,10 @@ class MESOffset(mosPlugin.MESPlugin):
                 n1, n2 = int(self.starhole_chip1), int(self.mask_chip1)
             elif mode == 'mask':
                 n1, n2 = int(self.mask_chip1), None
-            task = lambda:fitsUtils.auto_process_fits(mode, n1, n2, c, i, f, l,
-                                                      next_step=next_step)
+            task = lambda: fitsUtils.auto_process_fits(mode,n1,n2,c,i,f,e,l,
+                                                       next_step=next_step)
             self.fv.nongui_do(task)
+            self.terminate = e
     
     
     def open_fits(self, filename, next_step=None):

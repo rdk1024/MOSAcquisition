@@ -25,6 +25,8 @@ WRONG_CHIP_ERR =   ("{} should be data from chip {}, but is from chip {}. Try "+
                         "a different frame number.")
 LOW_ELEV_WARN =   (u"{}MCSA{:08d}.fits has low elevation of {:.1f}\u00B0; the "+
                         "mosaicing database may not be applicable here.")
+USER_INTERRUPT_ERR = ("This process was terminated. Please press 'Return to "+
+                        "Menu' to start it over.")
 
 
 
@@ -33,7 +35,7 @@ def nothing(*args, **kwargs):
     pass
 
 
-def auto_process_fits(mode, n1, n2, c, i, f, log=nothing, next_step=None):
+def auto_process_fits(mode, n1, n2, c, i, f, t, log=nothing, next_step=None):
     """
     Use mode to choose a fitsUtils method and call it with the appropriate
     arguments
@@ -43,15 +45,17 @@ def auto_process_fits(mode, n1, n2, c, i, f, log=nothing, next_step=None):
     """
     try:
         if mode == 'mask':
-            process_mask_fits(n1, c, i, f, log, next_step=next_step)
+            process_mask_fits(n1, c, i, f, t, log, next_step=next_step)
         else:
-            process_star_fits(n1, n2, c, i, f, log, next_step=next_step)
+            process_star_fits(n1, n2, c, i, f, t, log, next_step=next_step)
+        if t.is_set():
+            raise RuntimeError(USER_INTERRUPT_ERR)
     except Exception as e:
         log("{}: {}".format(type(e).__name__, e), level='e')
 
 
 def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
-                      log=nothing, next_step=None
+                      terminate, log=nothing, next_step=None
                       ):
     """
     Process the raw star and background images by subtracting the background
@@ -67,11 +71,12 @@ def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
         The string prefix to all raw image filenames
     @param output_filename:
         The filename of the final FITS image
+    @param terminate:
+        The threading.Event object that flags True if the user tries to
+        terminate this thread
     @param log:
         A function which should take one argument, and will be called to report
         information
-    @param error:
-        A function that takes a single string argument in the event of an error
     @param next_step:
         The function to be called at the end of this process
     @raises IOError:
@@ -105,22 +110,22 @@ def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
         dif_data = [star_chip[i].data for i in (0,1)]
     
     # mosaic the chips together
-    mosaic_hdu = make_mosaic(dif_data, c_file, log=log)
+    if terminate.is_set():  return
+    mosaic_data = make_mosaic(dif_data, c_file, terminate, log=log)
+    if terminate.is_set():  return
     
     # apply gaussian blur
     log("Blurring...")
-    gaussian_filter(mosaic_hdu.data, 1.0, output=mosaic_hdu.data)
+    mosaic_data = gaussian_filter(mosaic_data, 1.0)
     
-    # write to file
-    mosaic_hdu.writeto(output_filename, clobber=True)
-    
-    # finish up with the provided callback
+    # write to file and go to next_step
+    fits.writeto(output_filename, mosaic_data, clobber=True)
     if next_step != None:
         next_step()
 
 
 def process_mask_fits(mask_num, c_file, img_dir, output_filename,
-                      log=nothing, next_step=None):
+                      terminate, log=nothing, next_step=None):
     """
     Process the raw mask frames by changing their data type and mosaicing them
     together
@@ -132,10 +137,11 @@ def process_mask_fits(mask_num, c_file, img_dir, output_filename,
         The prefix for all raw image filenames
     @param output_filename:
         The filename of the output FITS image
+    @param terminate:
+        The threading.Event that will flag True if the user tries to kill this
+        process
     @param log:
         The function that will be called whenever something interesting happens
-    @param error:
-        A function that takes a single string argument in the event of an error
     @param next_step:
         The function to be called at the end of this process
     @raises IOError:
@@ -150,12 +156,74 @@ def process_mask_fits(mask_num, c_file, img_dir, output_filename,
                                             img_dir, mask_num+chip), chip+1))
     
     # mosaic the reformatted results to a file
-    mosaic_hdu = make_mosaic([hdu.data for hdu in mask_chip], c_file, log=log)
-    mosaic_hdu.writeto(output_filename, clobber=True)
+    if terminate.is_set():  return
+    mosaic_data = make_mosaic([hdu.data for hdu in mask_chip], c_file,
+                              terminate, log=log)
+    if terminate.is_set():  return
     
-    # and you're done! go ahead to the next step
+    # finish up by writing to file and moving on
+    fits.writeto(output_filename, mosaic_data, clobber=True)
     if next_step != None:
         next_step()
+
+
+def make_mosaic(input_data, c_file, terminate, log=nothing):
+    """
+    Correct the images for distortion, and then combine the two FITS images by
+    rotating and stacking them vertically. Also do something to the header
+    @param input_data:
+        A sequence of two numpy 2D arrays to mosaic together
+    @param c_file:
+        The location of the configuration .cfg file that manages distortion-
+        correction
+    @param terminate:
+        The threading.Event object that will tell us when/if to terminate
+    @param log:
+        A function that takes a single string argument and records it somehow
+    @returns:
+        An astropy HDU object consisting of the new data and the updated header
+        or None if it terminates prematurely
+    """
+    # read MSCRED c_file
+    cfg = open(c_file, 'r')
+    config = []
+    line = cfg.readline()
+    while line != '':
+        if line[0] != '#':
+            config.append(line.split()[-1].replace('dir_mcsred$',DIR_MCSRED))
+        line = cfg.readline()
+    cfg.close()
+    
+    mosaic_data = [None,None]
+    if terminate.is_set():  return
+    
+    # XXX: stuff I haven't figured out how to do wiothout IRAF yet :XXX #
+    # correct for distortion and apply mask
+    log("Correcting for distortion...")
+    mosaic_data[0] = transform(input_data[0], config[2], config[3])
+    if terminate.is_set():  return
+    mosaic_data[1] = transform(input_data[1], config[4], config[5])
+    if terminate.is_set():  return
+    
+    log("Correcting for more distortion...")
+    mosaic_data[0] = transform(mosaic_data[0], config[8], config[9])
+    if terminate.is_set():  return
+    mosaic_data[1] = transform(mosaic_data[1], config[10], config[11])
+    if terminate.is_set():  return
+    
+    log("Masking bad pixels...")
+    mosaic_data[0] = apply_mask(mosaic_data[0], config[12])
+    if terminate.is_set():  return
+    mosaic_data[1] = apply_mask(mosaic_data[1], config[13])
+    if terminate.is_set():  return
+    # XXX: stuff I haven't figured out how to do wiothout IRAF yet :XXX #
+    
+    # combine and rotate the images
+    log("Combining the chips...")
+    mosaic_data = np.rot90(np.sum(mosaic_data, axis=0), k=3)
+    if terminate.is_set():  return
+    
+    return mosaic_data
 
 
 def open_fits(filename, chipnum):
@@ -185,51 +253,7 @@ def open_fits(filename, chipnum):
     return hdu
 
 
-def make_mosaic(input_data, c_file, log=nothing):
-    """
-    Correct the images for distortion, and then combine the two FITS images by
-    rotating and stacking them vertically. Also do something to the header
-    @param input_data:
-        A sequence of two numpy 2D arrays to mosaic together
-    @param c_file:
-        The location of the configuration .cfg file that manages distortion-
-        correction
-    @param log:
-        A function that takes a single string argument and records it somehow
-    @param error:
-        A function that takes a single string argument in the event of an error
-    @returns:
-        An astropy HDU object consisting of the new data and the updated header
-    """
-    # read MSCRED c_file
-    cfg = open(c_file, 'r')
-    config = []
-    line = cfg.readline()
-    while line != '':
-        if line[0] != '#':
-            config.append(line.split()[-1].replace('dir_mcsred$',DIR_MCSRED))
-        line = cfg.readline()
-    cfg.close()
-    
-    # correct for distortion and apply mask
-    # XXX: stuff I haven't figured out how to do wiothout IRAF yet :XXX #
-    log("Correcting for distortion...")
-    correct_data = [transform(input_data[0], config[2], config[3]),
-                    transform(input_data[1], config[4], config[5])]
-    log("Correcting for more distortion...")
-    shifted_data = [transform(correct_data[0], config[8], config[9]),
-                    transform(correct_data[1], config[10], config[11])]
-    log("Masking bad pixels...")
-    masked_data = [apply_mask(shifted_data[0], config[12]),
-                   apply_mask(shifted_data[1], config[13])]
-    # XXX: stuff I haven't figured out how to do wiothout IRAF yet :XXX #
-    
-    # combine and rotate the images
-    log("Combining the chips...")
-    mosaic_data = np.rot90(np.sum(masked_data, axis=0), k=3)
-    
-    return fits.PrimaryHDU(data=mosaic_data)
-
+# XXX: Methods that still use IRAF :XXX #
 
 def transform(input_arr, dbs_filename, gmp_filename):
     """
