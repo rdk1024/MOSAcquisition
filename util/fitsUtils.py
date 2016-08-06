@@ -119,7 +119,8 @@ def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
     mosaic_data = gaussian_filter(mosaic_data, 1.0)
     
     # write to file and go to next_step
-    fits.writeto(output_filename, mosaic_data, clobber=True)
+    fits.writeto(output_filename, mosaic_data, header=star_chip[0].header,
+                 clobber=True)
     if next_step != None:
         next_step()
 
@@ -162,7 +163,8 @@ def process_mask_fits(mask_num, c_file, img_dir, output_filename,
     if terminate.is_set():  return
     
     # finish up by writing to file and moving on
-    fits.writeto(output_filename, mosaic_data, clobber=True)
+    fits.writeto(output_filename, mosaic_data, header=mask_chip[0].header,
+                 clobber=True)
     if next_step != None:
         next_step()
 

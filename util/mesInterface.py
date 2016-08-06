@@ -134,6 +134,7 @@ class MESInterface(object):
         """
         Go back to the last parameter menu you were at - either 'epar' or 'wait'
         """
+        self.manager.clear_canvas()
         if self.last_wait_gui:
             self.go_to_gui('wait '+str(self.last_wait_gui))
         else:
@@ -282,8 +283,8 @@ class MESInterface(object):
         wait for the process to receive the signal, and then go to the main menu
         """
         if hasattr(self.manager, 'terminate'):
-            if self.manager.terminate != None:
-                self.manager.terminate.set()
+            self.manager.terminate.set()
+            self.log("Terminating process...")
     
     
     def gui_list(self, orientation='vertical'):
@@ -530,7 +531,7 @@ class MESInterface(object):
         self.log_textarea = txt
         scr.set_widget(txt)
         
-        # underneath it is a 'Stop' button TODO: does this ruin the textbox size?
+        # underneath it is a 'Stop' button
         box = Widgets.HBox()
         gui.add_widget(box)
         btn = Widgets.Button("Stop")

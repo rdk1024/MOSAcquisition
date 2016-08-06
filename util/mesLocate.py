@@ -860,7 +860,6 @@ def parse_data(data):
         and a single float tuple (absolute location of first object)
     """
     obj_list = []
-    obj0 = None
     
     for row in data:
         # for each line, get the important values and save them in obj_list
@@ -869,15 +868,13 @@ def parse_data(data):
             r = row[2]
         else:
             r = float('NaN')
-        
-        # if this is the first one, put something in obj0
-        if obj0 == None:
-            obj0 = (x, y)
-            obj_list.append([0, 0, r])
-        else:
-            obj_list.append([x - obj0[0], y - obj0[1], r])
-        
-    return np.array(obj_list), obj0
+        obj_list.append([x, y, r])
+    
+    # convert obj_list to ndarray, and extract obj0
+    obj_list = np.array(obj_list)
+    obj0 = (obj_list[0,0], obj_list[0,1])
+    obj_list[:,0:2] -= obj0
+    return obj_list, obj0
 
 
 def create_viewer_list(n, logger=None, width=120, height=120):    # 147x147 is approximately the size it will set it to, but I have to set it manually because otherwise it will either be too small or scale to the wrong size at certain points in the program. Why does it do this? Why can't it seem to figure out how big the window actually is when it zooms? I don't have a clue! It just randomly decides sometime after my plugin's last init method and before its first callback method, hey, guess what, the window is 194x111 now - should I zoom_fit again to match the new size? Nah, that would be TOO EASY. And of course I don't even know where or when or why the widget size is changing because it DOESN'T EVEN HAPPEN IN GINGA! It happens in PyQt4 or PyQt 5 or, who knows, maybe even Pyside. Obviously. OBVIOUSLY. GAGFAGLAHOIFHAOWHOUHOUH~~!!!!!
