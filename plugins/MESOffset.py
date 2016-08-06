@@ -481,6 +481,11 @@ class MESOffset(mosPlugin.MESPlugin):
     
     ### ----- END MESOFFSET METHODS ----- ###
     
+    def get_offset(self):
+        """ Return the values that we came here for """
+        return self.mes_analyze.offset
+    
+    
     def process_fits(self, mode, recalc=True, next_step=None):
         """
         Plug some values into fitsUtils and start a new thread to create a
