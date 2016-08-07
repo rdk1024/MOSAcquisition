@@ -1,0 +1,288 @@
+\documentclass[10pt]{article}
+
+\usepackage[utf8]{inputenc}
+
+\usepackage{amstext}
+\usepackage{amsmath}
+\usepackage{caption}
+\usepackage{dirtree}
+\usepackage{epstopdf}
+\usepackage{hyperref}
+\usepackage{fancyref}
+\usepackage{float}
+\usepackage{graphicx}
+\usepackage{varioref}
+\usepackage[section]{placeins}
+\usepackage{perpage}
+\usepackage[margin=1in, paperwidth=8.5in, paperheight=11in]{geometry}
+\MakeSorted{figure}
+
+\vrefwarning
+
+\title{MOIRCS Alignment Operation Guide}
+\author{Justin Kunimune}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+Subaru's Multi-Object InfraRed Camera and Spectrograph (MOIRCS) instrument is a one-of-a-kind device capable of measuring the infrared spectra of several targets simultaneously. It is a very touchy instrument, and must be constantly and finely adjusted to keep its measurements accurate. This guide will detail the use of the Ginga MESOffset plugin, designed for this purpose and written in the summer of 2016.
+
+\section{Starting a Process}
+
+\subsection{When to use MESOffset}
+
+You should run MESOffset at the beginning of observation, and run it continuously until the computer tells you that the telescope is lined-up closely enough with its targets. You should also run it again every 45-75 minutes to account for the shifting of the MOIRCS mask as the gravity vector on MOIRCS gradually changes.
+
+\subsection{Directory Structure}
+
+Several files must be in the correct place for this plugin to execute successfully, so here is a quick rundown of where everything should be:
+
+\dirtree{%
+    .1 moircs01.
+      .2 MCSRED2.
+        .3 DATABASE.
+          .4 ana\_aug16.cfg.
+        .3 MASK.
+        .3 mesoffset\_directories.txt.
+      .2 MOS\_log.
+        .3 \textit{2016AUG}.
+          .4 example.sbr.
+}
+\dirtree{%
+    .1 .ginga.
+      .2 plugins.
+        .3 MESOffset.py.
+      .2 util.
+        .3 fitsUtils.py.
+        .3 mesAnalyze.py.
+        .3 mesInterface.py.
+        .3 mesLocate.py.
+        .3 mosPlugin.py.
+}
+
+\texttt{2016AUG/}, in this case, is the directory from which you should launch Ginga, though its name will vary.
+Also of note is \texttt{mesoffset\_directories.txt}, which contains the locations of some basic directories. This may need to be updated periodically.
+
+\subsection{Opening Ginga}
+
+The first step is to run the plugin, and that requires running Ginga. Assuming MESOffset, Ginga, and all dependencies are already installed on a computer, this can be done from the command line. First, make sure the working directory is the directory that contains the mask definition (.sbr) file, which itself should be a sub-directory of \texttt{moircs01/MOS\_log/}. From here, the command
+\includegraphics[scale=0.8]{commandline}
+will start Ginga with the MESOffset plugin loaded, as shown in \fref{fig:ginga}. To start the plugin, click on the \lq Operation\rq\ button underneath the color-bar, and then select 'MESOffset'. This will present you with the screen shown in \fref{fig:mainmenu}
+
+\begin{figure}[!ht]
+	\centering
+	\includegraphics[width=.75\textwidth]{00ginga}
+	\caption{The blank Ginga window immediately after starting up}
+ 	\label{fig:ginga}
+\end{figure}
+
+\begin{figure}[!ht]
+	\centering
+	\includegraphics[width=.50\textwidth]{02mainmenu}
+	\caption{The screen shown upon starting MESOffset}
+ 	\label{fig:mainmenu}
+\end{figure}
+
+\subsection{Entering Parameters}
+
+The resulting dialogue on the right side of the screen has four tabs, one for each MOIRCS alignment procedure: MESOffset 0, MESOffset 1, MESOffset 2, and MESOffset3. The four dialogues are shown in \fref{fig:tabs}. Each has a set of input boxes and a \lq Go!\rq button, which launches one of the processes that will be described later.
+
+\begin{figure}[!ht]
+    \centering
+    \includegraphics[width=.2\textwidth]{epar0}
+    \includegraphics[width=.2\textwidth]{epar1}
+    \includegraphics[width=.2\textwidth]{epar2}
+    \includegraphics[width=.2\textwidth]{epar3}
+    \caption{The four MESOffset tabs, each with it unique set of parameters}
+    \label{fig:tabs}
+\end{figure}
+
+Before running a process, you must enter the listed parameters. Defaults will be filled in for some of them, but you should always check to make sure they are correct. For text inputs, any of the defined variables listed beneath the main interface can be used as shortcuts for file directories -- a dollar sign always precedes a variable, but they are not case-sensitive. The meaning of each parameter is shown when hovering over its label or input widget, but here are more detailed descriptions of them:
+
+\begin{description}
+
+    \item[Frame Number.] This is the number that appears in the file-names of the images output by Detector 1 of the telescope: \texttt{MSCA00XXXXXX.fits}. Each input specifies a certain type of image: \lq Star\rq\ means \lq taken without the mask while looking in the correct direction\rq, \lq Sky\rq\ means \lq without the mask while looking in the wrong direction\rq, \lq Mask\rq\ means \lq taken with the mask on and looking in the wrong direction\rq, and \lq Star-Hole\rq\ means \lq with the mask on, looking in the correct direction\rq. You may need to retake star and star-hole images as you run processes and get better and better alignment. If a sky or mask frame is not available, you can try setting it to zero, but it is strongly recommended that all requested images are provided. The Detector 1 frame number should always be odd.
+    
+    \item[Root Name.] This is the file-name of the SBR file, without the extension. The SBR file is used to get a rough guess at locating the stars, and its file-name is also used as the name of the log file that gets generated in the same directory.
+    
+    \item[Config File.] This is the full file-name of the CFG file that accounts for distortion and bad pixels in the telescope data, including its location. The CFG file is generated by IRAF, and contains the locations of all the DBS and PL files that describe polynomials to correct for distortion and matrices of bad pixels to be omitted.
+    
+    \item[Image Directory.] The directory that contains the images output by the telescope. This will probably be somewhere in the \texttt{/data/} directory, or in a relative directory, like \texttt{RAW/}.
+    
+    \item[Execution Mode.] \lq Normal\rq\ gets hole position data from MESOffset 1 and then begins alternating MESOffset 2 and MESOffset 3. If the telescope is already roughly aligned, you can skip to MESOffset 3 by setting Execution Mode to \lq Fine\rq. It's basically the same thing either way.
+    
+    \item[Regenerate.] Check this box if you want to process new composite images. This should only be unchecked if you have already run this process for these frames and want to skip the slow image-altering processes.
+    
+    \item[Interact.] Check this box if you want to have a chance to help the computer find centroids by omitting confusing pixels. This should only be checked if the image is simple and you are very confident in the computer's ability to distinguish objects from artifacts.
+
+\end{description}
+
+Once all parameters are satisfactory, press the \lq Go!\rq\ button to begin the process. If you are given an error, or decide the parameters weren't quite right, just return to the parameter menu, and all of your previous entries should still be there.
+
+\section{Running a Process}
+
+\subsection{MESOffset 0}
+
+MESOffset 0 is the shortest of the four processes, and exists only to facilitate running the other three programs in order. It will ask you for an abbreviated set of parameters, and, upon the press of the \lq Go!\rq\ button, will fill in parameters for the other three and take you to the one it thinks you should run first, depending on Execution Mode.
+
+\subsection{MESOffset 1}
+
+MESOffset 1 is the rough star and hole location process, and should be used as a first pass at establishing the positions of holes and stars. It begins by generating a composite star image, if Regenerate was on, by subtracting the sky frame from the star frame and putting the two detector images next to each other. This may take a minute; its progress will be shown in the menu shown in \fref{fig:log}.
+
+\begin{figure}[!ht]
+	\centering
+	\includegraphics[width=.50\textwidth]{05log}
+	\caption{The log of python's progress as it processes the raw FITS images into composite images}
+ 	\label{fig:log}
+\end{figure}
+
+Once the image is done, it will show the screen in \fref{fig:pick}. The user's job is to deduce which stars (white spots) the squares are trying to target, and click on the star corresponding to box 1. Upon left-clicking, the boxes will all move in sync with the pointer, and the pictures on the right will display the contents of the boxes. If a star is visible near the center of each box, this step has been completed correctly, and you may continue on by right-clicking or pressing \lq Next\rq. The \lq Undo\rq, \lq Redo\rq, and \lq Clear\rq\ buttons, as well as the \lq X position\rq\ and \lq Y position\rq\ spin-boxes, all modify the positions and appearances of the boxes, and exist to make the process easier.
+
+\begin{figure}[!ht]
+	\centering
+	\includegraphics[width=.75\textwidth]{07pick}
+	\caption{The first step of MESOffset 1: locating the stars}
+ 	\label{fig:pick}
+\end{figure}
+
+Next, if Interact was turned on, Ginga will zoom into the first star and try to mark its center with a green X and circle. If the star has been circled correctly, you may simply right-click or press \lq Next\rq\ to move on to the next one. If the center has been calculated incorrectly, though, it is your responsibility to omit the confusing pixels to help the computer get it right. Left-click-and-drag over the star to omit everything outside of a rectangle (crop), and middle-click-and-drag to omit the inside (mask), as shown in \fref{fig:mask}. You can also change the \lq Selection Mode\rq\ at the bottom of the dialogue to \lq Star\rq\ or \lq Mask\rq\ if you prefer to left-click-and-drag for everything. The image on the right will show you which pixels have been masked and which ones are above the threshold, to aid you in your masking.
+
+\begin{figure}[!ht]
+	\centering
+	\includegraphics[width=.75\textwidth]{10mask}
+	\caption{Using the \lq Mask\rq\ selection mode to omit the inside of a rectangle}
+ 	\label{fig:mask}
+\end{figure}
+
+Use \lq Undo\rq\ and \lq Redo\rq\ to delete and replace masks, cycle through the stars using \lq Back\rq\ and \lq Next\rq, and if one star proves too difficult for the computer to find, just press \lq Skip\rq\ to remove it from the data set. Pressing \lq Next\rq\ on the last star will automatically move onto the next step: reviewing the results.
+
+This part is self-explanatory, but I'll describe it anyway, for good measure. The text-box with the numbers shown in \fref{fig:check} contains the locations of the centroids calculated in the last step. The locations of all stars also remain marked on the main image. If the findings seem correct, right-click or press \lq Continue\rq\ to move on. If they seem wrong, press \lq Try Again\rq\ to re-measure the positions. If you decide that you need to choose different parameters, press \lq Star Over\rq\ to abort the process and go back to the parameters menu. Once you decide to continue, Ginga will begin the mask part of this process.
+
+\begin{figure}[!ht]
+	\centering
+	\includegraphics[width=.75\textwidth]{11check}
+	\caption{The display of MESOffset's results, before you move onto the next section}
+ 	\label{fig:check}
+\end{figure}
+
+The next dialogue, shown in \fref{fig:wait}, is similar to the parameter menu, but with fewer options. Ginga just needs to confirm the mask frame before continuing. Do not press \lq Go!\rq\ until the mask frames are loaded into the image directory. Pressing \lq Go!\rq from here will repeat everything from processing composite images to reviewing MESOffset's results, but for mask holes instead of stars. Once you have calculated the centers (and radii) of all the holes and accepted the findings, you will be shown the screen in \fref{fig:resviewer}.
+
+\begin{figure}[!ht]
+	\centering
+	\includegraphics[width=.50\textwidth]{12wait}
+	\caption{The dialogue that confirms some mask information before moving on}
+ 	\label{fig:wait}
+\end{figure}
+
+\begin{figure}[!ht]
+    \centering
+    \includegraphics[width=.75\textwidth]{15delete}
+    \caption{The residual vector field, with the longest one deleted}
+    \label{fig:resviewer}
+\end{figure}
+
+These vectors represent the residual, or how far the centroid of each object is from where it should be, given the offset values the computer has calculated. Each vector is also represented by a data point on each of the plots on the right. Green residuals have magnitudes of less than half a pixel, which means they fit the offset well. Yellow residuals have magnitudes between one half and one pixels, and are slightly off from where the computer thinks they should be. Red residuals have magnitudes of more than one pixel, and are usually outliers caused by incorrect centroid calculations. The computer automatically deletes any red residuals from the data set, turning them grey. You can delete any vector by right-clicking its base or corresponding point on the plots, and restore any vector by left-clicking. Each time you delete or restore a datum, the computer will recalculate offset. Once you are satisfied with the data set, press \lq Next\rq, beneath the plots, to get the values.
+
+The final values, shown in \fref{fig:values}, are the $\mathrm{d}x$, $\mathrm{d}y$, and $\mathrm{d}\theta$, are the current offset between the telescope and its targets. Enter the values into the ANA MOS Pointing Correction Window, shown in \fref{fig:ana}, to adjust the telescope. Once you are done, press \lq Finish\rq, and you will be returned to the main parameter menu.
+
+\begin{figure}[!ht]
+	\centering
+	\includegraphics[width=.50\textwidth]{16values}
+	\caption{The final offset values, ready to be entered into the MOS Pointing Correction Window}
+ 	\label{fig:values}
+\end{figure}
+
+\begin{figure}[!ht]
+	\centering
+	\includegraphics[scale=1.0]{20ana}
+	\caption{The MOS Pointing Correction Window, awaiting the offset values calculated by MESOffset}
+ 	\label{fig:ana}
+\end{figure}
+
+\subsection{MESOffset 2}
+
+MESOffset 2 should be run after MESOffset 1. It performs more precise offset calculation based on images of the stars inside the hole. It is shorter than MESOffset 1, since it uses hole position data from MESOffset 1 rather than finding hole positions itself. Besides that, there is only one significant difference between MESOffset 1 and 2: The circular masks when calculating centers.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=.75\textwidth]{17pinpoint}
+    \caption{Calculating the center of a star in MESOffset 2, with a circular mask around the hole}
+    \label{fig:pinpoint}
+\end{figure}
+
+Since these images are of stars seen through holes, the difference in brightness between the inside and outside of the holes can easily confuse the computer. For this reason, the mask around each hole is automatically masked, as shown in \fref{fig:pinpoint}, based on the hole position data from MESOffset 1. Unfortunately, since center calculations are never perfect, the bright edge of masks are often visible just inside the mask, such as in \fref{fig:crescent}. When this happens, offending regions must be omitted, if it interferes with the star location calculation.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=.75\textwidth]{18crescent}
+    \caption{An example of the bright edge of a mask hole (in this instance, it does not affect the calculation)}
+    \label{fig:crescent}
+\end{figure}
+
+The rest of MESOffset 2 is exactly the same as MESOffset 1. Once you get the offset values, input them to the ANA MOS Pointing Correction Window and move on to MESOffset 3.
+
+\subsection{MESOffset 3}
+
+MESOffset 3 is a finer version of MESOffset 1; it remeasures mask positions, in case the masks have shifted since the last MESOffset, and then remeasures star-hole frames. Every part of MESOffset 3 is in either MESOffset 1 or MESOffset 2, so I won't repeat myself.
+
+After MESOffset 3 runs, you will be directed back to MESOffset 2. Repeat these two processes until the offset reaches zero, indicating that the telescope is close enough. Remember to check your offset again at least once every 45-75 minutes.
+
+\section{Training}
+
+To test MESOffset, and to verify that you know how to use it, use the \texttt{TRAINING} directory. This folder contains a \texttt{RAW/} sub-directory, which contains old telescope files numbered 224763-224770. '63 and '64 are the star frames, '65 and '66 are the sky frames, '67 and '68 are the mask frames, and '69 and '70 are the star-hole frames. The corresponding SBR file is \texttt{sbr\_elaisn1rev.sbr}. Make sure when you run MESOffset that you change the Image Directory from its default value of \lq \texttt{\$DATA/}\rq\ to \lq \texttt{RAW/}\rq.
+
+\section{Errors}
+
+If an error is encountered at any point during a process, you will be redirected to the \lq Sumimasen! :(\rq\ page, shown in \fref{fig:error}. This menu contains a single button, which returns you to the main parameter menu. The following is a list of possible errors, what causes them, and how to resolve them.
+
+\subsection{Runtime Errors}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=.50\textwidth]{19error}
+    \caption{An error message, indicating a missing file or incorrect file-name}
+    \label{fig:error}
+\end{figure}
+
+\begin{description}
+
+    \item[IOError.] These are the easiest to come across, and are caused when the computer failed to find a file. This is most often caused by one of four things:
+    \begin{itemize}
+        \item The working directory is wrong,
+        \item the Image Directory is wrong,
+        \item the Frame Number or Config File is wrong,
+        \item or the directory structure is wrong.
+    \end{itemize}
+    To resolve this, simply look at the directory reported missing, and either make sure the file exists, or change one of your parameters to point the computer toward a file that does exist.
+    
+    \item[ValueError.] This is generally caused when the detector ID on one of the images was wrong. It simply means that your frame number was incorrect (probably even instead of odd), and that you should check which FITS images are which.
+    
+    \item[NameError.] This is thrown at the parameter menu if you used a dollar sign followed by an unrecognized variable name. Make sure the variable is spelled correctly, and followed by a slash if there is more text after it. If you did not intend to use a variable, then do not use a dollar sign. I mean, why would you? I don't think that's even a legal file-name character.
+    
+    \item[IrafError.] This is generally an IOError that occurs inside IRAF -- it means specifically that one of the DBS or PL files that only IRAF can read is missing. Address it the same way you would address an IOError.
+    
+\end{description}
+
+As far as I know, those are the only errors that this program can raise. If you get a different one, congratulations! I can't help you. Look at the error message and do some troubleshooting. Chances are either your parameters were wrong somehow, or a file has the wrong format.
+
+Once you have identified the problem, right-click or use the \lq Return to Menu\rq\ button to enter your new parameters and try again.
+
+\subsection{Other Notifications}
+
+At some point in the program, there is always a small chance that, if you have the command-line open, you will see a series of rapid print messages -- something along the lines of:
+
+{\fontfamily{cmtt}\selectfont
+    \indent QPainter::begin: Paint device returned engine == 0, type: 2\\
+    \indent QPainter::setPen: Painter not active\\
+    \indent QPainter::setBrush: Painter not active\\
+    \indent QPainter::begin: Paint device returned engine == 0, type: 2\\
+    \indent QPainter::setPen: Painter not active\\
+    \indent QPainter::setBrush: Painter not active
+}
+
+As far as I can tell, this is completely meaningless. You may ignore it.
+
+\end{document}
