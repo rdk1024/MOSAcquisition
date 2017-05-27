@@ -8,17 +8,22 @@
 
 
 # standard imports
+from __future__ import absolute_import
 import os
 from time import strftime
 
 # ginga imports
 from ginga.gw import Widgets
 from ginga.misc.Callback import CallbackError
+import six
 
 
 
 # constants
-DIR_MCSRED = '../../MCSRED2/'
+#DIR_MCSRED = '../../MCSRED2/'
+#DIR_MCSRED = os.path.join(os.environ['HOME'], 'Procedure/MOIRCS/MCSRED2/')
+DIR_MCSRED = '/home2/moircs01/MCSRED2/'
+DIR_PAR_VAR = os.environ['HOME']
 PAR_FILENAME = 'mesoffset_parameters.txt'
 VAR_FILENAME = 'mesoffset_directories.txt'
 
@@ -46,7 +51,8 @@ class MESInterface(object):
         self.last_wait_gui = 0      # the last 'wait' gui we were at
         self.variables = read_variables()   # defined variables
     
-    
+    def set_params(self, mcsred_dir):
+        self.variables['DATABASE'] = os.path.join(mcsred_dir, 'DATABASE')
     
     def start_process_cb(self, *args):
         """
@@ -55,7 +61,8 @@ class MESInterface(object):
         proc_num = self.parameter_tabs.get_index()
         self.log("Starting MES Offset {}...".format(proc_num))
         try:
-            self.update_parameters(self.get_value[proc_num], proc_num == 0)
+            #self.update_parameters(self.get_value[proc_num], proc_num == 0)
+            self.update_parameters(self.get_value[proc_num], False)
         except NameError as e:
             self.log("NameError: "+str(e), level='e')
             return
@@ -68,6 +75,11 @@ class MESInterface(object):
         elif proc_num == 3:
             self.manager.begin_mesoffset3()
     
+    def done_cb(self, *args):
+        self.logger.info('Done button pressed')
+        p = self.manager.callerInfo.get_data()
+        p.result = 'ok'
+        self.manager.callerInfo.resolve(0)
     
     def update_parameters(self, getters, write_to_file=False):
         """
@@ -81,9 +93,9 @@ class MESInterface(object):
         @raises NameError:
             If one of the values contains an undefined variable
         """
-        # if DIR_MCSRED is a directory, write to the parameter file in it
-        if write_to_file and os.path.isdir(DIR_MCSRED):
-            par_file = open(DIR_MCSRED+PAR_FILENAME, 'w')
+        # if DIR_PAR_VAR is a directory, write to the parameter file in it
+        if write_to_file and os.path.isdir(DIR_PAR_VAR):
+            par_file = open(os.path.join(DIR_PAR_VAR,PAR_FILENAME), 'w')
         else:
             par_file = None
         
@@ -93,7 +105,7 @@ class MESInterface(object):
             value = get_val()
             if par_file != None:
                 par_file.write('{},{}\n'.format(key,value))
-            if type(value) in (str, unicode):
+            if type(value) in (str, six.text_type):
                 value = process_filename(value, self.variables)
             new_params[key] = value
         self.manager.database.update(new_params)
@@ -238,7 +250,7 @@ class MESInterface(object):
         """
         setters = self.set_value[page_num]
         for key in setters:
-            if self.manager.database.has_key(key):
+            if key in self.manager.database:
                 setters[key](self.manager.database[key])
     
     
@@ -375,6 +387,11 @@ class MESInterface(object):
         btn.add_callback('activated', self.start_process_cb)
         btn.set_tooltip("Start "+name+" with the given parameters")
         box.add_widget(btn)
+        if self.manager.wait_gui:
+            btn = Widgets.Button("Done")
+            btn.add_callback('activated', self.done_cb)
+            btn.set_tooltip("Done with MESOffset")
+            box.add_widget(btn)
         box.add_widget(Widgets.Label(''), stretch=True)
         
         # space appropriately and return
@@ -438,6 +455,11 @@ class MESInterface(object):
         btn.add_callback('activated', self.resume_process_cb)
         btn.set_tooltip("Continue "+name+" with the given parameters")
         box.add_widget(btn)
+        if self.manager.wait_gui:
+            btn = Widgets.Button("Done")
+            btn.add_callback('activated', self.done_cb)
+            btn.set_tooltip("Done with MESOffset")
+            box.add_widget(btn)
         box.add_widget(Widgets.Label(''), stretch=True)
         
         # space appropriately and return
@@ -638,7 +660,7 @@ def build_control_layout(controls, callback=None):
         grd.add_widget(lbl, i, 0)
         
         # create a widget based on type
-        if param.has_key('options'):
+        if 'options' in param:
             wdg = Widgets.ComboBox()
             for option in param['options']:
                 wdg.append_text(option)
@@ -668,17 +690,17 @@ def build_control_layout(controls, callback=None):
         
         # apply the description and default
         wdg.set_tooltip(param['desc'])
-        if old_pars != None and old_pars.has_key(param['name']):
+        if old_pars != None and param['name'] in old_pars:
             try:
                 old_value = param['type'](old_pars[param['name']])
                 setters[param['name']](old_value)
             except ValueError:
                 pass
-        elif param.has_key('default'):
+        elif 'default' in param:
             setters[name](param['default'])
         
         # surround the widget with text, if necessary
-        if param.has_key('format'):
+        if 'format' in param:
             format_str = param['format']
             idx = format_str.index('{}')
             prefix = format_str[:idx]
@@ -737,7 +759,7 @@ def process_filename(filename, variables=None):
         var_name = filename[ds_idx+1:sl_idx]
         
         # if it is a defined variable, replace it
-        if variables.has_key(var_name.upper()):
+        if var_name.upper() in variables:
             filename = filename.replace("$"+var_name,
                                         variables[var_name.upper()])
         
@@ -762,7 +784,7 @@ def read_parameters():
     """
     try:
         output = {}
-        par_file = open(DIR_MCSRED+PAR_FILENAME, 'r')
+        par_file = open(os.path.join(DIR_PAR_VAR,PAR_FILENAME), 'r')
         line = par_file.readline().strip()
         while line != "":
             idx = line.index(',')
@@ -781,7 +803,7 @@ def read_variables():
     """
     output = {}
     try:
-        var_file = open(DIR_MCSRED+VAR_FILENAME, 'r')
+        var_file = open(os.path.join(DIR_PAR_VAR,VAR_FILENAME), 'r')
         line = var_file.readline()
         while line != "":
             words = line.split()
@@ -789,7 +811,8 @@ def read_variables():
             line = var_file.readline()
         var_file.close()
     except IOError:
-        output["DATABASE"] = "../../MCSRED2/DATABASE"
+        #output["DATABASE"] = "../../MCSRED2/DATABASE"
+        output["DATABASE"] = os.path.join(DIR_MCSRED, "DATABASE")
     return output
 
 #END

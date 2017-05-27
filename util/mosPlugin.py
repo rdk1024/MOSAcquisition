@@ -8,6 +8,7 @@
 
 
 # ginga imports
+from __future__ import absolute_import
 from ginga import GingaPlugin
 from ginga.gw import GwHelp, Widgets
 
@@ -73,7 +74,7 @@ class MESPlugin(GingaPlugin.LocalPlugin):
             self.fitsimage.center_image()
     
     
-    def build_gui(self, container):
+    def build_gui(self, container, future=None):
         """
         Called when the plugin is invoked; sets up all the components of the GUI
         One of the required LocalPlugin methods
@@ -110,7 +111,7 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         end.add_widget(Widgets.Label(''), stretch=True)
     
     
-    def start(self):
+    def start(self, future=None):
         """
         Called when the plugin is first invoked, right after build_gui()
         One of the required LocalPlugin methods
@@ -123,7 +124,10 @@ class MESPlugin(GingaPlugin.LocalPlugin):
         # clear the canvas
         self.canvas.delete_all_objects()
     
-    
+        # Save a reference to the "future" object so we MESInterface
+        # can use it later on.
+        self.callerInfo = future
+
     def close(self):
         """
         Called when the plugin is closed

@@ -8,6 +8,7 @@
 
 
 # standard imports
+from __future__ import absolute_import
 import os
 
 # third-party imports
@@ -15,9 +16,9 @@ from astropy.io import fits
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
 
-
 # constants
-DIR_MCSRED = '../../MCSRED2/'
+#DIR_MCSRED = '../../MCSRED2/'
+DIR_MCSRED = os.path.join(os.environ['HOME'], 'Procedure/MOIRCS/MCSRED2/')
 NO_SUCH_FILE_ERR = ("No such file or directory: {}\nPlease check your frame "+
                         "numbers and image directory, or run Ginga from a "+
                         "different directory.")
@@ -28,7 +29,25 @@ LOW_ELEV_WARN =   (u"{}MCSA{:08d}.fits has low elevation of {:.1f}\u00B0; the "+
 USER_INTERRUPT_ERR = ("This process was terminated. Please press 'Return to "+
                         "Menu' to start it over.")
 
+def iraf_login_cl():
+    # To be able to import the pyraf modules, there has to be a
+    # login.cl file in either $HOME or $HOME/.iraf. If there isn't,
+    # create $HOME/login.cl and put tell IRAF to load the "image"
+    # operators, which includes geotran and imcombine.
+    login_cl_filenames = [os.path.join(os.environ['HOME'],'login.cl'),
+                          os.path.join(os.environ['HOME'],'.iraf','login.cl')]
+    file_exists = False
+    for filename in login_cl_filenames:
+        if os.path.exists(filename):
+            file_exists = True
+    if not file_exists:
+        with open(login_cl_filenames[0], 'w') as outputfile:
+            outputfile.write('images  # general image operators\n')
 
+iraf_login_cl()
+from pyraf.iraf import geotran
+from pyraf.iraf import imcombine
+from pyraf.iraf import rotate
 
 def nothing(*args, **kwargs):
     """A placeholder function for log"""
@@ -95,7 +114,7 @@ def process_star_fits(star_num, back_num, c_file, img_dir, output_filename,
             log(LOW_ELEV_WARN.format(img_dir, star_num+i,
                                      star_chip[i].header['ALTITUDE']),
                 level='warning')
-    
+
     # subtract the background frames from the star frames
     log("Subtracting images...")
     if back_num != 0:
@@ -212,17 +231,24 @@ def make_mosaic(input_data, c_file, terminate, log=nothing):
     mosaic_data[1] = transform(mosaic_data[1], config[10], config[11])
     if terminate.is_set():  return
     
-    log("Masking bad pixels...")
-    mosaic_data[0] = apply_mask(mosaic_data[0], config[12])
+    # combine and rotate the images
+    log("Combining the chips and applying bad pixel mask...")
+
+    combined_image = combine_and_apply_mask(mosaic_data[0], mosaic_data[1],
+                                            config[12], config[13])
+
     if terminate.is_set():  return
-    mosaic_data[1] = apply_mask(mosaic_data[1], config[13])
+
+    log("Rotating the image...")
+    if os.path.exists('tempin.fits'):
+        os.remove('tempin.fits')
+    fits.PrimaryHDU(data=combined_image).writeto('tempin.fits', clobber=True)
+    rotate('tempin.fits', 'tempout.fits', 90.0, ncols=2048, nlines=3569)
+    mosaic_arr = fits.open('tempout.fits')[0].data
+    os.remove('tempin.fits')
+    os.remove('tempout.fits')
     if terminate.is_set():  return
     # XXX: stuff I haven't figured out how to do wiothout IRAF yet :XXX #
-    
-    # combine and rotate the images
-    log("Combining the chips...")
-    mosaic_arr = np.rot90(np.sum(mosaic_data, axis=0), k=3)
-    if terminate.is_set():  return
     
     return mosaic_arr
 
@@ -274,12 +300,9 @@ def transform(input_arr, dbs_filename, gmp_filename):
     @returns:
         The corrected numpy array
     """
-    from pyraf.iraf import geotran
-    
     if os.path.exists('tempout.fits'):
         os.remove('tempout.fits')
     fits.PrimaryHDU(data=input_arr).writeto("tempin.fits", clobber=True)
-    print dbs_filename
     geotran('tempin.fits', 'tempout.fits', dbs_filename, gmp_filename,
             verbose='no')
     output = fits.open('tempout.fits')[0].data
@@ -288,31 +311,40 @@ def transform(input_arr, dbs_filename, gmp_filename):
     return output
 
 
-def apply_mask(input_arr, pl_filename, mask_val=0):
+def combine_and_apply_mask(input1, input2, filename_mask1, filename_mask2, mask_val=0):
     """
     Replace all masked pixels with zero in the input array
-    @param input_arr:
-        The input numpy array
-    @param pl_filename:
-        Is it a Perl script? No. Well, it's some kind of text file, right? No.
-        This is a 'pixel list', and by that I mean binary image, and not a list
-        at all. It represents a mask. It has to pretend to be a Perl script
-        instead of an image so that no program besides IRAF can read it.
+    @param input1:
+        The input numpy array for chip 1
+    @param input2:
+        The input numpy array for chip 2
+    @param filename_mask1:
+        Filename of pixel mask for chip 1
+    @param filename_mask2:
+        Filename of pixel mask for chip 2
     @param mask_val:
         The value to put into all of the masked pixels
     """
-    from pyraf.iraf import imcombine
     
     if os.path.exists('tempout.fits'):
         os.remove('tempout.fits')
-    hdu = fits.PrimaryHDU(data=input_arr)
-    hdu.header['BPM'] = pl_filename
-    hdu.writeto('tempin.fits', clobber=True)
-    imcombine('tempin.fits', 'tempout.fits',
-              masktype='goodvalue', maskvalue=mask_val)
+
+    hdu = fits.PrimaryHDU(data=input1)
+    hdu.header['BPM'] = filename_mask1
+    hdu.writeto('tempin1.fits', clobber=True)
+
+    hdu = fits.PrimaryHDU(data=input2)
+    hdu.header['BPM'] = filename_mask2
+    hdu.writeto('tempin2.fits', clobber=True)
+
+    imcombine('tempin1.fits,tempin2.fits', 'tempout.fits',
+              combine='average', reject='avsig', masktype='goodvalue', maskvalue=mask_val)
     output = fits.open('tempout.fits')[0].data
-    os.remove('tempin.fits')
+
+    os.remove('tempin1.fits')
+    os.remove('tempin2.fits')
     os.remove('tempout.fits')
+
     return output
 
 #END

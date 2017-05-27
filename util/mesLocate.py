@@ -8,6 +8,7 @@
 
 
 # standard imports
+from __future__ import absolute_import
 import math
 
 # ginga imports
@@ -16,6 +17,7 @@ from ginga.gw import Widgets, Viewers
 # third-party imports
 import numpy as np
 from numpy import ma
+from six.moves import range
 
 
 
@@ -88,7 +90,10 @@ class MESLocate(object):
         elif mode == 'starhole':
             autocut_method = 'minmax'
             self.exp_obj_size = 4
-            self.square_size = np.amax(self.obj_arr[:,2])
+            # Use np.nanmax to ignore any objects with radius set to
+            # NaN (those are objects that were skipped over in the
+            # mask image step)
+            self.square_size = np.nanmax(self.obj_arr[:,2])
         
         # creates the list of thumbnails that will go in the GUI
         self.fitsimage.get_settings().set(autocut_method=autocut_method)
@@ -223,6 +228,14 @@ class MESLocate(object):
         self.set_callbacks(step=1)
         self.select_point(self.click_history[self.click_index])
     
+    def set_skip_btn_state(self):
+        # Disable Skip button for first object. First object is used
+        # as reference position and code gets confused if that object
+        # is skipped.
+        if self.current_obj == 0:
+            self.skip_btn.set_enabled(False)
+        else:
+            self.skip_btn.set_enabled(True)
     
     def step2_cb(self, *args):
         """
@@ -231,6 +244,8 @@ class MESLocate(object):
         # set everything up for the first object of step 2
         self.manager.go_to_gui('centroid')
         self.set_callbacks(step=2)
+        # Disable Skip button for first object.
+        self.set_skip_btn_state()
         self.select_point(self.click_history[self.click_index], True)
         self.zoom_in_on_current_obj()
         self.mark_current_obj()
@@ -252,6 +267,9 @@ class MESLocate(object):
         # if there is no previous object, return to step 1
         if self.current_obj > 0:
             self.current_obj -= 1
+            # Current object has changed, so set Skip button state
+            # based on current object number.
+            self.set_skip_btn_state()
             self.zoom_in_on_current_obj()
             self.mark_current_obj()
         else:
@@ -267,11 +285,25 @@ class MESLocate(object):
         if self.current_obj >= self.obj_num:
             self.finish()
             return
+        # Current object has changed, so set Skip button state based
+        # on current object number.
+        self.set_skip_btn_state()
+
+        x1, y1, x2, y2, r = self.get_current_box()
+        # Skip over current object if its x or y coordinates are NaN.
+        if math.isnan(x1) or math.isnan(y1) or math.isnan(x2) or math.isnan(y2):
+            self.obj_centroids[self.current_obj] = (np.nan, np.nan, np.nan)
+            self.current_obj += 1
+
+        if self.current_obj >= self.obj_num:
+            self.finish()
+            return
+        self.set_skip_btn_state()
             
         # if there is one, focus in on it
         self.zoom_in_on_current_obj()
         self.mark_current_obj()
-        
+
         # if interaction is turned off, immediately go to the next object
         if not self.interact:
             self.next_obj_cb()
@@ -409,6 +441,10 @@ class MESLocate(object):
         for i, viewer in enumerate(self.thumbnails):
             dx, dy, r = self.obj_arr[i]
             sq_size = self.square_size
+            # Skip this object if its dx or dy are NaN (this is an
+            # object that was skipped in previous step)
+            if math.isnan(dx) or math.isnan(dy):
+                continue
         
             # first, draw squares and numbers
             shapes.append(self.dc.SquareBox(x+dx, y+dy, sq_size, color=color))
@@ -771,6 +807,11 @@ class MESLocate(object):
         btn.add_callback('activated', self.skip_obj_cb)
         btn.set_tooltip("Remove this object from the data set")
         box.add_widget(btn)
+        # Save a reference to the Skip button because we need to be
+        # able to enable/disable it depending on which object is being
+        # displayed. First object cannot be skipped because code uses
+        # its coordinates as reference position.
+        self.skip_btn = btn
         
         # put in a spacer
         box.add_widget(Widgets.Label(""), stretch=True)
@@ -788,6 +829,7 @@ class MESLocate(object):
         com = Widgets.ComboBox()
         for text in SELECTION_MODES:
             com.append_text(text)
+        com.set_index(0)
         com.add_callback('activated', self.choose_select_cb)
         com.set_tooltip("Choose what happens when you click-drag")
         box.add_widget(com)
@@ -799,7 +841,7 @@ class MESLocate(object):
     
     
     @staticmethod
-    def read_sbr_file(filename):
+    def read_sbr_file(filename, logger):
         """
         Read the file and return the data within, structured as the position
         of the first star as well as the positions of the other stars
@@ -813,6 +855,7 @@ class MESLocate(object):
         try:
             sbr = open(filename, 'r')
         except IOError:
+            logger.warn('Warning: sbr file %s not found' % filename)
             return np.zeros((1,2))
         
         # declare some variables

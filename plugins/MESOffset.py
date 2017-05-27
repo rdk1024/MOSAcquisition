@@ -7,6 +7,7 @@
 
 
 # standard imports
+from __future__ import absolute_import
 import os
 import threading
 
@@ -32,11 +33,11 @@ class MESOffset(mosPlugin.MESPlugin):
     # main menu parameters
     PARAMS_0 = [
         {'name':'star_chip1',
-         'label':"Star Frame", 'type':int, 'format':"MCSA{}.fits",
+         'label':"Star Frame", 'type':int, 'format':"MCSA{}.fits", 'default':0,
          'desc':"The frame number for the chip1 star FITS image"},
         
         {'name':'rootname',
-         'label':"Root Name", 'type':str, 'format':"{}.sbr",
+         'label':"Root Name", 'type':str, 'format':"{}.sbr", 'default':'',
          'desc':"The filename of the mask definition SBR file"},
         
         {'name':'c_file',
@@ -201,7 +202,8 @@ class MESOffset(mosPlugin.MESPlugin):
         self.image_set_next_step = None
         self.fitsimage.add_callback('image-set', self.image_set_cb)
         
-        
+        self.training_dir = None
+        self.rootname_logfile = None
         
     def initialise(self, department):
         """
@@ -216,6 +218,33 @@ class MESOffset(mosPlugin.MESPlugin):
         department.dc        = self.dc
         department.manager   = self
     
+    def set_params(self, star_chip1, rootname, c_file, img_dir, exec_mode,
+                   mcsred_dir, training_dir, work_dir, wait_gui):
+
+        self.PARAMS_0[0]['default'] = int(star_chip1)
+        self.PARAMS_0[1]['default'] = rootname
+        self.PARAMS_0[2]['default'] = '$' + c_file
+        self.PARAMS_0[3]['default'] = img_dir
+        try:
+            exec_option = self.PARAMS_0[4]['options'].index(exec_mode.capitalize())
+        except ValueError:
+            exec_option = 0
+        self.PARAMS_0[4]['default'] = exec_option
+        self.mes_interface.set_params(mcsred_dir)
+        self.training_dir = training_dir
+        fitsUtils.DIR_MCSRED = mcsred_dir + '/'
+        self.work_dir = os.path.join(work_dir, 'MESOffset')
+        self.logger.info('work_dir is %s' % self.work_dir)
+        if os.path.isdir(self.work_dir):
+            self.logger.info('work_dir %s exists' % self.work_dir)
+        else:
+            self.logger.info('creating %s' % self.work_dir)
+            os.makedirs(self.work_dir)
+        self.rootname_logfile = os.path.join(self.work_dir, rootname+"_log")
+        self.wait_gui = wait_gui
+        self.logger.info('wait_gui input value %s self.wait_gui %s' % (wait_gui, self.wait_gui))
+        self.logger.info('after PARAMS_0 %s' % self.PARAMS_0)
+
     
     def stack_guis(self, stack, orientation='vertical'):
         """
@@ -288,13 +317,14 @@ class MESOffset(mosPlugin.MESPlugin):
     
     def mes_star(self, *args):
         """ Call MESLocate in star mode on the current image """
-        self.sbr_data = self.mes_locate.read_sbr_file(self.rootname+".sbr")
+        self.sbr_data = self.mes_locate.read_sbr_file(os.path.join(self.training_dir,self.rootname+".sbr"), self.logger)
         self.mes_locate.start(self.sbr_data, 'star', self.interact1,
                               next_step=self.check_mes_star)
     
     def check_mes_star(self, *args):
         """ Review the results from mes_star and give a chance to retry """
         self.star_locations = self.mes_locate.output_data[:,:2]
+        self.logger.debug('check_mes_star calling MESInterface.check with star_locations %s' % self.star_locations)
         self.mes_interface.check(self.star_locations,
                                  last_step=self.mes_star,
                                  next_step=self.wait_for_masks)
@@ -323,6 +353,7 @@ class MESOffset(mosPlugin.MESPlugin):
     def check_mes_hole(self, *args):
         """ Review the results from mes_hole and offer a chance to retry """
         self.hole_locations = self.mes_locate.output_data
+        self.logger.debug('check_mes_hole calling MESInterface.check with hole_locations %s' % self.hole_locations)
         self.mes_interface.check(self.hole_locations,
                                  last_step=self.mes_hole,
                                  next_step=self.res_viewer_1)
@@ -335,7 +366,7 @@ class MESOffset(mosPlugin.MESPlugin):
     def end_mesoffset1(self, *args):
         """ Finish off the first, rough, star/hole location """
         self.mes_interface.log("Done with MES Offset 1!\n")
-        self.mes_interface.write_to_logfile(self.rootname+"_log",
+        self.mes_interface.write_to_logfile(self.rootname_logfile,
                                             "MES Offset 1",
                                             self.mes_analyze.offset)
         self.database['starhole_chip1'] = self.star_chip1 + 6
@@ -373,12 +404,14 @@ class MESOffset(mosPlugin.MESPlugin):
     
     def mes_starhole(self, *args):
         """ Call MESLocate in starhole mode on the current image """
+        self.logger.debug('mes_starhole calling self.mes_locate.start with self.hole_locations as %s' % self.hole_locations)
         self.mes_locate.start(self.hole_locations, 'starhole', self.interact3,
                               next_step=self.check_mes_starhole)
     
     def check_mes_starhole(self, *args):
         """ Review the results from mes_hole and offer a chance to retry """
         self.star_locations = self.mes_locate.output_data[:,:2]
+        self.logger.debug('check_mes_starhole calling MESInterface.check with star_locations %s' % self.star_locations)
         self.mes_interface.check(self.star_locations,
                                  last_step=self.mes_starhole,
                                  next_step=self.res_viewer_2)
@@ -391,7 +424,7 @@ class MESOffset(mosPlugin.MESPlugin):
     def end_mesoffset2(self, *args):
         """ Finish off the second star-hole location """
         self.mes_interface.log("Done with MES Offset 2!\n")
-        self.mes_interface.write_to_logfile(self.rootname+"_log",
+        self.mes_interface.write_to_logfile(self.rootname_logfile,
                                             "MES Offset 2",
                                             self.mes_analyze.offset)
         self.database['mask_chip1'] = self.starhole_chip1+4
@@ -423,13 +456,14 @@ class MESOffset(mosPlugin.MESPlugin):
     
     def mes_hole_again(self, *args):
         """ Get hole positions on the new mask frame """
-        self.sbr_data = self.mes_locate.read_sbr_file(self.rootname+".sbr")
+        self.sbr_data = self.mes_locate.read_sbr_file(self.rootname+".sbr", self.logger)
         self.mes_locate.start(self.sbr_data, 'mask', self.interact4,
                               next_step=self.check_mes_hole_again)
     
     def check_mes_hole_again(self, *args):
         """ Review the results from mes_hole and offer a chance to retry """
         self.hole_locations = self.mes_locate.output_data
+        self.logger.debug('check_mes_hole_again calling MESInterface.check with hole_locations %s' % self.hole_locations)
         self.mes_interface.check(self.hole_locations,
                                  last_step=self.mes_hole_again,
                                  next_step=self.wait_for_starhole)
@@ -461,6 +495,7 @@ class MESOffset(mosPlugin.MESPlugin):
     def check_mes_starhole_again(self, *args):
         """ Review the results from mes_starhole and offer a chance to retry """
         self.star_locations = self.mes_locate.output_data[:,:2]
+        self.logger.debug('check_mes_starhole_again calling MESInterface.check with star_locations %s' % self.star_locations)
         self.mes_interface.check(self.star_locations,
                                  last_step=self.mes_starhole_again,
                                  next_step=self.res_viewer_3)
@@ -473,7 +508,7 @@ class MESOffset(mosPlugin.MESPlugin):
     def end_mesoffset3(self, *args):
         """ Finish off the third, fine star-hole location with updated masks """
         self.mes_interface.log("Done with MES Offset 3!\n")
-        self.mes_interface.write_to_logfile(self.rootname+"_log",
+        self.mes_interface.write_to_logfile(self.rootname_logfile,
                                             "MES Offset 3",
                                             self.mes_analyze.offset)
         self.database['starhole_chip1'] = self.starhole_chip1 + 2
@@ -504,7 +539,7 @@ class MESOffset(mosPlugin.MESPlugin):
         @raises IOError:
             If the specified images cannot be found
         """
-        out_filename = self.rootname+"_"+mode+".fits"
+        out_filename = os.path.join(self.work_dir, self.rootname+"_"+mode+".fits")
         
         # if regenerate is off, don't bother with any of this
         if not recalc:
@@ -545,8 +580,9 @@ class MESOffset(mosPlugin.MESPlugin):
         @param next_step:
             The function to call once the image has been loaded
         """
+        full_filename = os.path.join(self.work_dir, filename)
         self.image_set_next_step = next_step
-        self.fitsimage.make_callback('drag-drop', [filename])
+        self.fitsimage.make_callback('drag-drop', [full_filename])
     
     
     def image_set_cb(self, *args):

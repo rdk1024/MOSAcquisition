@@ -8,6 +8,7 @@
 
 
 # standard imports
+from __future__ import absolute_import
 import math
 
 # ginga imports
@@ -16,6 +17,7 @@ from ginga.util import plots
 
 # third-party imports
 import numpy as np
+from six.moves import range
 
 
 
@@ -168,8 +170,13 @@ class MESAnalyze(object):
             The x and y residuals in numpy array form
         """
         data = self.data[np.nonzero(self.active)]
-        
+
         # calculate the optimal transformation from the input data
+        # Algorithm is Kabsch algorithm for calculating the optimal
+        # rotation matrix that minimizes the RMSD (root mean squared
+        # deviation) between two paired sets of points. This code
+        # replaces the IRAF geomap task for the case when
+        # fitgeometry=rotate.
         centroid = np.mean(data, axis=0)
         data = data - centroid
         p_i = np.asmatrix(data[:, 0:2])
@@ -188,9 +195,9 @@ class MESAnalyze(object):
         yref = self.data[:, 1]
         xin  = self.data[:, 2]
         yin  = self.data[:, 3]
-        xcalc, ycalc = transform(xin, yin, self.transformation)
-        xres = xcalc - xref
-        yres = ycalc - yref
+        xcalc, ycalc = transform(xref, yref, self.transformation)
+        xres = xin - xcalc
+        yres = yin - ycalc
         
         # graph residual data on the plots
         plot_residual(self.plots[0], xref, xres, self.active, var_name="X")
@@ -483,13 +490,20 @@ def transform(x, y, trans):
     @returns:
         A tuple of the new x value array and the new y value array
         or NaN, NaN if trans was None
+    Algorithm is from IRAF geomap documentation at
+    http://stsdas.stsci.edu/cgi-bin/gethelp.cgi?geomap#description
     """
     if trans == None:
         return float('NaN'), float('NaN')
     
     xshift, yshift, thetaR = trans
-    newX = (x - xshift)*math.cos(thetaR) - (y - yshift)*math.sin(thetaR)
-    newY = (x - xshift)*math.sin(thetaR) + (y - yshift)*math.cos(thetaR)
+    b = math.cos(thetaR)
+    c = math.sin(thetaR)
+    e = -c
+    f = b
+    newX = xshift + b * x + c * y
+    newY = yshift + e * x + f * y
+
     return newX, newY
 
 
